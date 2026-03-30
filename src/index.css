@@ -1,0 +1,38 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #333;
+  background: #f7fafc;
+  -webkit-font-smoothing: antialiased;
+}
+
+body { margin: 0; padding: 0; }
+
+#root { min-height: 100vh; }
+
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  width: 100%;
+}
+
+h1, h2, h3, h4 {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.2;
+}
+
+a { color: inherit; }
+
+img { max-width: 100%; display: block; }
+
+button { font-family: inherit; }
+
+input, select, textarea { font-family: inherit; }
