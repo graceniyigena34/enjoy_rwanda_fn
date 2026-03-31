@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useApp } from "../context/AppContext";
-import { restaurants, shops } from "../data/mockData";
+import { useApp } from "../../context/AppContext";
+import { restaurants, shops } from "../../data/mockData";
 import "./Chat.css";
 
 interface Message {

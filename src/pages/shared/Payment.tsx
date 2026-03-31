@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../../context/AppContext";
 import "./Payment.css";
 
 type Method = "card" | "mtn" | "airtel" | "paypal";
@@ -60,7 +60,6 @@ export default function Payment() {
     <div className="payment-page">
       <h1>Secure Payment</h1>
       <div className="payment-layout">
-        {/* Method selector */}
         <div className="payment-form-section">
           <h3>Choose Payment Method</h3>
           <div className="method-tabs">
@@ -117,7 +116,6 @@ export default function Payment() {
           </form>
         </div>
 
-        {/* Order summary */}
         <div className="pay-summary">
           <h3>Order Summary</h3>
           {cart.map((item) => (

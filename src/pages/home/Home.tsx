@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { restaurants } from "../data/mockData";
+import { restaurants } from "../../data/mockData";
+import heroBg from "../../assets/hero.jpg";
 import "./Home.css";
 
 const cuisineFilters = ["All", "Rwandan", "International", "Asian", "African", "European"];
@@ -27,13 +28,16 @@ export default function Home() {
     <div className="home">
 
       {/* Hero */}
-      <section className="hero">
+      <section className="hero" style={{ backgroundImage: `url(${heroBg})` }}>
         <div className="hero-overlay" />
         <div className="hero-content">
           <h1>
             Experience the Best of <span className="hero-highlight">Rwanda</span>
           </h1>
-          <p>Shop authentic crafts delivered to your hotel or book the finest restaurants with a consumable deposit</p>
+          <p>
+            Shop authentic crafts delivered to your hotel or book the finest restaurants<br />
+            with a consumable deposit
+          </p>
 
           {/* Search card */}
           <div className="search-card">

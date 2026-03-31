@@ -10,6 +10,21 @@ export interface CartItem {
   image?: string;
 }
 
+export interface OrderItem {
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface Order {
+  id: string;
+  date: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  vendor: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -27,13 +42,69 @@ interface AppContextType {
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  orders: Order[];
+  saveOrder: (restaurantName: string, items: CartItem[]) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const initialOrders: Order[] = [
+  {
+    id: "ORD-001",
+    date: "2025-07-10",
+    items: [
+      { name: "Grilled Tilapia", price: 9000, quantity: 1 },
+      { name: "Isombe", price: 9000, quantity: 1 },
+    ],
+    total: 18000,
+    status: "delivered",
+    vendor: "Kigali Serena Restaurant",
+  },
+  {
+    id: "ORD-002",
+    date: "2025-07-08",
+    items: [
+      { name: "Agaseke Basket", price: 12000, quantity: 1 },
+      { name: "Rwandan Fabric", price: 11000, quantity: 1 },
+    ],
+    total: 23000,
+    status: "processing",
+    vendor: "Rwanda Craft Market",
+  },
+  {
+    id: "ORD-003",
+    date: "2025-07-05",
+    items: [
+      { name: "Rwandan Coffee (1kg)", price: 12000, quantity: 1 },
+    ],
+    total: 12000,
+    status: "confirmed",
+    vendor: "Kigali Fresh Market",
+  },
+];
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [user, setUser] = useState<User | null>(null);
+
+  const saveOrder = (restaurantName: string, items: CartItem[]) => {
+    if (items.length === 0) return;
+    const newOrder: Order = {
+      id: `ORD-${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      items: items.map((item) => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      })),
+      total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      status: "confirmed",
+      vendor: restaurantName,
+    };
+    setOrders((prev) => [...prev, newOrder]);
+    setCart((prev) => prev.filter((item) => item.vendorName !== restaurantName));
+  };
 
   const addToCart = (item: Omit<CartItem, "quantity">) => {
     setCart((prev) => {
@@ -57,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = () => setUser(null);
 
   return (
-    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, login, logout }}>
+    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, login, logout, orders, saveOrder }}>
       {children}
     </AppContext.Provider>
   );

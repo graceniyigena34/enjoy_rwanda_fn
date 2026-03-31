@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { shops } from "../data/mockData";
-import { useApp } from "../context/AppContext";
+import { shops } from "../../data/mockData";
+import { useApp } from "../../context/AppContext";
 import "./DetailPage.css";
 
 export default function ShopDetail() {

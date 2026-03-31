@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { restaurants } from "../data/mockData";
+import { restaurants } from "../../data/mockData";
 import "./ListPage.css";
 
 export default function Restaurants() {

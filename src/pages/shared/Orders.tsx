@@ -1,12 +1,6 @@
 import { Link } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../../context/AppContext";
 import "./Orders.css";
-
-const mockOrders = [
-  { id: "ORD-001", date: "2025-07-10", items: ["Grilled Tilapia", "Isombe"], total: 18000, status: "delivered", vendor: "Kigali Serena Restaurant" },
-  { id: "ORD-002", date: "2025-07-08", items: ["Agaseke Basket", "Rwandan Fabric"], total: 23000, status: "processing", vendor: "Rwanda Craft Market" },
-  { id: "ORD-003", date: "2025-07-05", items: ["Rwandan Coffee (1kg)"], total: 12000, status: "confirmed", vendor: "Kigali Fresh Market" },
-];
 
 const statusColor: Record<string, string> = {
   delivered: "#38a169",
@@ -16,7 +10,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { user } = useApp();
+  const { user, orders } = useApp();
 
   if (!user) {
     return (
@@ -31,7 +25,7 @@ export default function Orders() {
   return (
     <div className="orders-page">
       <h1>My Orders</h1>
-      {mockOrders.length === 0 ? (
+      {orders.length === 0 ? (
         <div className="orders-empty">
           <div className="empty-icon">📦</div>
           <h2>No orders yet</h2>
@@ -40,7 +34,7 @@ export default function Orders() {
         </div>
       ) : (
         <div className="orders-list">
-          {mockOrders.map((order) => (
+          {orders.map((order) => (
             <div key={order.id} className="order-card">
               <div className="order-header">
                 <div>
@@ -53,7 +47,7 @@ export default function Orders() {
               </div>
               <div className="order-body">
                 <p className="order-vendor">📍 {order.vendor}</p>
-                <p className="order-items">{order.items.join(", ")}</p>
+                <p className="order-items">{order.items.map((item) => item.name).join(", ")}</p>
               </div>
               <div className="order-footer">
                 <span className="order-total">{order.total.toLocaleString()} RWF</span>
