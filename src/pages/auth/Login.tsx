@@ -23,6 +23,7 @@ export default function Login() {
     login({ id: account.id, name: account.name, email: account.email, role: account.role });
     if (account.role === "vendor") navigate("/vendor");
     else if (account.role === "admin") navigate("/admin");
+    else if (account.role === "visitor") navigate("/visitor");
     else navigate("/");
   };
 
@@ -30,6 +31,7 @@ export default function Login() {
     login({ id: acc.id, name: acc.name, email: acc.email, role: acc.role });
     if (acc.role === "vendor") navigate("/vendor");
     else if (acc.role === "admin") navigate("/admin");
+    else if (acc.role === "visitor") navigate("/visitor");
     else navigate("/");
   };
 

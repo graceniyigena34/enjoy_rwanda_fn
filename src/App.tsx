@@ -15,6 +15,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import VisitorDashboard from "./pages/dashboard/VisitorDashboard";
 import About from "./pages/shared/About";
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
               <Route path="/orders" element={<Orders />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/visitor" element={<VisitorDashboard />} />
               <Route path="/vendor" element={<VendorDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/about" element={<About />} />

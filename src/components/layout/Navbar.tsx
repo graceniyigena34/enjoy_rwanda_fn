@@ -37,6 +37,7 @@ export default function Navbar() {
         <li><Link to="/shops" onClick={() => setMenuOpen(false)}>Shop</Link></li>
         <li><Link to="/restaurants" onClick={() => setMenuOpen(false)}>Restaurants</Link></li>
         <li><Link to="/about" onClick={() => setMenuOpen(false)}>About</Link></li>
+        {user?.role === "visitor" && <li><Link to="/visitor" onClick={() => setMenuOpen(false)}>Dashboard</Link></li>}
         {user?.role === "vendor" && <li><Link to="/vendor" onClick={() => setMenuOpen(false)}>Dashboard</Link></li>}
         {user?.role === "admin" && <li><Link to="/admin" onClick={() => setMenuOpen(false)}>Admin</Link></li>}
       </ul>
