@@ -27,18 +27,21 @@
 }
 
 .hero-content h1 {
-  font-size: 3.4rem;
+  font-size: clamp(1.6rem, 3.8vw, 3.4rem);
   font-weight: 800;
   margin: 0 0 1rem;
-  line-height: 1.1;
-  letter-spacing: -1px;
+  line-height: 1.15;
+  letter-spacing: -1.5px;
+  color: #fff;
+  white-space: nowrap;
 }
 
 .hero-highlight {
-  color: #1a1a2e;
-  background: rgba(255,255,255,0.15);
-  padding: 0 0.15em;
-  border-radius: 4px;
+  color: #fff;
+  background: #1a1a2e;
+  padding: 0.05em 0.2em;
+  border-radius: 6px;
+  display: inline-block;
 }
 
 .hero-content > p {
@@ -370,7 +373,7 @@
 }
 
 @media (max-width: 600px) {
-  .hero-content h1 { font-size: 2rem; }
+  .hero-content h1 { font-size: clamp(1rem, 5vw, 1.6rem); white-space: nowrap; }
   .search-row { flex-direction: column; }
   .restaurants-section { padding: 2rem 1rem; }
 }
