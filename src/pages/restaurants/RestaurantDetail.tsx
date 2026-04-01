@@ -15,7 +15,8 @@ export default function RestaurantDetail() {
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [bookingDone, setBookingDone] = useState(false);
-  const [added, setAdded] = useState<number | null>(null);
+  const [preOrder, setPreOrder] = useState<Record<number, number>>({});
+  const [preOrderDone, setPreOrderDone] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -32,17 +33,20 @@ export default function RestaurantDetail() {
       </div>
     );
 
-  const handleAddToCart = (item: typeof restaurant.menu[0]) => {
-    addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      vendorName: restaurant.name,
+  const updatePreOrder = (id: number, delta: number) => {
+    setPreOrder(prev => {
+      const qty = (prev[id] ?? 0) + delta;
+      if (qty <= 0) { const next = { ...prev }; delete next[id]; return next; }
+      return { ...prev, [id]: qty };
     });
-
-    setAdded(item.id);
-    setTimeout(() => setAdded(null), 1500);
   };
+
+  const preOrderTotal = Object.entries(preOrder).reduce((sum, [id, qty]) => {
+    const item = restaurant.menu.find(m => m.id === Number(id));
+    return sum + (item ? item.price * qty : 0);
+  }, 0);
+
+  const preOrderItems = Object.entries(preOrder).filter(([, qty]) => qty > 0);
 
   const handleBooking = (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,39 +239,81 @@ export default function RestaurantDetail() {
 
       {/* ================= MENU SECOND ================= */}
       {activeTab === "menu" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {restaurant.menu.map((item) => (
-            <div
-              key={item.id}
-              className="border border-gray-100 rounded-xl p-4 flex flex-col justify-between gap-3 hover:shadow-md"
-            >
-              <div>
-                <h4 className="font-bold text-gray-900 mb-1">
-                  {item.name}
-                </h4>
-                <p className="text-sm text-gray-500">
-                  {item.description}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-gray-900">
-                  {item.price.toLocaleString()} RWF
-                </span>
-
-                <button
-                  onClick={() => handleAddToCart(item)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${
-                    added === item.id
-                      ? "bg-green-500 text-white"
-                      : "bg-[#1a1a2e] text-white hover:bg-[#2d2d4e]"
-                  }`}
-                >
-                  {added === item.id ? "✓ Added" : "+ Add"}
-                </button>
+        <div>
+          {preOrderDone ? (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-4">🎉</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Pre-Order Placed!</h3>
+              <p className="text-gray-500 mb-2">Your food will be ready when you arrive.</p>
+              <p className="text-gray-700 font-semibold mb-6">Total: {preOrderTotal.toLocaleString()} RWF</p>
+              <div className="flex gap-3 justify-center">
+                <Link to="/payment" className="bg-[#1a1a2e] !text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e]">Proceed to Payment</Link>
+                <button onClick={() => { setPreOrder({}); setPreOrderDone(false); }} className="border border-gray-200 px-6 py-2.5 rounded-xl font-semibold text-gray-700 hover:border-gray-800">Order More</button>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="space-y-6">
+              {/* Menu Items */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {restaurant.menu.map(item => (
+                  <div key={item.id} className="border border-gray-100 rounded-xl p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
+                    <div>
+                      <h4 className="font-bold text-gray-900 mb-1">{item.name}</h4>
+                      <p className="text-sm text-gray-500">{item.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-gray-900">{item.price.toLocaleString()} RWF</span>
+                      <div className="flex items-center gap-2">
+                        {preOrder[item.id] ? (
+                          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                            <button onClick={() => updatePreOrder(item.id, -1)} className="px-3 py-1 text-gray-600 hover:bg-gray-100 font-bold">−</button>
+                            <span className="px-3 text-sm font-semibold text-gray-900">{preOrder[item.id]}</span>
+                            <button onClick={() => updatePreOrder(item.id, 1)} className="px-3 py-1 text-gray-600 hover:bg-gray-100 font-bold">+</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => updatePreOrder(item.id, 1)} className="bg-[#1a1a2e] !text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-[#2d2d4e]">+ Pre-Order</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Order Summary */}
+              {preOrderItems.length > 0 && (
+                <div className="border border-gray-200 rounded-2xl p-5 bg-gray-50">
+                  <h4 className="font-bold text-gray-900 mb-3">🧾 Your Pre-Order</h4>
+                  <div className="space-y-2 mb-4">
+                    {preOrderItems.map(([id, qty]) => {
+                      const item = restaurant.menu.find(m => m.id === Number(id))!;
+                      return (
+                        <div key={id} className="flex justify-between text-sm">
+                          <span className="text-gray-700">{item.name} × {qty}</span>
+                          <span className="font-semibold text-gray-900">{(item.price * qty).toLocaleString()} RWF</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-gray-200 pt-3 flex justify-between font-bold text-gray-900 mb-4">
+                    <span>Total</span>
+                    <span>{preOrderTotal.toLocaleString()} RWF</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      preOrderItems.forEach(([id, qty]) => {
+                        const item = restaurant.menu.find(m => m.id === Number(id))!;
+                        for (let i = 0; i < qty; i++) addToCart({ id: item.id, name: item.name, price: item.price, vendorName: restaurant.name });
+                      });
+                      setPreOrderDone(true);
+                    }}
+                    className="w-full bg-[#1a1a2e] !text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors"
+                  >
+                    Confirm Pre-Order
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
