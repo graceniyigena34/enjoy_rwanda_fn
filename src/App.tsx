@@ -15,16 +15,15 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
-import VisitorDashboard from "./pages/dashboard/VisitorDashboard";
 import About from "./pages/shared/About";
 
 function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <div className="app-wrapper">
+        <div className="flex flex-col min-h-screen">
           <Navbar />
-          <main className="main-content">
+          <main className="flex-1 w-full">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/restaurants" element={<Restaurants />} />
@@ -37,7 +36,6 @@ function App() {
               <Route path="/orders" element={<Orders />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/visitor" element={<VisitorDashboard />} />
               <Route path="/vendor" element={<VendorDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/about" element={<About />} />

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import "./Auth.css";
 
 const demoAccounts = [
   { email: "visitor@demo.com", password: "demo123", name: "Alice Uwase", role: "visitor" as const, id: 1 },
@@ -18,12 +17,11 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const account = demoAccounts.find((a) => a.email === email && a.password === password);
+    const account = demoAccounts.find(a => a.email === email && a.password === password);
     if (!account) { setError("Invalid email or password."); return; }
     login({ id: account.id, name: account.name, email: account.email, role: account.role });
     if (account.role === "vendor") navigate("/vendor");
     else if (account.role === "admin") navigate("/admin");
-    else if (account.role === "visitor") navigate("/visitor");
     else navigate("/");
   };
 
@@ -31,45 +29,52 @@ export default function Login() {
     login({ id: acc.id, name: acc.name, email: acc.email, role: acc.role });
     if (acc.role === "vendor") navigate("/vendor");
     else if (acc.role === "admin") navigate("/admin");
-    else if (acc.role === "visitor") navigate("/visitor");
     else navigate("/");
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-logo">🇷🇼</div>
-        <h1>Welcome Back</h1>
-        <p className="auth-sub">Sign in to your Enjoy Rwanda account</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
+      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-3">🇷🇼</div>
+          <h1 className="text-2xl font-black text-gray-900">Welcome Back</h1>
+          <p className="text-gray-500 text-sm mt-1">Sign in to your Enjoy Rwanda account</p>
+        </div>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>Email</label>
+        <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Email</label>
             <input type="email" placeholder="you@example.com" value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(""); }} required />
+              onChange={e => { setEmail(e.target.value); setError(""); }} required
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400 transition-colors" />
           </div>
-          <div className="form-group">
-            <label>Password</label>
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Password</label>
             <input type="password" placeholder="••••••••" value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(""); }} required />
+              onChange={e => { setPassword(e.target.value); setError(""); }} required
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400 transition-colors" />
           </div>
-          <button type="submit" className="btn-primary auth-btn">Login</button>
+          <button type="submit" className="w-full bg-[#1a1a2e] text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors">Login</button>
         </form>
 
-        <div className="auth-divider"><span>or try a demo account</span></div>
+        <div className="relative text-center mb-4">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+          <span className="relative bg-white px-3 text-xs text-gray-400">or try a demo account</span>
+        </div>
 
-        <div className="demo-accounts">
-          {demoAccounts.map((acc) => (
-            <button key={acc.id} className="demo-btn" onClick={() => quickLogin(acc)}>
-              <span className="demo-role">{acc.role}</span>
-              <span className="demo-email">{acc.email}</span>
+        <div className="space-y-2 mb-6">
+          {demoAccounts.map(acc => (
+            <button key={acc.id} onClick={() => quickLogin(acc)}
+              className="w-full flex items-center justify-between border border-gray-200 rounded-xl px-4 py-3 hover:border-gray-400 hover:bg-gray-50 transition-all">
+              <span className="text-xs font-bold uppercase text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{acc.role}</span>
+              <span className="text-sm text-gray-600">{acc.email}</span>
             </button>
           ))}
         </div>
 
-        <p className="auth-switch">Don't have an account? <Link to="/register">Register</Link></p>
+        <p className="text-center text-sm text-gray-500">Don't have an account? <Link to="/register" className="text-[#1a1a2e] font-semibold hover:underline">Register</Link></p>
       </div>
     </div>
   );

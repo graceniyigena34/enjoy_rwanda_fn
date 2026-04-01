@@ -1,65 +1,76 @@
 import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { restaurants } from "../../data/mockData";
 import { useApp } from "../../context/AppContext";
-import "./DetailPage.css";
 
 export default function RestaurantDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { addToCart, user, cart, saveOrder } = useApp();
-  const restaurant = restaurants.find((r) => r.id === Number(id));
+  const { addToCart } = useApp();
 
+  const restaurant = restaurants.find(r => r.id === Number(id));
+
+  // ✅ Default is BOOK
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
+
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
-  const [bookingName, setBookingName] = useState("");
-  const [guestCount, setGuestCount] = useState(1);
-  const [email, setEmail] = useState("");
-  const [menuQuery, setMenuQuery] = useState("");
-  const [telephone, setTelephone] = useState("");
-  const [specificCase, setSpecificCase] = useState("");
   const [bookingDone, setBookingDone] = useState(false);
   const [added, setAdded] = useState<number | null>(null);
-  const [orderSaved, setOrderSaved] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [people, setPeople] = useState(1);
+  const [specialRequests, setSpecialRequests] = useState("");
 
-  if (!restaurant) return <div className="not-found">Restaurant not found. <Link to="/restaurants">Go back</Link></div>;
-
-  const preOrders = cart.filter((item) => item.vendorName === restaurant?.name);
-  const preOrderTotal = preOrders.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const filteredMenu = restaurant.menu.filter((item) => item.name.toLowerCase().includes(menuQuery.toLowerCase()));
+  if (!restaurant)
+    return (
+      <div className="p-10 text-center">
+        Restaurant not found.{" "}
+        <Link to="/restaurants" className="text-blue-600 underline">
+          Go back
+        </Link>
+      </div>
+    );
 
   const handleAddToCart = (item: typeof restaurant.menu[0]) => {
-    if (!user) { navigate("/login"); return; }
-    addToCart({ id: item.id, name: item.name, price: item.price, vendorName: restaurant.name });
-    setAdded(item.id);
-    setOrderSaved(false);
-    setTimeout(() => setAdded(null), 1500);
-  };
+    addToCart({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      vendorName: restaurant.name,
+    });
 
-  const handleSaveOrder = () => {
-    if (!user) { navigate("/login"); return; }
-    if (preOrders.length === 0) return;
-    saveOrder(restaurant.name, preOrders);
-    setOrderSaved(true);
+    setAdded(item.id);
+    setTimeout(() => setAdded(null), 1500);
   };
 
   const handleBooking = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { navigate("/login"); return; }
-    if (!bookingDate || !bookingTime || !bookingName || !email || !telephone || guestCount < 1) return;
+
+    if (!bookingDate || !bookingTime || !guestName || !email || !telephone) return;
+
     setBookingDone(true);
   };
 
   return (
-    <div className="detail-page">
-      <div className="detail-hero">
-        <img src={restaurant.image} alt={restaurant.name} />
-        <div className="detail-hero-info">
-          <span className="badge">{restaurant.cuisine}</span>
-          <h1>{restaurant.name}</h1>
-          <p>{restaurant.description}</p>
-          <div className="meta-row">
+    <div className="max-w-5xl mx-auto px-6 py-10">
+      {/* Hero */}
+      <div className="flex flex-col md:flex-row gap-6 mb-8">
+        <img
+          src={restaurant.image}
+          alt={restaurant.name}
+          className="w-full md:w-80 h-56 object-cover rounded-2xl"
+        />
+        <div className="flex flex-col justify-center">
+          <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium w-fit mb-2">
+            {restaurant.cuisine}
+          </span>
+          <h1 className="text-3xl font-black text-gray-900 mb-2">
+            {restaurant.name}
+          </h1>
+          <p className="text-gray-500 mb-3">{restaurant.description}</p>
+
+          <div className="flex gap-4 text-sm text-gray-500 flex-wrap">
             <span>📍 {restaurant.location}</span>
             <span>⭐ {restaurant.rating}</span>
             <span>💰 {restaurant.priceRange}</span>
@@ -67,130 +78,196 @@ export default function RestaurantDetail() {
         </div>
       </div>
 
-      <div className="detail-tabs">
-        <button className={activeTab === "book" ? "active" : ""} onClick={() => setActiveTab("book")}>📅 Book</button>
-        <button className={activeTab === "menu" ? "active" : ""} onClick={() => setActiveTab("menu")}>👀 View Menu</button>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-gray-200 mb-6">
+        {/* ✅ Book first */}
+        {(["book", "menu"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`px-6 py-3 text-sm font-semibold border-b-2 -mb-px transition-all ${
+              activeTab === t
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-400 hover:text-gray-700"
+            }`}
+          >
+            {t === "menu" ? "🍽️ View Menu" : "📅 Book"}
+          </button>
+        ))}
       </div>
 
-      {activeTab === "menu" && (
-        <div>
-          <div className="menu-header">
-            <h3>Order List</h3>
-            <p>Your current restaurant food order list appears here. Add items from the menu below.</p>
-          </div>
-
-          <form className="menu-form" onSubmit={(e) => e.preventDefault()}>
-            <div className="form-group">
-              <label htmlFor="menuQuery">Search Menu</label>
-              <input
-                id="menuQuery"
-                type="text"
-                value={menuQuery}
-                onChange={(e) => setMenuQuery(e.target.value)}
-                placeholder="Search food by name"
-              />
-            </div>
-          </form>
-
-          <div className="preorder-section">
-            {preOrders.length === 0 ? (
-              <p className="preorder-empty">No items in your order list yet. Add foods from the menu below to start your order.</p>
-            ) : (
-              <div className="preorder-list">
-                {preOrders.map((item) => (
-                  <div key={item.id} className="preorder-item">
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p>{item.quantity} x {item.price.toLocaleString()} RWF</p>
-                    </div>
-                    <span className="preorder-total">{(item.price * item.quantity).toLocaleString()} RWF</span>
-                  </div>
-                ))}
-                <div className="preorder-summary">
-                  <span>Total</span>
-                  <strong>{preOrderTotal.toLocaleString()} RWF</strong>
-                </div>
-                <button type="button" className="btn-primary" onClick={handleSaveOrder}>
-                  Save Order
-                </button>
-                {orderSaved && <p className="save-order-message">Order saved successfully.</p>}
-              </div>
-            )}
-          </div>
-
-          <div className="menu-grid">
-            {filteredMenu.map((item) => (
-              <div key={item.id} className="menu-item">
-                <div>
-                  <h4>{item.name}</h4>
-                  <p>{item.description}</p>
-                </div>
-                <div className="menu-item-footer">
-                  <span className="price">{item.price.toLocaleString()} RWF</span>
-                  <button className={`btn-add ${added === item.id ? "added" : ""}`} onClick={() => handleAddToCart(item)}>
-                    {added === item.id ? "✓ Added" : "Add to Order"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* ================= BOOKING FIRST ================= */}
       {activeTab === "book" && (
-        <div className="booking-section">
+        <div>
           {bookingDone ? (
-            <div className="success-box">
-              <div className="success-icon">✅</div>
-              <h3>Booking Confirmed!</h3>
-              <p>{bookingName}, your reservation for {guestCount} people is confirmed on {bookingDate} at {bookingTime}.</p>
-              <p>We will contact you at {email} or {telephone}.</p>
-              {specificCase && <p>Special request: {specificCase}</p>}
-              <div className="success-actions">
-                <Link to="/payment" className="btn-primary">Proceed to Payment</Link>
-                <button className="btn-outline" onClick={() => { setBookingDone(false); setActiveTab("menu"); }}>View Menu</button>
-                <button className="btn-outline" onClick={() => { setBookingDone(false); }}>Book Another</button>
+            <div className="text-center py-12">
+              <div className="text-5xl mb-4">✅</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                Booking Confirmed!
+              </h3>
+              <p className="text-gray-500 mb-6">
+                Hi <strong>{guestName}</strong>, your table is reserved for {people} {people === 1 ? "person" : "people"} on {bookingDate} at {bookingTime}
+              </p>
+
+              <div className="flex gap-3 justify-center">
+                <Link
+                  to="/payment"
+                  className="bg-[#1a1a2e] !text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e]"
+                >
+                  Proceed to Payment
+                </Link>
+                <button
+                  onClick={() => {
+                    setBookingDone(false);
+                    setGuestName("");
+                    setEmail("");
+                    setTelephone("");
+                    setPeople(1);
+                    setSpecialRequests("");
+                    setBookingDate("");
+                    setBookingTime("");
+                    setActiveTab("menu");
+                  }}
+                  className="border border-gray-200 px-6 py-2.5 rounded-xl font-semibold text-gray-700 hover:border-gray-800"
+                >
+                  🍽️ View Menu
+                </button>
               </div>
             </div>
           ) : (
-            <form className="booking-form" onSubmit={handleBooking}>
-                <div className="form-row">
-                <div className="form-group">
-                  <label>Name</label>
-                  <input type="text" value={bookingName} onChange={(e) => setBookingName(e.target.value)} required />
+            <form onSubmit={handleBooking} className="space-y-5">
+              {/* Name & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={guestName}
+                    onChange={e => setGuestName(e.target.value)}
+                    placeholder="John Doe"
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                  />
                 </div>
-                <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Telephone</label>
-                  <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label>Number of People</label>
-                  <input type="number" min={1} value={guestCount} onChange={(e) => setGuestCount(Number(e.target.value))} required />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Date</label>
-                  <input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} min={new Date().toISOString().split("T")[0]} required />
-                </div>
-                <div className="form-group">
-                  <label>Time</label>
-                  <input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} required />
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                  />
                 </div>
               </div>
-              <div className="form-group">
-                <label>Specific Case</label>
-                <textarea value={specificCase} onChange={(e) => setSpecificCase(e.target.value)} rows={3} placeholder="Any special requests or details" />
+
+              {/* Telephone & Number of People */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Telephone</label>
+                  <input
+                    type="tel"
+                    value={telephone}
+                    onChange={e => setTelephone(e.target.value)}
+                    placeholder="+250 7XX XXX XXX"
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Number of People</label>
+                  <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                    <button type="button" onClick={() => setPeople(p => Math.max(1, p - 1))} className="px-4 py-2.5 text-lg font-bold text-gray-600 hover:bg-gray-100 transition-colors">−</button>
+                    <span className="flex-1 text-center text-sm font-semibold text-gray-900">{people}</span>
+                    <button type="button" onClick={() => setPeople(p => Math.min(20, p + 1))} className="px-4 py-2.5 text-lg font-bold text-gray-600 hover:bg-gray-100 transition-colors">+</button>
+                  </div>
+                </div>
               </div>
-              <button type="submit" className="btn-primary">Confirm Booking</button>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={bookingDate}
+                    onChange={e => setBookingDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={bookingTime}
+                    onChange={e => setBookingTime(e.target.value)}
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* Special Requests */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Special Requests</label>
+                <textarea
+                  value={specialRequests}
+                  onChange={e => setSpecialRequests(e.target.value)}
+                  placeholder="Allergies, dietary requirements, special occasions..."
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400 resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#1a1a2e] text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors"
+              >
+                Confirm Booking
+              </button>
             </form>
           )}
+        </div>
+      )}
+
+      {/* ================= MENU SECOND ================= */}
+      {activeTab === "menu" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {restaurant.menu.map((item) => (
+            <div
+              key={item.id}
+              className="border border-gray-100 rounded-xl p-4 flex flex-col justify-between gap-3 hover:shadow-md"
+            >
+              <div>
+                <h4 className="font-bold text-gray-900 mb-1">
+                  {item.name}
+                </h4>
+                <p className="text-sm text-gray-500">
+                  {item.description}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900">
+                  {item.price.toLocaleString()} RWF
+                </span>
+
+                <button
+                  onClick={() => handleAddToCart(item)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                    added === item.id
+                      ? "bg-green-500 text-white"
+                      : "bg-[#1a1a2e] text-white hover:bg-[#2d2d4e]"
+                  }`}
+                >
+                  {added === item.id ? "✓ Added" : "+ Add"}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
