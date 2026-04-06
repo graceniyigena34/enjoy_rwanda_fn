@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 
 const mockUsers = [
@@ -23,10 +23,16 @@ const navItems: { tab: Tab; icon: string; label: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { user } = useApp();
+  const { user, logout } = useApp();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [vendors, setVendors] = useState(mockVendors);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const handleSignOut = () => {
+    logout();
+    navigate("/login");
+  };
 
   const pendingApprovals = vendors.filter(v => v.status === "pending").length;
   const approvedVendors = vendors.filter(v => v.status === "approved").length;
@@ -83,6 +89,14 @@ export default function AdminDashboard() {
                 <p className="text-xs text-white/50">Admin</p>
               </div>
             )}
+            <button
+              onClick={handleSignOut}
+              className={`ml-auto rounded-xl border border-white/20 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 ${sidebarOpen ? "" : "px-2"}`}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              {sidebarOpen ? "Sign out" : "⎋"}
+            </button>
           </div>
         </div>
       </aside>

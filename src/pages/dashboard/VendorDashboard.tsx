@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 
 type Tab = "overview" | "profile" | "business" | "menu" | "bookings" | "orders";
@@ -53,7 +53,13 @@ const initialMenu: MenuItem[] = [
 ];
 
 export default function VendorDashboard() {
-  const { user } = useApp();
+  const { user, logout } = useApp();
+  const navigate = useNavigate();
+
+  const handleSignOut = () => {
+    logout();
+    navigate("/login");
+  };
 
   const storageKey = useMemo(() => (user ? `enjoy-rwanda.vendorDashboard.v1.${user.id}` : null), [user]);
   const storedState = useMemo(() => {
@@ -304,6 +310,12 @@ export default function VendorDashboard() {
             <div className="flex flex-wrap gap-3">
               <div className="rounded-3xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-100">Role: Vendor</div>
               <div className="rounded-3xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-100">Status: {accountReady ? "Ready" : "Setup required"}</div>
+              <button
+                onClick={handleSignOut}
+                className="rounded-3xl border border-white/20 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Sign out
+              </button>
             </div>
           </div>
           <div className="mt-8 rounded-3xl bg-white/10 p-5">
