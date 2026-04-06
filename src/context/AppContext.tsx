@@ -44,6 +44,8 @@ interface AppContextType {
   logout: () => void;
   orders: Order[];
   saveOrder: (restaurantName: string, items: CartItem[]) => void;
+  darkMode: boolean;
+  toggleDark: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -87,6 +89,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [user, setUser] = useState<User | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  const toggleDark = () => {
+    setDarkMode(prev => {
+      const next = !prev;
+      document.documentElement.classList.toggle('dark', next);
+      return next;
+    });
+  };
 
   const saveOrder = (restaurantName: string, items: CartItem[]) => {
     if (items.length === 0) return;
@@ -128,7 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = () => setUser(null);
 
   return (
-    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, login, logout, orders, saveOrder }}>
+    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, login, logout, orders, saveOrder, darkMode, toggleDark }}>
       {children}
     </AppContext.Provider>
   );

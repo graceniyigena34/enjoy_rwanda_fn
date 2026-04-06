@@ -66,11 +66,11 @@ export default function RestaurantDetail() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Hero */}
-      <div className="flex flex-col md:flex-row gap-6 mb-8">
-        <div className="flex flex-col gap-4">
-          <img src={displayImage} alt={restaurant.name} className="w-full md:w-80 h-56 object-cover rounded-2xl" />
+      <div className="flex flex-col md:flex-row gap-6 mb-6">
+        <div className="flex flex-col gap-3">
+          <img src={displayImage} alt={restaurant.name} className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl" />
           <label className="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-300 cursor-pointer shadow-sm">
             Upload restaurant image
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -90,7 +90,7 @@ export default function RestaurantDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 mb-6">
+      <div className="flex gap-2 border-b border-gray-200 mb-6 overflow-x-auto">
         {(["book", "menu"] as const).map(t => (
           <button
             key={t}
@@ -114,8 +114,8 @@ export default function RestaurantDetail() {
               <p className="text-gray-500 mb-6">
                 Hi <strong>{guestName}</strong>, your table is reserved for {people} {people === 1 ? "person" : "people"} on {bookingDate} at {bookingTime}
               </p>
-              <div className="flex gap-3 justify-center">
-                <Link to="/payment" className="bg-[#1a1a2e] !text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e]">Proceed to Payment</Link>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link to="/payment" className="bg-[#1a1a2e] !text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e] text-center">Proceed to Payment</Link>
                 <button
                   onClick={() => { setBookingDone(false); setGuestName(""); setEmail(""); setTelephone(""); setPeople(1); setSpecialRequests(""); setBookingDate(""); setBookingTime(""); setActiveTab("menu"); }}
                   className="border border-gray-200 px-6 py-2.5 rounded-xl font-semibold text-gray-700 hover:border-gray-800"
@@ -256,8 +256,8 @@ export default function RestaurantDetail() {
             )}
           </div>
 
-          {/* RIGHT: Order Summary */}
-          <div className="lg:w-72 shrink-0">
+          {/* RIGHT: Order Summary — shown below menu on mobile */}
+          <div className="lg:w-72 shrink-0 order-first lg:order-last">
             <div className="sticky top-24 border border-gray-200 rounded-2xl p-5 bg-gray-50">
               <h2 className="font-bold text-gray-900 mb-4">🧾 Your Pre-Order</h2>
 
