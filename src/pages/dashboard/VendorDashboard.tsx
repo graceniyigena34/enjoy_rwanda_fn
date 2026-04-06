@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import type { VendorApprovalStatus } from "../../utils/vendorApprovalStorage";
+import { getVendorApplication, upsertVendorApplication } from "../../utils/vendorApprovalStorage";
 
 type Tab = "overview" | "profile" | "business" | "menu" | "bookings" | "orders";
 type Booking = { id: number; visitor: string; table: string; date: string; time: string; status: "pending" | "confirmed" | "cancelled" };
@@ -60,6 +62,14 @@ export default function VendorDashboard() {
     logout();
     navigate("/login");
   };
+
+  const initialApprovalStatus = useMemo<VendorApprovalStatus>(() => {
+    if (!user) return "draft";
+    const existing = getVendorApplication(user.id);
+    return existing?.status ?? "draft";
+  }, [user]);
+
+  const [approvalStatus, setApprovalStatus] = useState<VendorApprovalStatus>(initialApprovalStatus);
 
   const storageKey = useMemo(() => (user ? `enjoy-rwanda.vendorDashboard.v1.${user.id}` : null), [user]);
   const storedState = useMemo(() => {
@@ -171,6 +181,26 @@ export default function VendorDashboard() {
   const handleProfileSave = () => setSetupStep("business");
   const handleBusinessSave = () => setTab("overview");
 
+  const handleSubmitForApproval = () => {
+    if (!user) return;
+    const now = new Date().toISOString();
+    upsertVendorApplication({
+      vendorId: user.id,
+      vendorName: user.name,
+      vendorEmail: user.email,
+      status: "pending",
+      submittedAt: now,
+      payload: { profile, business },
+    });
+    setApprovalStatus("pending");
+  };
+
+  const handleRefreshApprovalStatus = () => {
+    if (!user) return;
+    const existing = getVendorApplication(user.id);
+    setApprovalStatus(existing?.status ?? "draft");
+  };
+
   const toggleBusinessCategory = (category: BusinessCategory) => {
     setBusiness((prev) => {
       const hasCategory = prev.categories.includes(category);
@@ -221,9 +251,27 @@ export default function VendorDashboard() {
     localStorage.setItem(storageKey, payload);
   }, [storageKey, profile, business, bookings, orders, menuItems, tab]);
 
+  useEffect(() => {
+    if (!user) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "enjoy-rwanda.vendorApprovals.v1") return;
+      const existing = getVendorApplication(user.id);
+      setApprovalStatus(existing?.status ?? "draft");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [user]);
+
   const pendingBookings = useMemo(() => bookings.filter((b) => b.status === "pending").length, [bookings]);
   const processingOrders = useMemo(() => orders.filter((o) => o.status !== "delivered").length, [orders]);
   const deliveredRevenue = useMemo(() => orders.filter((o) => o.status === "delivered").reduce((sum, o) => sum + o.total, 0), [orders]);
+
+  const approvalMeta = useMemo(() => {
+    if (approvalStatus === "approved") return { label: "Approved", className: "bg-emerald-400/20 text-emerald-100 border border-emerald-300/20" };
+    if (approvalStatus === "pending") return { label: "Pending approval", className: "bg-amber-400/20 text-amber-100 border border-amber-300/20" };
+    if (approvalStatus === "rejected") return { label: "Rejected", className: "bg-rose-400/20 text-rose-100 border border-rose-300/20" };
+    return { label: "Not submitted", className: "bg-white/10 text-slate-100 border border-white/10" };
+  }, [approvalStatus]);
 
   const menuCategories = useMemo(() => {
     const categories = Array.from(new Set(menuItems.map((item) => item.category))).sort();
@@ -310,6 +358,7 @@ export default function VendorDashboard() {
             <div className="flex flex-wrap gap-3">
               <div className="rounded-3xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-100">Role: Vendor</div>
               <div className="rounded-3xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-100">Status: {accountReady ? "Ready" : "Setup required"}</div>
+              <div className={`rounded-3xl px-4 py-3 text-sm font-semibold ${approvalMeta.className}`}>Approval: {approvalMeta.label}</div>
               <button
                 onClick={handleSignOut}
                 className="rounded-3xl border border-white/20 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
@@ -585,6 +634,64 @@ export default function VendorDashboard() {
               </div>
             </form>
           )}
+        </div>
+      ) : approvalStatus !== "approved" ? (
+        <div className="space-y-6">
+          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-gray-400">Vendor application</p>
+                <h2 className="mt-2 text-2xl font-bold text-gray-900">Submit for admin approval</h2>
+                <p className="mt-3 text-gray-600 leading-relaxed">
+                  Your profile and business information is complete. Please submit your application and wait for admin approval to access your management dashboard.
+                </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  Uzuza amakuru ya profile n’aya business, hanyuma ukore submit. Tegereza ko admin akwigire approve kugira ngo ubone dashboard yawe (bookings n’abakiriya).
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {(approvalStatus === "draft" || approvalStatus === "rejected") && (
+                  <button onClick={handleSubmitForApproval} className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                    Submit for approval
+                  </button>
+                )}
+                <button onClick={handleRefreshApprovalStatus} className="rounded-2xl border border-gray-200 px-6 py-3 text-sm font-semibold text-gray-700 hover:border-blue-300">
+                  Refresh status
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Application status</p>
+                <p className="mt-2 text-lg font-bold text-slate-900">{approvalMeta.label}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Business</p>
+                <p className="mt-2 font-semibold text-slate-900">{business.businessName || "Not set"}</p>
+                <p className="text-sm text-slate-600">{business.location}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Contact</p>
+                <p className="mt-2 font-semibold text-slate-900">{business.businessEmail || "Not set"}</p>
+                <p className="text-sm text-slate-600">{business.businessPhone || "Not set"}</p>
+              </div>
+            </div>
+
+            {approvalStatus === "pending" && (
+              <div className="mt-6 rounded-2xl bg-amber-50 p-5 text-amber-900">
+                <p className="font-semibold">Waiting for admin approval</p>
+                <p className="text-sm mt-1">Tegereza ko admin akwigire approve. Kanda “Refresh status” niba warahawe approval.</p>
+              </div>
+            )}
+
+            {approvalStatus === "rejected" && (
+              <div className="mt-6 rounded-2xl bg-rose-50 p-5 text-rose-900">
+                <p className="font-semibold">Application rejected</p>
+                <p className="text-sm mt-1">Please update your details and submit again.</p>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <>
