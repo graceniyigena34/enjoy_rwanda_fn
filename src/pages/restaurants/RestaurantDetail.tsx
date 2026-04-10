@@ -25,7 +25,6 @@ export default function RestaurantDetail() {
   const [menuCategory, setMenuCategory] = useState<"All" | "Food" | "Drinks">("All");
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
   const [orderDone, setOrderDone] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string>("");
 
   if (!restaurant)
     return (
@@ -51,30 +50,12 @@ export default function RestaurantDetail() {
   const visibleFood = foodItems.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const visibleDrinks = drinkItems.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalVisible = visibleFood.length + visibleDrinks.length;
-  const displayImage = uploadedImage || restaurant.image;
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setUploadedImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
         <div className="flex flex-col gap-3">
-          <img src={displayImage} alt={restaurant.name} className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl" />
-          <label className="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-300 cursor-pointer shadow-sm">
-            Upload restaurant image
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-          </label>
+          <img src={restaurant.image} alt={restaurant.name} className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl" />
         </div>
         <div className="flex flex-col justify-center">
           <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium w-fit mb-2">{restaurant.cuisine}</span>
