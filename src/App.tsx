@@ -16,6 +16,7 @@ import Register from "./pages/auth/Register";
 import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import About from "./pages/shared/About";
+import BookingConfirming from "./pages/restaurants/BookingConfirming";
 
 function Layout() {
   const location = useLocation();
@@ -41,6 +42,7 @@ function Layout() {
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/about" element={<About />} />
+          <Route path="/booking-confirming" element={<BookingConfirming />} />
         </Routes>
       </main>
       {!isDashboard && <Footer />}

@@ -23,7 +23,7 @@ export default function Cart() {
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 space-y-4">
           {cart.map(item => (
-            <div key={item.id} className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div key={item.lineId} className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
               {item.image && <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-xl" />}
               <div className="flex-1">
                 <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
@@ -31,12 +31,12 @@ export default function Cart() {
                 <p className="text-sm font-semibold text-gray-700 mt-0.5">{item.price.toLocaleString()} RWF</p>
               </div>
               <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-2 py-1">
-                <button onClick={() => updateQty(item.id, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 font-bold">−</button>
+                <button onClick={() => updateQty(item.lineId, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 font-bold">−</button>
                 <span className="text-sm font-semibold w-5 text-center">{item.quantity}</span>
-                <button onClick={() => updateQty(item.id, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 font-bold">+</button>
+                <button onClick={() => updateQty(item.lineId, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 font-bold">+</button>
               </div>
               <span className="text-sm font-bold text-gray-900 w-24 text-right">{(item.price * item.quantity).toLocaleString()} RWF</span>
-              <button onClick={() => removeFromCart(item.id)} className="text-gray-300 hover:text-red-500 transition-colors text-lg font-bold">✕</button>
+              <button onClick={() => removeFromCart(item.lineId)} className="text-gray-300 hover:text-red-500 transition-colors text-lg font-bold">✕</button>
             </div>
           ))}
         </div>

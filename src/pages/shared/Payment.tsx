@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import { getShopById } from "../../utils/shopCatalog";
+import { decrementShopProductStock } from "../../utils/shopStockStorage";
+import { decrementVendorShopStock, getVendorShopById } from "../../utils/vendorShopStorage";
 
 type Method = "card"|"mtn"|"airtel"|"paypal";
 
@@ -15,11 +18,88 @@ export default function Payment() {
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [phone, setPhone] = useState("");
+  const [stockError, setStockError] = useState<string | null>(null);
+
+  const validateShopStock = () => {
+    const grouped = new Map<string, { shopId: number; productId: number; qty: number }>();
+    for (const item of cart) {
+      if (typeof item.shopId !== "number") continue;
+      const key = `${item.shopId}:${item.id}`;
+      const existing = grouped.get(key);
+      grouped.set(key, { shopId: item.shopId, productId: item.id, qty: (existing?.qty ?? 0) + item.quantity });
+    }
+
+    for (const entry of grouped.values()) {
+      const vendorShop = getVendorShopById(entry.shopId);
+      const shop = getShopById(entry.shopId);
+      const product = shop?.products.find((p) => p.id === entry.productId) ?? null;
+      const currentStock = vendorShop
+        ? vendorShop.products.find((p) => p.id === entry.productId)?.stock ?? 0
+        : product?.stock ?? 0;
+
+      if (currentStock < entry.qty) {
+        return `Not enough stock for product #${entry.productId}. Available: ${currentStock}, requested: ${entry.qty}.`;
+      }
+    }
+
+    return null;
+  };
+
+  const finalizeShopPurchase = () => {
+    const grouped = new Map<string, { shopId: number; productId: number; qty: number }>();
+    for (const item of cart) {
+      if (typeof item.shopId !== "number") continue;
+      const key = `${item.shopId}:${item.id}`;
+      const existing = grouped.get(key);
+      grouped.set(key, { shopId: item.shopId, productId: item.id, qty: (existing?.qty ?? 0) + item.quantity });
+    }
+
+    for (const entry of grouped.values()) {
+      const vendorShop = getVendorShopById(entry.shopId);
+      if (vendorShop) {
+        const result = decrementVendorShopStock(entry.shopId, entry.productId, entry.qty);
+        if (!result.ok) return false;
+        continue;
+      }
+
+      const shop = getShopById(entry.shopId);
+      const product = shop?.products.find((p) => p.id === entry.productId) ?? null;
+      const fallbackStock = product?.stock ?? 0;
+      const result = decrementShopProductStock(entry.shopId, entry.productId, entry.qty, fallbackStock);
+      if (!result.ok) return false;
+    }
+
+    return true;
+  };
 
   const handlePay = (e: React.FormEvent) => {
     e.preventDefault();
+    const stockIssue = validateShopStock();
+    setStockError(stockIssue);
+    if (stockIssue) return;
+
     setProcessing(true);
-    setTimeout(() => { setProcessing(false); setDone(true); clearCart(); }, 2000);
+    setTimeout(() => {
+      const ok = finalizeShopPurchase();
+      setProcessing(false);
+      if (!ok) {
+        setStockError("Stock changed before payment completed. Please review your cart.");
+        return;
+      }
+      // Save order to localStorage so guest users can view it
+      const newOrder = {
+        id: `ORD-${Date.now()}`,
+        date: new Date().toISOString().split("T")[0],
+        items: cart.map(i => i.name),
+        total: cartTotal + 500,
+        status: "confirmed",
+        vendor: cart[0]?.vendorName ?? "Enjoy Rwanda",
+      };
+      const existing = JSON.parse(localStorage.getItem("enjoy-rwanda.guestOrders") ?? "[]") as unknown[];
+      localStorage.setItem("enjoy-rwanda.guestOrders", JSON.stringify([newOrder, ...existing]));
+      setDone(true);
+      clearCart();
+    }, 2000);
   };
 
   if (cart.length === 0 && !done) return (
@@ -57,6 +137,11 @@ export default function Payment() {
               </button>
             ))}
           </div>
+          {stockError && (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {stockError}
+            </div>
+          )}
           <form onSubmit={handlePay} className="space-y-4">
             {method === "card" && <>
               <div><label className="text-sm font-medium text-gray-700 block mb-1">Card Number</label>
@@ -89,7 +174,7 @@ export default function Payment() {
           <h3 className="font-bold text-gray-900 mb-4">Order Summary</h3>
           <div className="space-y-2 mb-4 text-sm">
             {cart.map(item => (
-              <div key={item.id} className="flex justify-between text-gray-600">
+              <div key={item.lineId} className="flex justify-between text-gray-600">
                 <span>{item.name} × {item.quantity}</span>
                 <span>{(item.price * item.quantity).toLocaleString()} RWF</span>
               </div>

@@ -1,11 +1,6 @@
-import { Link } from "react-router-dom";
-import { useApp } from "../../context/AppContext";
+import { useEffect, useState } from "react";
 
-const mockOrders = [
-  { id: "ORD-001", date: "2025-07-10", items: ["Grilled Tilapia", "Isombe"], total: 18000, status: "delivered", vendor: "Kigali Serena Restaurant" },
-  { id: "ORD-002", date: "2025-07-08", items: ["Agaseke Basket", "Rwandan Fabric"], total: 23000, status: "processing", vendor: "Rwanda Craft Market" },
-  { id: "ORD-003", date: "2025-07-05", items: ["Rwandan Coffee (1kg)"], total: 12000, status: "confirmed", vendor: "Kigali Fresh Market" },
-];
+type GuestOrder = { id: string; date: string; items: string[]; total: number; status: string; vendor: string };
 
 const statusStyle: Record<string, string> = {
   delivered: "bg-green-50 text-green-700",
@@ -15,13 +10,18 @@ const statusStyle: Record<string, string> = {
 };
 
 export default function Orders() {
-  const { user } = useApp();
+  const [orders, setOrders] = useState<GuestOrder[]>([]);
 
-  if (!user) return (
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem("enjoy-rwanda.guestOrders") ?? "[]") as GuestOrder[];
+    setOrders(stored);
+  }, []);
+
+  if (orders.length === 0) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
       <div className="text-5xl">📋</div>
-      <h2 className="text-xl font-bold text-gray-900">Please log in to view your orders</h2>
-      <Link to="/login" className="bg-[#1a1a2e] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors">Login</Link>
+      <h2 className="text-xl font-bold text-gray-900">No orders yet</h2>
+      <p className="text-gray-500 text-sm">Your orders will appear here after you complete a payment.</p>
     </div>
   );
 
@@ -29,7 +29,7 @@ export default function Orders() {
     <div className="max-w-3xl mx-auto px-6 py-10">
       <h1 className="text-3xl font-black text-gray-900 mb-8">My Orders</h1>
       <div className="space-y-4">
-        {mockOrders.map(order => (
+        {orders.map(order => (
           <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">

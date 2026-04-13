@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { shops } from "../../data/mockData";
+import { getAllShops } from "../../utils/shopCatalog";
 
 export default function Shops() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [category, setCategory] = useState("All");
-  const categories = ["All", ...Array.from(new Set(shops.map(s => s.category)))];
-  const filtered = shops.filter(s => {
+  const [, bumpCatalogVersion] = useState(0);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "enjoy-rwanda.vendorShops.v1" && event.key !== "enjoy-rwanda.shopStock.v1") return;
+      bumpCatalogVersion((v) => v + 1);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const shops = getAllShops();
+  const categories = ["All", ...Array.from(new Set(shops.map((s) => s.category)))];
+  const filtered = shops.filter((s) => {
     const matchQ = s.name.toLowerCase().includes(query.toLowerCase()) || s.location.toLowerCase().includes(query.toLowerCase());
     return matchQ && (category === "All" || s.category === category);
   });

@@ -3,11 +3,24 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import type { VendorApprovalStatus } from "../../utils/vendorApprovalStorage";
 import { getVendorApplication, upsertVendorApplication } from "../../utils/vendorApprovalStorage";
+import { buildVendorShopId, removeVendorShopByVendorId, upsertVendorShop } from "../../utils/vendorShopStorage";
+
+type PendingBooking = { id: string; restaurant: string; guestName: string; email: string; telephone: string; people: number; date: string; time: string; specialRequests: string; items: string[]; status: string; createdAt: string };
+
+const readPendingBookings = (): PendingBooking[] => {
+  try { return JSON.parse(localStorage.getItem("enjoy-rwanda.pendingBookings") ?? "[]") as PendingBooking[]; } catch { return []; }
+};
+
+const confirmBookingById = (bookingId: string) => {
+  const bookings = readPendingBookings().map(b => b.id === bookingId ? { ...b, status: "confirmed" } : b);
+  localStorage.setItem("enjoy-rwanda.pendingBookings", JSON.stringify(bookings));
+  localStorage.setItem(`booking-confirmed-${bookingId}`, "confirmed");
+};
 
 type Tab = "overview" | "profile" | "business" | "menu" | "bookings" | "orders";
 type Booking = { id: number; visitor: string; table: string; date: string; time: string; status: "pending" | "confirmed" | "cancelled" };
 type Order = { id: string; visitor: string; items: string[]; total: number; status: "pending" | "processing" | "delivered" };
-type MenuItem = { id: number; name: string; category: string; price: number; description: string; available: boolean };
+type MenuItem = { id: number; name: string; category: string; price: number; description: string; available: boolean; stock?: number; image?: string };
 type VendorProfile = { ownerName: string; email: string; phone: string; description: string };
 type BusinessCategory = "African" | "Asian" | "Rwandan" | "American";
 type StoredUpload = { name: string; type: string; size: number; dataUrl?: string };
@@ -87,7 +100,12 @@ export default function VendorDashboard() {
       }>;
 
       const normalizedMenuItems = Array.isArray(parsed.menuItems)
-        ? parsed.menuItems.map((item) => ({ ...item, available: item.available ?? true }))
+        ? parsed.menuItems.map((item) => ({
+            ...item,
+            available: item.available ?? true,
+            stock: typeof item.stock === "number" && Number.isFinite(item.stock) ? Math.max(0, Math.floor(item.stock)) : undefined,
+            image: typeof item.image === "string" ? item.image : undefined,
+          }))
         : undefined;
 
       const normalizeCategories = (input: unknown): BusinessCategory[] => {
@@ -159,13 +177,14 @@ export default function VendorDashboard() {
     capacity: 0,
   }));
   const [bookings, setBookings] = useState<Booking[]>(() => storedState?.bookings ?? initialBookings);
+  const [pendingVisitorBookings, setPendingVisitorBookings] = useState<PendingBooking[]>(() => readPendingBookings());
   const [orders, setOrders] = useState<Order[]>(() => storedState?.orders ?? initialOrders);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(() => storedState?.menuItems ?? initialMenu);
-  const [newMenuItem, setNewMenuItem] = useState({ name: "", category: "Main", price: "", description: "", available: true });
+  const [newMenuItem, setNewMenuItem] = useState({ name: "", category: "Main", price: "", description: "", available: true, stock: "", image: "" });
   const [menuSearch, setMenuSearch] = useState("");
   const [menuCategory, setMenuCategory] = useState<"All" | MenuItem["category"]>("All");
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
-  const [editingMenuDraft, setEditingMenuDraft] = useState({ name: "", category: "Main", price: "", description: "", available: true });
+  const [editingMenuDraft, setEditingMenuDraft] = useState({ name: "", category: "Main", price: "", description: "", available: true, stock: "", image: "" });
 
   const accountReady = useMemo(
     () =>
@@ -231,6 +250,10 @@ export default function VendorDashboard() {
 
   const handleAddMenuItem = () => {
     if (!newMenuItem.name || !newMenuItem.price) return;
+    const nextStock =
+      business.businessType === "Shop" && newMenuItem.stock !== ""
+        ? Math.max(0, Math.floor(Number(newMenuItem.stock)))
+        : undefined;
     setMenuItems((prev) => [
       ...prev,
       {
@@ -240,16 +263,58 @@ export default function VendorDashboard() {
         price: Number(newMenuItem.price),
         description: newMenuItem.description,
         available: newMenuItem.available,
+        stock: nextStock,
+        image: newMenuItem.image?.trim() ? newMenuItem.image.trim() : undefined,
       },
     ]);
-    setNewMenuItem({ name: "", category: "Main", price: "", description: "", available: true });
+    setNewMenuItem({ name: "", category: "Main", price: "", description: "", available: true, stock: "", image: "" });
   };
+
+  useEffect(() => {
+    const onStorage = () => setPendingVisitorBookings(readPendingBookings());
+    window.addEventListener("storage", onStorage);
+    const interval = setInterval(() => setPendingVisitorBookings(readPendingBookings()), 3000);
+    return () => { window.removeEventListener("storage", onStorage); clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     if (!storageKey) return;
     const payload = JSON.stringify({ profile, business, bookings, orders, menuItems, tab });
     localStorage.setItem(storageKey, payload);
   }, [storageKey, profile, business, bookings, orders, menuItems, tab]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (business.businessType !== "Shop") {
+      removeVendorShopByVendorId(user.id);
+      return;
+    }
+
+    const products = menuItems
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        image: item.image?.trim() ? item.image.trim() : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=80",
+        stock: typeof item.stock === "number" && Number.isFinite(item.stock) ? Math.max(0, Math.floor(item.stock)) : 0,
+        active: item.available,
+      }))
+      .filter((item) => item.name.trim().length > 0);
+
+    upsertVendorShop({
+      id: buildVendorShopId(user.id),
+      vendorId: user.id,
+      name: business.businessName.trim() || `${user.name}'s Shop`,
+      description: profile.description?.trim() || "Local products available for purchase.",
+      location: business.location.trim() || "Kigali, Rwanda",
+      rating: 4.6,
+      image: business.profileImage?.dataUrl ?? "https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=800&q=80",
+      category: business.categories.length ? business.categories.join(" / ") : "Shop",
+      products,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [user, business, profile.description, menuItems]);
 
   useEffect(() => {
     if (!user) return;
@@ -295,11 +360,11 @@ export default function VendorDashboard() {
       { value: "overview", label: "Overview" },
       { value: "profile", label: "Profile" },
       { value: "business", label: "Business" },
-      { value: "menu", label: "Menu", badge: menuItems.length },
+      { value: "menu", label: business.businessType === "Shop" ? "Products" : "Menu", badge: menuItems.length },
       { value: "bookings", label: "Bookings", badge: pendingBookings },
       { value: "orders", label: "Orders", badge: processingOrders },
     ],
-    [menuItems.length, pendingBookings, processingOrders]
+    [business.businessType, menuItems.length, pendingBookings, processingOrders]
   );
 
   const openEditMenuItem = (item: MenuItem) => {
@@ -310,12 +375,14 @@ export default function VendorDashboard() {
       price: String(item.price),
       description: item.description,
       available: item.available,
+      stock: typeof item.stock === "number" ? String(item.stock) : "",
+      image: item.image ?? "",
     });
   };
 
   const closeEditMenuItem = () => {
     setEditingMenuId(null);
-    setEditingMenuDraft({ name: "", category: "Main", price: "", description: "", available: true });
+    setEditingMenuDraft({ name: "", category: "Main", price: "", description: "", available: true, stock: "", image: "" });
   };
 
   const saveEditedMenuItem = () => {
@@ -331,6 +398,11 @@ export default function VendorDashboard() {
               price: Number(editingMenuDraft.price),
               description: editingMenuDraft.description,
               available: editingMenuDraft.available,
+              stock:
+                business.businessType === "Shop" && editingMenuDraft.stock !== ""
+                  ? Math.max(0, Math.floor(Number(editingMenuDraft.stock)))
+                  : undefined,
+              image: editingMenuDraft.image?.trim() ? editingMenuDraft.image.trim() : undefined,
             }
           : entry
       )
@@ -719,7 +791,7 @@ export default function VendorDashboard() {
                 <p className="text-xl font-bold text-gray-900">{orders.length}</p>
               </div>
               <div className="rounded-3xl border border-gray-100 bg-white px-4 py-4 text-center shadow-sm">
-                <p className="text-sm text-gray-500">Menu items</p>
+                <p className="text-sm text-gray-500">{business.businessType === "Shop" ? "Products" : "Menu items"}</p>
                 <p className="text-xl font-bold text-gray-900">{menuItems.length}</p>
               </div>
             </div>
@@ -730,7 +802,7 @@ export default function VendorDashboard() {
               {[
                 { label: "Bookings", value: bookings.length, color: "bg-slate-900 text-white" },
                 { label: "Orders", value: orders.length, color: "bg-slate-900 text-white" },
-                { label: "Menu items", value: menuItems.length, color: "bg-slate-100 text-slate-900" },
+                { label: business.businessType === "Shop" ? "Products" : "Menu items", value: menuItems.length, color: "bg-slate-100 text-slate-900" },
                 { label: "Status", value: accountReady ? "Live" : "Draft", color: accountReady ? "bg-emerald-50 text-emerald-700" : "bg-yellow-50 text-yellow-700" },
               ].map((card) => (
                 <div key={card.label} className={`rounded-[1.5rem] p-5 shadow-sm ${card.color}`}>
@@ -771,7 +843,7 @@ export default function VendorDashboard() {
                       <p className="text-sm text-gray-500">Quick snapshot of what needs attention right now.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setTab("menu")} className="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">Add menu item</button>
+                      <button onClick={() => setTab("menu")} className="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">Add {business.businessType === "Shop" ? "product" : "menu item"}</button>
                       <button onClick={() => setTab("bookings")} className="rounded-2xl border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-blue-300">Review bookings</button>
                     </div>
                   </div>
@@ -1137,7 +1209,7 @@ export default function VendorDashboard() {
               <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-5 gap-4">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Menu / Products</h3>
+                    <h3 className="text-xl font-bold text-gray-900">{business.businessType === "Shop" ? "Products" : "Menu"}</h3>
                     <p className="text-sm text-gray-500">Add, edit, and remove items that appear to your customers.</p>
                   </div>
                   <span className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700">{menuItems.length} items</span>
@@ -1163,6 +1235,11 @@ export default function VendorDashboard() {
                         <div>
                           <h4 className="font-semibold text-gray-900">{item.name}</h4>
                           <p className="text-sm text-gray-500">{item.category}{item.available ? "" : " • Hidden"}</p>
+                          {business.businessType === "Shop" && (
+                            <p className={`text-sm ${typeof item.stock === "number" && item.stock > 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                              Stock: {typeof item.stock === "number" ? item.stock : 0}
+                            </p>
+                          )}
                         </div>
                         <span className="text-sm font-semibold text-gray-900">{item.price.toLocaleString()} RWF</span>
                       </div>
@@ -1185,25 +1262,44 @@ export default function VendorDashboard() {
               </div>
 
               <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-                <h3 className="text-xl font-bold text-gray-900 mb-5">Add new item</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-5">Add new {business.businessType === "Shop" ? "product" : "item"}</h3>
                 <div className="space-y-4">
                   <label className="space-y-2 text-sm text-gray-700">
                     <span>Item name</span>
                     <input value={newMenuItem.name} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
                   </label>
-                  <label className="space-y-2 text-sm text-gray-700">
-                    <span>Category</span>
-                    <select value={newMenuItem.category} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300">
-                      <option>Main</option>
-                      <option>Snack</option>
-                      <option>Side</option>
-                      <option>Drink</option>
-                    </select>
-                  </label>
+                  {business.businessType === "Shop" ? (
+                    <label className="space-y-2 text-sm text-gray-700">
+                      <span>Product category</span>
+                      <input value={newMenuItem.category} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, category: e.target.value }))} placeholder="Example: Crafts" className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                    </label>
+                  ) : (
+                    <label className="space-y-2 text-sm text-gray-700">
+                      <span>Category</span>
+                      <select value={newMenuItem.category} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300">
+                        <option>Main</option>
+                        <option>Snack</option>
+                        <option>Side</option>
+                        <option>Drink</option>
+                      </select>
+                    </label>
+                  )}
                   <label className="space-y-2 text-sm text-gray-700">
                     <span>Price (RWF)</span>
                     <input value={newMenuItem.price} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, price: e.target.value }))} type="number" className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
                   </label>
+                  {business.businessType === "Shop" && (
+                    <label className="space-y-2 text-sm text-gray-700">
+                      <span>Stock available</span>
+                      <input value={newMenuItem.stock} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, stock: e.target.value }))} type="number" min={0} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                    </label>
+                  )}
+                  {business.businessType === "Shop" && (
+                    <label className="space-y-2 text-sm text-gray-700">
+                      <span>Image URL</span>
+                      <input value={newMenuItem.image} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, image: e.target.value }))} placeholder="https://..." className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                    </label>
+                  )}
                   <label className="space-y-2 text-sm text-gray-700">
                     <span>Description</span>
                     <textarea value={newMenuItem.description} onChange={(e) => setNewMenuItem((prev) => ({ ...prev, description: e.target.value }))} rows={4} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300 resize-none" />
@@ -1224,7 +1320,7 @@ export default function VendorDashboard() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm uppercase tracking-[0.3em] text-gray-400">Edit item</p>
-                    <h3 className="text-xl font-bold text-gray-900">Update menu details</h3>
+                    <h3 className="text-xl font-bold text-gray-900">Update {business.businessType === "Shop" ? "product" : "menu"} details</h3>
                   </div>
                   <button onClick={closeEditMenuItem} className="rounded-2xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:border-blue-300">Close</button>
                 </div>
@@ -1235,20 +1331,39 @@ export default function VendorDashboard() {
                     <input value={editingMenuDraft.name} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
                   </label>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="space-y-2 text-sm text-gray-700">
-                      <span>Category</span>
-                      <select value={editingMenuDraft.category} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300">
-                        <option>Main</option>
-                        <option>Snack</option>
-                        <option>Side</option>
-                        <option>Drink</option>
-                      </select>
-                    </label>
+                    {business.businessType === "Shop" ? (
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Product category</span>
+                        <input value={editingMenuDraft.category} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                      </label>
+                    ) : (
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Category</span>
+                        <select value={editingMenuDraft.category} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300">
+                          <option>Main</option>
+                          <option>Snack</option>
+                          <option>Side</option>
+                          <option>Drink</option>
+                        </select>
+                      </label>
+                    )}
                     <label className="space-y-2 text-sm text-gray-700">
                       <span>Price (RWF)</span>
                       <input value={editingMenuDraft.price} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, price: e.target.value }))} type="number" className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
                     </label>
                   </div>
+                  {business.businessType === "Shop" && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Stock available</span>
+                        <input value={editingMenuDraft.stock} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, stock: e.target.value }))} type="number" min={0} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                      </label>
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Image URL</span>
+                        <input value={editingMenuDraft.image} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, image: e.target.value }))} placeholder="https://..." className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300" />
+                      </label>
+                    </div>
+                  )}
                   <label className="space-y-2 text-sm text-gray-700">
                     <span>Description</span>
                     <textarea value={editingMenuDraft.description} onChange={(e) => setEditingMenuDraft((prev) => ({ ...prev, description: e.target.value }))} rows={4} className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-300 resize-none" />
@@ -1267,53 +1382,87 @@ export default function VendorDashboard() {
             </div>
           )}
 
-          {tab === "bookings" && (
-            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm overflow-x-auto">
-              <div className="flex items-center justify-between mb-5 gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Bookings</h3>
-                  <p className="text-sm text-gray-500">Confirm reservations and keep your schedule updated.</p>
-                </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700">{bookings.length} total</span>
-              </div>
-              <table className="w-full text-sm">
-                <thead className="border-b border-gray-200 text-left text-gray-500">
-                  <tr>
-                    {["Visitor", "Table", "Date", "Time", "Status", "Actions"].map((label) => (
-                      <th key={label} className="pb-3 font-semibold">{label}</th>
+                   {tab === "bookings" && (
+            <div className="space-y-6">
+              {pendingVisitorBookings.filter(b => b.status === "pending").length > 0 && (
+                <div className="bg-white border border-amber-200 rounded-3xl p-6 shadow-sm">
+                  <div className="flex items-center justify-between mb-5 gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Incoming Booking Requests</h3>
+                      <p className="text-sm text-gray-500">Visitors waiting for your confirmation to proceed to payment.</p>
+                    </div>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-sm text-amber-700 font-semibold">{pendingVisitorBookings.filter(b => b.status === "pending").length} pending</span>
+                  </div>
+                  <div className="space-y-3">
+                    {pendingVisitorBookings.filter(b => b.status === "pending").map(b => (
+                      <div key={b.id} className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold text-gray-900">{b.guestName}</p>
+                            <p className="text-sm text-gray-500">{b.restaurant} - {b.date} at {b.time} - {b.people} {b.people === 1 ? "person" : "people"}</p>
+                            <p className="text-sm text-gray-500">{b.email} - {b.telephone}</p>
+                            {b.items.length > 0 && <p className="text-xs text-gray-400 mt-1">Items: {b.items.join(", ")}</p>}
+                            {b.specialRequests && <p className="text-xs text-gray-400">Note: {b.specialRequests}</p>}
+                          </div>
+                          <button
+                            onClick={() => { confirmBookingById(b.id); setPendingVisitorBookings(readPendingBookings()); }}
+                            className="rounded-2xl bg-green-500 px-4 py-2 text-xs font-semibold text-white hover:bg-green-600 shrink-0"
+                          >
+                            Confirm and Send to Payment
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((booking) => (
-                    <tr key={booking.id} className="border-b border-gray-100">
-                      <td className="py-4">{booking.visitor}</td>
-                      <td>{booking.table}</td>
-                      <td>{booking.date}</td>
-                      <td>{booking.time}</td>
-                      <td>
-                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${booking.status === "confirmed" ? "bg-green-50 text-green-700" : booking.status === "pending" ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
-                          {booking.status}
-                        </span>
-                      </td>
-                      <td className="space-x-2">
-                        {booking.status === "pending" ? (
-                          <>
-                            <button onClick={() => setBookings((prev) => prev.map((entry) => entry.id === booking.id ? { ...entry, status: "confirmed" } : entry))} className="rounded-2xl bg-green-500 px-3 py-2 text-xs font-semibold text-white hover:bg-green-600">Confirm</button>
-                            <button onClick={() => setBookings((prev) => prev.map((entry) => entry.id === booking.id ? { ...entry, status: "cancelled" } : entry))} className="rounded-2xl bg-red-500 px-3 py-2 text-xs font-semibold text-white hover:bg-red-600">Cancel</button>
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-500">No actions</span>
-                        )}
-                      </td>
+                  </div>
+                </div>
+              )}
+              <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm overflow-x-auto">
+                <div className="flex items-center justify-between mb-5 gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Bookings</h3>
+                    <p className="text-sm text-gray-500">Confirm reservations and keep your schedule updated.</p>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700">{bookings.length} total</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="border-b border-gray-200 text-left text-gray-500">
+                    <tr>
+                      {["Visitor", "Table", "Date", "Time", "Status", "Actions"].map((label) => (
+                        <th key={label} className="pb-3 font-semibold">{label}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {bookings.map((booking) => (
+                      <tr key={booking.id} className="border-b border-gray-100">
+                        <td className="py-4">{booking.visitor}</td>
+                        <td>{booking.table}</td>
+                        <td>{booking.date}</td>
+                        <td>{booking.time}</td>
+                        <td>
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${booking.status === "confirmed" ? "bg-green-50 text-green-700" : booking.status === "pending" ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
+                            {booking.status}
+                          </span>
+                        </td>
+                        <td className="space-x-2">
+                          {booking.status === "pending" ? (
+                            <>
+                              <button onClick={() => setBookings((prev) => prev.map((entry) => entry.id === booking.id ? { ...entry, status: "confirmed" } : entry))} className="rounded-2xl bg-green-500 px-3 py-2 text-xs font-semibold text-white hover:bg-green-600">Confirm</button>
+                              <button onClick={() => setBookings((prev) => prev.map((entry) => entry.id === booking.id ? { ...entry, status: "cancelled" } : entry))} className="rounded-2xl bg-red-500 px-3 py-2 text-xs font-semibold text-white hover:bg-red-600">Cancel</button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-500">No actions</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {tab === "orders" && (
+           {tab === "orders" && (
             <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm overflow-x-auto">
               <div className="flex items-center justify-between mb-5 gap-4">
                 <div>
