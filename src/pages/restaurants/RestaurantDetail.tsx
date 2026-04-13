@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { restaurants } from "../../data/mockData";
-import { useApp } from "../../context/AppContext";
 
 type MenuItem = { id: number; name: string; price: number; description: string; category: string; image?: string };
 
 export default function RestaurantDetail() {
   const { id } = useParams();
-  const { addToCart } = useApp();
   const navigate = useNavigate();
 
   const restaurant = restaurants.find(r => r.id === Number(id));
@@ -56,7 +54,9 @@ export default function RestaurantDetail() {
     localStorage.setItem("enjoy-rwanda.pendingBookings", JSON.stringify([...existing, bookingData]));
     localStorage.setItem("enjoy-rwanda.lastBookingId", newBookingId);
     localStorage.removeItem("enjoy-rwanda.confirmingBooking");
-    orderList.forEach(item => addToCart({ id: item.id, name: item.name, price: item.price, vendorName: restaurant.name }));
+    localStorage.setItem("enjoy-rwanda.bookingItems", JSON.stringify(
+      orderList.map(i => ({ id: i.id, name: i.name, price: i.price, vendorName: restaurant.name }))
+    ));
     navigate("/booking-confirming");
   };
 

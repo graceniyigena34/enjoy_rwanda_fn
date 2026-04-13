@@ -5,12 +5,20 @@ import { getShopById } from "../../utils/shopCatalog";
 import { decrementShopProductStock } from "../../utils/shopStockStorage";
 import { decrementVendorShopStock, getVendorShopById } from "../../utils/vendorShopStorage";
 
-type Method = "card"|"mtn"|"airtel"|"paypal";
+type Method = "card" | "mtn" | "airtel" | "paypal";
+type BookingItem = { id: number; name: string; price: number; vendorName: string };
 
 export default function Payment() {
   const { cartTotal, clearCart, cart } = useApp();
   const navigate = useNavigate();
-  const total = cartTotal + 500;
+
+  const bookingItems: BookingItem[] = cart.length === 0
+    ? JSON.parse(localStorage.getItem("enjoy-rwanda.bookingItems") ?? "[]") as BookingItem[]
+    : [];
+  const isBookingFlow = bookingItems.length > 0;
+  const bookingTotal = bookingItems.reduce((sum, i) => sum + i.price, 0);
+  const total = (isBookingFlow ? bookingTotal : cartTotal) + 500;
+
   const [method, setMethod] = useState<Method>("card");
   const [processing, setProcessing] = useState(false);
   const [done, setDone] = useState(false);
@@ -28,7 +36,6 @@ export default function Payment() {
       const existing = grouped.get(key);
       grouped.set(key, { shopId: item.shopId, productId: item.id, qty: (existing?.qty ?? 0) + item.quantity });
     }
-
     for (const entry of grouped.values()) {
       const vendorShop = getVendorShopById(entry.shopId);
       const shop = getShopById(entry.shopId);
@@ -36,12 +43,10 @@ export default function Payment() {
       const currentStock = vendorShop
         ? vendorShop.products.find((p) => p.id === entry.productId)?.stock ?? 0
         : product?.stock ?? 0;
-
       if (currentStock < entry.qty) {
         return `Not enough stock for product #${entry.productId}. Available: ${currentStock}, requested: ${entry.qty}.`;
       }
     }
-
     return null;
   };
 
@@ -53,7 +58,6 @@ export default function Payment() {
       const existing = grouped.get(key);
       grouped.set(key, { shopId: item.shopId, productId: item.id, qty: (existing?.qty ?? 0) + item.quantity });
     }
-
     for (const entry of grouped.values()) {
       const vendorShop = getVendorShopById(entry.shopId);
       if (vendorShop) {
@@ -61,48 +65,56 @@ export default function Payment() {
         if (!result.ok) return false;
         continue;
       }
-
       const shop = getShopById(entry.shopId);
       const product = shop?.products.find((p) => p.id === entry.productId) ?? null;
       const fallbackStock = product?.stock ?? 0;
       const result = decrementShopProductStock(entry.shopId, entry.productId, entry.qty, fallbackStock);
       if (!result.ok) return false;
     }
-
     return true;
   };
 
   const handlePay = (e: React.FormEvent) => {
     e.preventDefault();
-    const stockIssue = validateShopStock();
-    setStockError(stockIssue);
-    if (stockIssue) return;
+
+    if (!isBookingFlow) {
+      const stockIssue = validateShopStock();
+      setStockError(stockIssue);
+      if (stockIssue) return;
+    }
 
     setProcessing(true);
     setTimeout(() => {
-      const ok = finalizeShopPurchase();
-      setProcessing(false);
-      if (!ok) {
-        setStockError("Stock changed before payment completed. Please review your cart.");
-        return;
+      if (!isBookingFlow) {
+        const ok = finalizeShopPurchase();
+        setProcessing(false);
+        if (!ok) {
+          setStockError("Stock changed before payment completed. Please review your cart.");
+          return;
+        }
+      } else {
+        setProcessing(false);
       }
-      // Save order to localStorage so guest users can view it
+
       const newOrder = {
         id: `ORD-${Date.now()}`,
         date: new Date().toISOString().split("T")[0],
-        items: cart.map(i => i.name),
-        total: cartTotal + 500,
+        items: isBookingFlow ? bookingItems.map(i => i.name) : cart.map(i => i.name),
+        total,
         status: "confirmed",
-        vendor: cart[0]?.vendorName ?? "Enjoy Rwanda",
+        vendor: isBookingFlow
+          ? (bookingItems[0]?.vendorName ?? "Enjoy Rwanda")
+          : (cart[0]?.vendorName ?? "Enjoy Rwanda"),
       };
       const existing = JSON.parse(localStorage.getItem("enjoy-rwanda.guestOrders") ?? "[]") as unknown[];
       localStorage.setItem("enjoy-rwanda.guestOrders", JSON.stringify([newOrder, ...existing]));
+      if (isBookingFlow) localStorage.removeItem("enjoy-rwanda.bookingItems");
       setDone(true);
       clearCart();
     }, 2000);
   };
 
-  if (cart.length === 0 && !done) return (
+  if (!isBookingFlow && cart.length === 0 && !done) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
       <p className="text-gray-500">No items to pay for.</p>
       <Link to="/restaurants" className="bg-[#1a1a2e] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors">Browse Restaurants</Link>
@@ -146,7 +158,7 @@ export default function Payment() {
             {method === "card" && <>
               <div><label className="text-sm font-medium text-gray-700 block mb-1">Card Number</label>
                 <input type="text" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNum}
-                  onChange={e => setCardNum(e.target.value.replace(/\D/g,"").replace(/(.{4})/g,"$1 ").trim())} required
+                  onChange={e => setCardNum(e.target.value.replace(/\D/g, "").replace(/(.{4})/g, "$1 ").trim())} required
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400" /></div>
               <div className="flex gap-4">
                 <div className="flex-1"><label className="text-sm font-medium text-gray-700 block mb-1">Expiry</label>
@@ -173,12 +185,20 @@ export default function Payment() {
         <div className="lg:w-72 bg-white border border-gray-100 rounded-2xl p-6 shadow-sm h-fit">
           <h3 className="font-bold text-gray-900 mb-4">Order Summary</h3>
           <div className="space-y-2 mb-4 text-sm">
-            {cart.map(item => (
-              <div key={item.lineId} className="flex justify-between text-gray-600">
-                <span>{item.name} × {item.quantity}</span>
-                <span>{(item.price * item.quantity).toLocaleString()} RWF</span>
-              </div>
-            ))}
+            {isBookingFlow
+              ? bookingItems.map((item, i) => (
+                  <div key={i} className="flex justify-between text-gray-600">
+                    <span>{item.name}</span>
+                    <span>{item.price.toLocaleString()} RWF</span>
+                  </div>
+                ))
+              : cart.map(item => (
+                  <div key={item.lineId} className="flex justify-between text-gray-600">
+                    <span>{item.name} × {item.quantity}</span>
+                    <span>{(item.price * item.quantity).toLocaleString()} RWF</span>
+                  </div>
+                ))
+            }
             <div className="border-t border-gray-100 pt-2 flex justify-between text-gray-600"><span>Service Fee</span><span>500 RWF</span></div>
             <div className="flex justify-between font-bold text-gray-900"><span>Total</span><span>{total.toLocaleString()} RWF</span></div>
           </div>
