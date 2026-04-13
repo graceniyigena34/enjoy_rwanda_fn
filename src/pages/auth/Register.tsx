@@ -5,7 +5,7 @@ import { useApp } from "../../context/AppContext";
 export default function Register() {
   const { login } = useApp();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "", role: "visitor" as "visitor"|"vendor" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
   const set = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
 
@@ -13,8 +13,8 @@ export default function Register() {
     e.preventDefault();
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    login({ id: Date.now(), name: form.name, email: form.email, role: form.role });
-    navigate(form.role === "vendor" ? "/vendor" : "/");
+    login({ id: Date.now(), name: form.name, email: form.email, role: "visitor" });
+    navigate("/");
   };
 
   return (
@@ -24,6 +24,7 @@ export default function Register() {
           <div className="text-4xl mb-3">🇷🇼</div>
           <h1 className="text-2xl font-black text-gray-900">Create Account</h1>
           <p className="text-gray-500 text-sm mt-1">Join Enjoy Rwanda today</p>
+          <p className="text-gray-400 text-xs mt-2">Visitor accounts can register here. Vendor/admin accounts are created by an admin.</p>
         </div>
 
         {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
@@ -42,14 +43,6 @@ export default function Register() {
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400 transition-colors" />
             </div>
           ))}
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">I am a</label>
-            <select value={form.role} onChange={e => set("role", e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400 transition-colors bg-white">
-              <option value="visitor">Visitor</option>
-              <option value="vendor">Vendor (Restaurant / Shop Owner)</option>
-            </select>
-          </div>
           <button type="submit" className="w-full bg-[#1a1a2e] text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors">Create Account</button>
         </form>
 
