@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface CartItem {
@@ -92,13 +92,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [user, setUser] = useState<User | null>(() => {
-    try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
   });
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem("token"),
+  );
   const [darkMode, setDarkMode] = useState(false);
 
   const toggleDark = () => {
-    setDarkMode(prev => {
+    setDarkMode((prev) => {
       const next = !prev;
       document.documentElement.classList.toggle("dark", next);
       return next;
@@ -110,7 +116,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
       date: new Date().toISOString().split("T")[0],
-      items: items.map((item) => ({ name: item.name, price: item.price, quantity: item.quantity })),
+      items: items.map((item) => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      })),
       total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       status: "confirmed",
       vendor: restaurantName,
@@ -176,12 +186,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = (u: User, t?: string) => {
     setUser(u);
     localStorage.setItem("user", JSON.stringify(u));
-    if (t) { setToken(t); localStorage.setItem("token", t); }
+    if (t) {
+      setToken(t);
+      localStorage.setItem("token", t);
+    }
   };
 
   const logout = () => {
-    setUser(null); setToken(null);
-    localStorage.removeItem("user"); localStorage.removeItem("token");
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
   };
 
   return (
@@ -194,6 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearCart,
         cartTotal,
         user,
+        token,
         login,
         logout,
         orders,
