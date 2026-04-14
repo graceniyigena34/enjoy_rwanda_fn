@@ -33,6 +33,7 @@ export interface User {
   name: string;
   email: string;
   role: "visitor" | "vendor" | "admin";
+  roles?: string[];
 }
 
 interface AppContextType {
@@ -43,7 +44,8 @@ interface AppContextType {
   clearCart: () => void;
   cartTotal: number;
   user: User | null;
-  login: (user: User) => void;
+  token: string | null;
+  login: (user: User, token?: string) => void;
   logout: () => void;
   orders: Order[];
   saveOrder: (restaurantName: string, items: CartItem[]) => void;
@@ -89,22 +91,18 @@ const initialOrders: Order[] = [
 export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [user, setUser] = useState<User | null>(null);
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const stored = localStorage.getItem("enjoy-rwanda.theme");
-    if (stored === "dark") return true;
-    if (stored === "light") return false;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const [user, setUser] = useState<User | null>(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
   });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("enjoy-rwanda.theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [darkMode, setDarkMode] = useState(false);
 
   const toggleDark = () => {
-    setDarkMode((prev) => !prev);
+    setDarkMode(prev => {
+      const next = !prev;
+      document.documentElement.classList.toggle("dark", next);
+      return next;
+    });
   };
 
   const saveOrder = (restaurantName: string, items: CartItem[]) => {
@@ -112,11 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
       date: new Date().toISOString().split("T")[0],
-      items: items.map((item) => ({
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-      })),
+      items: items.map((item) => ({ name: item.name, price: item.price, quantity: item.quantity })),
       total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       status: "confirmed",
       vendor: restaurantName,
@@ -150,7 +144,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           i.lineId === lineId ? { ...i, quantity: nextQty } : i,
         );
       }
-
       if (maxStock !== null && maxStock <= 0) return prev;
       return [
         ...prev,
@@ -180,8 +173,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearCart = () => setCart([]);
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  const login = (u: User) => setUser(u);
-  const logout = () => setUser(null);
+  const login = (u: User, t?: string) => {
+    setUser(u);
+    localStorage.setItem("user", JSON.stringify(u));
+    if (t) { setToken(t); localStorage.setItem("token", t); }
+  };
+
+  const logout = () => {
+    setUser(null); setToken(null);
+    localStorage.removeItem("user"); localStorage.removeItem("token");
+  };
 
   return (
     <AppContext.Provider
@@ -212,3 +213,11 @@ export const useApp = () => {
   if (!ctx) throw new Error("useApp must be used within AppProvider");
   return ctx;
 };
+
+/** Returns true if the user has the given role (checks both role and roles[]) */
+export function hasRole(user: User | null, role: string): boolean {
+  if (!user) return false;
+  if (user.role === role) return true;
+  if (Array.isArray(user.roles) && user.roles.includes(role)) return true;
+  return false;
+}

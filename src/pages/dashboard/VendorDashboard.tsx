@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useApp } from "../../context/AppContext";
+import { useApp, hasRole } from "../../context/AppContext";
+import type { VendorApprovalStatus } from "../../utils/vendorApprovalStorage";
+import { getVendorApplication, upsertVendorApplication } from "../../utils/vendorApprovalStorage";
+import { buildVendorShopId, removeVendorShopByVendorId, upsertVendorShop } from "../../utils/vendorShopStorage";
 
 type BusinessType = "Restaurant" | "Shop";
 type Tab = "overview" | "catalog" | "orders" | "analytics" | "settings";

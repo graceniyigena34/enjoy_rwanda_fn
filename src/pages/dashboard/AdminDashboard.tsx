@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useApp } from "../../context/AppContext";
+import { useApp, hasRole } from "../../context/AppContext";
 import { readVendorApplications, updateVendorApplicationStatus } from "../../utils/vendorApprovalStorage";
 
 const mockUsers = [
@@ -113,7 +113,7 @@ export default function AdminDashboard() {
   const pendingApprovals = vendors.filter(v => v.status === "pending").length;
   const approvedVendors = vendors.filter(v => v.status === "approved").length;
 
-  if (!user || user.role !== "admin")
+  if (!user || (!hasRole(user, "admin") && user.role !== "admin"))
     return (
       <div className="p-10 text-center">
         Access denied.{" "}
