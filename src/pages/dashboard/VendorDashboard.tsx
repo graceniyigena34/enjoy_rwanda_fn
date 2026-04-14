@@ -9,12 +9,27 @@ type Timeframe = "Weekly" | "Monthly" | "Quarterly";
 type BookingStatus = "confirmed" | "pending" | "cancelled";
 type OrderStatus = "pending" | "processing" | "delivered";
 type NotificationTone = "emerald" | "amber" | "sky";
+type OnboardingStep = 1 | 2 | 3 | 4;
+
+type StoredUpload = {
+  name: string;
+  type: string;
+  size: number;
+  previewUrl?: string;
+};
 
 type BusinessInfo = {
   businessName: string;
   businessType: BusinessType;
   location: string;
   openingHours: string;
+  openingDays: string[];
+  businessPhone: string;
+  businessEmail: string;
+  managerName: string;
+  managerEmail: string;
+  businessProfileImage?: StoredUpload;
+  rdbCertificate?: StoredUpload;
   description: string;
 };
 
@@ -70,6 +85,20 @@ type DashboardSeed = {
   notifications: NotificationItem[];
 };
 
+type DashboardPersisted = Partial<DashboardSeed> & {
+  tab?: Tab;
+  onboardingComplete?: boolean;
+};
+
+const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
+  { id: 1, title: "Business Info" },
+  { id: 2, title: "Contact Details" },
+  { id: 3, title: "Operating Details" },
+  { id: 4, title: "Documents & Verification" },
+];
+
+const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 const money = new Intl.NumberFormat("en-RW", {
   style: "currency",
   currency: "RWF",
@@ -91,7 +120,12 @@ const restaurantSeed = (): DashboardSeed => ({
     businessName: "Kigali Grill",
     businessType: "Restaurant",
     location: "Kigali, Rwanda",
-    openingHours: "08:00 - 22:00",
+    openingHours: "08:00",
+    openingDays: [],
+    businessPhone: "",
+    businessEmail: "",
+    managerName: "",
+    managerEmail: "",
     description:
       "Modern restaurant dashboard for table bookings, menu updates, and live sales tracking.",
   },
@@ -214,7 +248,12 @@ const shopSeed = (): DashboardSeed => ({
     businessName: "Inzozi Fashion",
     businessType: "Shop",
     location: "Kigali Heights, Rwanda",
-    openingHours: "09:00 - 18:00",
+    openingHours: "09:00",
+    openingDays: [],
+    businessPhone: "",
+    businessEmail: "",
+    managerName: "",
+    managerEmail: "",
     description:
       "Retail dashboard for product listings, stock health, and fast order fulfillment.",
   },
@@ -509,9 +548,7 @@ export default function VendorDashboard() {
     if (!storageKey || typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem(storageKey);
-      return raw
-        ? (JSON.parse(raw) as Partial<DashboardSeed> & { tab?: Tab })
-        : null;
+      return raw ? (JSON.parse(raw) as DashboardPersisted) : null;
     } catch {
       return null;
     }
@@ -527,6 +564,14 @@ export default function VendorDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<Timeframe>("Weekly");
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>(1);
+  const [onboardingDirection, setOnboardingDirection] = useState<
+    "next" | "prev"
+  >("next");
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean>(() =>
+    Boolean(storedState?.onboardingComplete),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [profile, setProfile] = useState<ProfileInfo>(
     () => storedState?.profile ?? initialSeed.profile,
@@ -650,6 +695,115 @@ export default function VendorDashboard() {
 
   const notificationCount = notifications.filter((item) => item.unread).length;
 
+  const onboardingReady = useMemo(
+    () =>
+      business.businessName.trim().length > 0 &&
+      business.businessType.trim().length > 0 &&
+      business.description.trim().length > 0 &&
+      business.location.trim().length > 0 &&
+      business.businessPhone.trim().length > 0 &&
+      business.businessEmail.trim().length > 0 &&
+      business.managerName.trim().length > 0 &&
+      business.managerEmail.trim().length > 0 &&
+      business.openingHours.trim().length > 0 &&
+      business.openingDays.length > 0 &&
+      Boolean(business.businessProfileImage) &&
+      Boolean(business.rdbCertificate),
+    [business],
+  );
+
+  const toggleOpeningDay = (day: string) => {
+    setBusiness((current) => ({
+      ...current,
+      openingDays: current.openingDays.includes(day)
+        ? current.openingDays.filter((entry) => entry !== day)
+        : [...current.openingDays, day],
+    }));
+  };
+
+  const mapFileToUpload = (file: File, previewUrl?: string): StoredUpload => ({
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    size: file.size,
+    previewUrl,
+  });
+
+  const updateUploadField = (
+    field: "businessProfileImage" | "rdbCertificate",
+    file: File,
+  ) => {
+    if (field === "businessProfileImage") {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setBusiness((current) => ({
+          ...current,
+          businessProfileImage: mapFileToUpload(file, String(reader.result)),
+        }));
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    setBusiness((current) => ({
+      ...current,
+      rdbCertificate: mapFileToUpload(file),
+    }));
+  };
+
+  const validateCurrentStep = (step: OnboardingStep) => {
+    if (step === 1) {
+      return (
+        business.businessName.trim().length > 0 &&
+        business.businessType.trim().length > 0 &&
+        business.description.trim().length > 0 &&
+        business.location.trim().length > 0
+      );
+    }
+
+    if (step === 2) {
+      return (
+        business.businessPhone.trim().length > 0 &&
+        business.businessEmail.trim().length > 0 &&
+        business.managerName.trim().length > 0 &&
+        business.managerEmail.trim().length > 0
+      );
+    }
+
+    if (step === 3) {
+      return (
+        business.openingHours.trim().length > 0 &&
+        business.openingDays.length > 0
+      );
+    }
+
+    return Boolean(business.businessProfileImage && business.rdbCertificate);
+  };
+
+  const goToNextStep = () => {
+    if (!validateCurrentStep(onboardingStep)) {
+      setOnboardingError("Please complete all required fields in this step.");
+      return;
+    }
+    setOnboardingError(null);
+    setOnboardingDirection("next");
+    setOnboardingStep((current) => Math.min(4, current + 1) as OnboardingStep);
+  };
+
+  const goToPreviousStep = () => {
+    setOnboardingError(null);
+    setOnboardingDirection("prev");
+    setOnboardingStep((current) => Math.max(1, current - 1) as OnboardingStep);
+  };
+
+  const submitOnboarding = () => {
+    if (!onboardingReady) {
+      setOnboardingError("Please complete all steps before submitting.");
+      return;
+    }
+    setOnboardingError(null);
+    setOnboardingComplete(true);
+  };
+
   const applyBusinessType = (nextType: BusinessType) => {
     const seed = demoSeed(nextType);
     setBusiness((current) => ({
@@ -658,6 +812,13 @@ export default function VendorDashboard() {
       businessName: seed.business.businessName,
       location: seed.business.location,
       openingHours: seed.business.openingHours,
+      openingDays: seed.business.openingDays,
+      businessPhone: seed.business.businessPhone,
+      businessEmail: seed.business.businessEmail,
+      managerName: seed.business.managerName,
+      managerEmail: seed.business.managerEmail,
+      businessProfileImage: undefined,
+      rdbCertificate: undefined,
       description: seed.business.description,
     }));
     setProfile(seed.profile);
@@ -680,6 +841,7 @@ export default function VendorDashboard() {
         orders,
         notifications,
         tab,
+        onboardingComplete,
       }),
     );
   }, [
@@ -691,6 +853,7 @@ export default function VendorDashboard() {
     orders,
     notifications,
     tab,
+    onboardingComplete,
   ]);
 
   useEffect(() => {
@@ -702,6 +865,7 @@ export default function VendorDashboard() {
         if (!raw) return;
         const parsed = JSON.parse(raw) as Partial<DashboardSeed> & {
           tab?: Tab;
+          onboardingComplete?: boolean;
         };
         if (parsed.profile) setProfile(parsed.profile);
         if (parsed.business) setBusiness(parsed.business);
@@ -710,6 +874,9 @@ export default function VendorDashboard() {
         if (parsed.orders) setOrders(parsed.orders);
         if (parsed.notifications) setNotifications(parsed.notifications);
         if (parsed.tab) setTab(parsed.tab);
+        if (typeof parsed.onboardingComplete === "boolean") {
+          setOnboardingComplete(parsed.onboardingComplete);
+        }
       } catch {
         // Ignore malformed storage payloads.
       }
@@ -828,6 +995,301 @@ export default function VendorDashboard() {
           >
             Go to login
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!onboardingComplete) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-10 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] sm:px-6">
+        <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+          <section className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80 sm:p-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.34em] text-emerald-600 dark:text-emerald-300">
+                Vendor onboarding
+              </p>
+              <h1 className="mt-3 text-3xl font-semibold text-slate-950 dark:text-white">
+                Complete your vendor profile first
+              </h1>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Fill the required steps below before the dashboard becomes
+                available.
+              </p>
+            </div>
+
+            <div className="mt-8 overflow-hidden">
+              <div
+                key={onboardingStep}
+                className={`rounded-2xl border border-slate-200/80 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 ${onboardingDirection === "next" ? "animate-[vendor-step-next_260ms_ease]" : "animate-[vendor-step-prev_260ms_ease]"}`}
+              >
+                {onboardingStep === 1 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>business_name</span>
+                      <input
+                        value={business.businessName}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessName: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>business_type</span>
+                      <select
+                        value={business.businessType}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessType: event.target.value as BusinessType,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      >
+                        <option value="Restaurant">Restaurant</option>
+                        <option value="Shop">Shop</option>
+                      </select>
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>location</span>
+                      <input
+                        value={business.location}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            location: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>business_description</span>
+                      <textarea
+                        rows={4}
+                        value={business.description}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {onboardingStep === 2 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>business_phone</span>
+                      <input
+                        value={business.businessPhone}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessPhone: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>business_email</span>
+                      <input
+                        type="email"
+                        value={business.businessEmail}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessEmail: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>manager_name</span>
+                      <input
+                        value={business.managerName}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            managerName: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>manager_email</span>
+                      <input
+                        type="email"
+                        value={business.managerEmail}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            managerEmail: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {onboardingStep === 3 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>opening_hours</span>
+                      <input
+                        type="time"
+                        value={business.openingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            openingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>opening_days</span>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {WEEK_DAYS.map((day) => (
+                          <label
+                            key={day}
+                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={business.openingDays.includes(day)}
+                              onChange={() => toggleOpeningDay(day)}
+                            />
+                            <span>{day}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {onboardingStep === 4 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>business_profile_image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          updateUploadField("businessProfileImage", file);
+                        }}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/5"
+                      />
+                      {business.businessProfileImage?.previewUrl && (
+                        <img
+                          src={business.businessProfileImage.previewUrl}
+                          alt="Business preview"
+                          className="h-24 w-24 rounded-xl object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>rdb_certificate</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          updateUploadField("rdbCertificate", file);
+                        }}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/5"
+                      />
+                      {business.rdbCertificate && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Uploaded: {business.rdbCertificate.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {onboardingError && (
+              <p className="mt-4 rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-600 dark:text-rose-300">
+                {onboardingError}
+              </p>
+            )}
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={goToPreviousStep}
+                disabled={onboardingStep === 1}
+                className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-200"
+              >
+                Previous
+              </button>
+
+              {onboardingStep < 4 ? (
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={submitOnboarding}
+                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                >
+                  Submit & Go to Dashboard
+                </button>
+              )}
+            </div>
+          </section>
+
+          <aside className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
+            <p className="text-xs uppercase tracking-[0.34em] text-slate-400">
+              Steps Indicator
+            </p>
+            <div className="mt-6 space-y-5">
+              {ONBOARDING_STEPS.map((step, index) => {
+                const isCurrent = onboardingStep === step.id;
+                const isCompleted = onboardingStep > step.id;
+                const isUpcoming = onboardingStep < step.id;
+                return (
+                  <div key={step.id} className="relative pl-8">
+                    {index < ONBOARDING_STEPS.length - 1 && (
+                      <span className="absolute left-[11px] top-7 h-10 w-[2px] bg-slate-200 dark:bg-white/10" />
+                    )}
+                    <span
+                      className={`absolute left-0 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${isCompleted ? "bg-emerald-500 text-white" : isCurrent ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}
+                    >
+                      {isCompleted ? "✔" : step.id}
+                    </span>
+                    <p
+                      className={`text-sm ${isCurrent ? "font-bold text-emerald-600 dark:text-emerald-300" : isUpcoming ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
+                    >
+                      {step.title}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
         </div>
       </div>
     );

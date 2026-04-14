@@ -49,3 +49,25 @@ a[class] { color: unset; }
 ::selection {
   background: rgba(16, 185, 129, 0.24);
 }
+
+@keyframes vendor-step-next {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes vendor-step-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
