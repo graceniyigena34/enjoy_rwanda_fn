@@ -603,6 +603,16 @@ export default function VendorDashboard() {
   const [notifications, setNotifications] = useState<NotificationItem[]>(
     () => storedState?.notifications ?? initialSeed.notifications,
   );
+  const [availabilityByItemId, setAvailabilityByItemId] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      (storedState?.catalogItems ?? initialSeed.catalogItems).map((item) => [
+        item.id,
+        !item.status.toLowerCase().includes("low"),
+      ]),
+    ),
+  );
   const [menuFormOpen, setMenuFormOpen] = useState(false);
   const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
@@ -788,6 +798,17 @@ export default function VendorDashboard() {
     setMenuFormOpen(false);
     resetMenuForm();
   };
+
+  useEffect(() => {
+    setAvailabilityByItemId((current) => {
+      const next = { ...current };
+      catalogItems.forEach((item) => {
+        if (typeof next[item.id] === "boolean") return;
+        next[item.id] = !item.status.toLowerCase().includes("low");
+      });
+      return next;
+    });
+  }, [catalogItems]);
 
   const updateUploadField = (
     field: "businessProfileImage" | "rdbCertificate",
@@ -2035,10 +2056,10 @@ export default function VendorDashboard() {
                             📷
                           </span>
                           <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
-                            Click or Drag Photo
+                            Images in public directory
                           </span>
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            High quality JPEG or PNG. Max size 5MB.
+                            Click to choose an image from the public directory.
                           </span>
                           <input
                             type="file"
@@ -2238,7 +2259,25 @@ export default function VendorDashboard() {
                                 {item.price.toLocaleString("en-RW")}
                               </td>
                               <td className="px-6 py-4">
-                                <div className="h-7 w-12 rounded-full bg-emerald-600" />
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={
+                                    availabilityByItemId[item.id] ?? true
+                                  }
+                                  aria-label={`Toggle availability for ${item.name}`}
+                                  onClick={() =>
+                                    setAvailabilityByItemId((current) => ({
+                                      ...current,
+                                      [item.id]: !(current[item.id] ?? true),
+                                    }))
+                                  }
+                                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-600"}`}
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${(availabilityByItemId[item.id] ?? true) ? "translate-x-6" : "translate-x-1"}`}
+                                  />
+                                </button>
                               </td>
                               <td className="px-6 py-4">
                                 <button
