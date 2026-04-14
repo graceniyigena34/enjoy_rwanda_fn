@@ -10,9 +10,9 @@ export default function Register() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     confirm: "",
-    role: "vendor" as "vendor" | "admin",
   });
 
   const [error, setError] = useState("");
@@ -44,7 +44,8 @@ export default function Register() {
         form.name,
         form.email,
         form.password,
-        form.role
+        form.phone.trim() || undefined,
+        "vendor"
       );
 
       login(
@@ -52,17 +53,13 @@ export default function Register() {
           id: u.id,
           name: u.name,
           email: u.email,
-          role: u.role as "vendor" | "admin",
+          role: u.role as "visitor" | "vendor" | "admin",
           roles: [u.role],
         },
         token
       );
 
-      if (u.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/vendor");
-      }
+      navigate("/vendor");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setLoading(false);
@@ -75,9 +72,9 @@ export default function Register() {
 
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">🇷🇼</div>
-          <h1 className="text-2xl font-black text-gray-900">Create Account</h1>
+          <h1 className="text-2xl font-black text-gray-900">Create Vendor Account</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Join Enjoy Rwanda as a vendor or admin
+            Join Enjoy Rwanda as a vendor
           </p>
         </div>
 
@@ -89,54 +86,43 @@ export default function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">
-              I am a
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {(["vendor", "admin"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => set("role", r)}
-                  className={`py-3 rounded-xl text-sm font-semibold border transition-all capitalize ${
-                    form.role === r
-                      ? "bg-[#1a1a2e] text-white border-[#1a1a2e]"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-[#1a1a2e]"
-                  }`}
-                >
-                  {r === "vendor" ? "🏪 Vendor" : "🛡️ Admin"}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {[
             {
               label: "Full Name",
               field: "name",
               type: "text",
               placeholder: "Your full name",
+              required: true,
             },
             {
               label: "Email",
               field: "email",
               type: "email",
               placeholder: "you@example.com",
+              required: true,
+            },
+            {
+              label: "Phone Number (Optional)",
+              field: "phone",
+              type: "tel",
+              placeholder: "+250 XXX XXX XXX",
+              required: false,
             },
             {
               label: "Password",
               field: "password",
               type: "password",
               placeholder: "Min. 6 characters",
+              required: true,
             },
             {
               label: "Confirm Password",
               field: "confirm",
               type: "password",
               placeholder: "Repeat password",
+              required: true,
             },
-          ].map(({ label, field, type, placeholder }) => (
+          ].map(({ label, field, type, placeholder, required }) => (
             <div key={field}>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 {label}
@@ -146,7 +132,7 @@ export default function Register() {
                 placeholder={placeholder}
                 value={form[field as keyof typeof form]}
                 onChange={(e) => set(field, e.target.value)}
-                required
+                required={required}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:ring-2 focus:ring-gray-200 transition-all"
               />
             </div>
@@ -157,7 +143,7 @@ export default function Register() {
             disabled={loading}
             className="w-full bg-[#1a1a2e] text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors disabled:opacity-60"
           >
-            {loading ? "Creating account…" : `Create ${form.role === "admin" ? "Admin" : "Vendor"} Account`}
+            {loading ? "Creating account…" : "Create Vendor Account"}
           </button>
         </form>
 
