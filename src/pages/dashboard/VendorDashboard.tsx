@@ -92,7 +92,7 @@ type DashboardPersisted = Partial<DashboardSeed> & {
 
 type NewItemFormState = {
   itemName: string;
-  category: string;
+
   price: string;
   prepTime: string;
   description: string;
@@ -108,8 +108,6 @@ const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
 ];
 
 const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const ITEM_CATEGORIES = ["Appetizer", "Main Course", "Beverage", "Dessert"];
 
 const money = new Intl.NumberFormat("en-RW", {
   style: "currency",
@@ -617,7 +615,6 @@ export default function VendorDashboard() {
   const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
-    category: "",
     price: "",
     prepTime: "",
     description: "",
@@ -764,7 +761,7 @@ export default function VendorDashboard() {
   const resetMenuForm = () => {
     setMenuForm({
       itemName: "",
-      category: "",
+
       price: "",
       prepTime: "",
       description: "",
@@ -2133,7 +2130,17 @@ export default function VendorDashboard() {
                           📍 {business.location} • ⭐ 4.9 (2.1k reviews)
                         </p>
                       </div>
-                      <div className="h-24 w-24 rounded-3xl bg-[linear-gradient(135deg,#10b981_0%,#047857_100%)] shadow-lg shadow-emerald-500/25" />
+                      <img
+                        src="/pexels-aksinfo7-36749693.jpg"
+                        alt="Restaurant outlet"
+                        className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-emerald-500/25"
+                        onError={(e) => {
+                          (
+                            e.currentTarget as HTMLImageElement
+                          ).style.background =
+                            "linear-gradient(135deg, #10b981 0%, #047857 100%)";
+                        }}
+                      />
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -2214,7 +2221,7 @@ export default function VendorDashboard() {
                       <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
                         <tr>
                           <th className="px-6 py-3">Item Details</th>
-                          <th className="px-6 py-3">Category</th>
+
                           <th className="px-6 py-3">Price (RWF)</th>
                           <th className="px-6 py-3">Availability</th>
                           <th className="px-6 py-3">Actions</th>
@@ -2237,8 +2244,22 @@ export default function VendorDashboard() {
                             >
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div
-                                    className={`h-12 w-12 rounded-full ${item.accent}`}
+                                  <img
+                                    src={
+                                      item.id === 1
+                                        ? "/pexels-tahaasamett-7627418.jpg"
+                                        : item.id === 2
+                                          ? "/pexels-aksinfo7-36749693.jpg"
+                                          : "/pexels-tahaasamett-7627418.jpg"
+                                    }
+                                    alt={item.name}
+                                    className="h-12 w-12 rounded-full object-cover"
+                                    onError={(e) => {
+                                      (
+                                        e.currentTarget as HTMLImageElement
+                                      ).src =
+                                        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E`;
+                                    }}
                                   />
                                   <div>
                                     <p className="font-semibold text-slate-950 dark:text-white">
@@ -2250,11 +2271,7 @@ export default function VendorDashboard() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-4">
-                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                                  {category}
-                                </span>
-                              </td>
+
                               <td className="px-6 py-4 text-2xl font-semibold text-slate-950 dark:text-white">
                                 {item.price.toLocaleString("en-RW")}
                               </td>
