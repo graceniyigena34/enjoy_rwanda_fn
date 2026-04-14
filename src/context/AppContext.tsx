@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface CartItem {
@@ -116,37 +116,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
       vendor: restaurantName,
     };
     setOrders((prev) => [...prev, newOrder]);
-    setCart((prev) => prev.filter((item) => item.vendorName !== restaurantName));
+    setCart((prev) =>
+      prev.filter((item) => item.vendorName !== restaurantName),
+    );
   };
 
-  const buildCartLineId = (item: Pick<CartItem, "id" | "vendorName" | "shopId">) =>
-    typeof item.shopId === "number" ? `shop:${item.shopId}:${item.id}` : `vendor:${item.vendorName}:${item.id}`;
+  const buildCartLineId = (
+    item: Pick<CartItem, "id" | "vendorName" | "shopId">,
+  ) =>
+    typeof item.shopId === "number"
+      ? `shop:${item.shopId}:${item.id}`
+      : `vendor:${item.vendorName}:${item.id}`;
 
   const addToCart = (item: Omit<CartItem, "quantity" | "lineId">) => {
     setCart((prev) => {
       const lineId = buildCartLineId(item);
       const existing = prev.find((i) => i.lineId === lineId);
-      const maxStock = typeof item.stock === "number" && Number.isFinite(item.stock) ? Math.max(0, Math.floor(item.stock)) : null;
+      const maxStock =
+        typeof item.stock === "number" && Number.isFinite(item.stock)
+          ? Math.max(0, Math.floor(item.stock))
+          : null;
+
       if (existing) {
         const nextQty = existing.quantity + 1;
         if (maxStock !== null && nextQty > maxStock) return prev;
-        return prev.map((i) => (i.lineId === lineId ? { ...i, quantity: nextQty } : i));
+        return prev.map((i) =>
+          i.lineId === lineId ? { ...i, quantity: nextQty } : i,
+        );
       }
       if (maxStock !== null && maxStock <= 0) return prev;
-      return [...prev, { ...item, lineId, quantity: 1, stock: maxStock ?? item.stock }];
+      return [
+        ...prev,
+        { ...item, lineId, quantity: 1, stock: maxStock ?? item.stock },
+      ];
     });
   };
 
-  const removeFromCart = (lineId: string) => setCart((prev) => prev.filter((i) => i.lineId !== lineId));
+  const removeFromCart = (lineId: string) =>
+    setCart((prev) => prev.filter((i) => i.lineId !== lineId));
 
   const updateQty = (lineId: string, qty: number) => {
     if (qty <= 0) return removeFromCart(lineId);
     setCart((prev) =>
       prev.map((i) => {
         if (i.lineId !== lineId) return i;
-        const maxStock = typeof i.stock === "number" && Number.isFinite(i.stock) ? Math.max(0, Math.floor(i.stock)) : null;
-        return { ...i, quantity: maxStock === null ? qty : Math.min(qty, maxStock) };
-      })
+        const maxStock =
+          typeof i.stock === "number" && Number.isFinite(i.stock)
+            ? Math.max(0, Math.floor(i.stock))
+            : null;
+        const nextQty = maxStock === null ? qty : Math.min(qty, maxStock);
+        return { ...i, quantity: nextQty };
+      }),
     );
   };
 
@@ -165,7 +185,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, token, login, logout, orders, saveOrder, darkMode, toggleDark }}>
+    <AppContext.Provider
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQty,
+        clearCart,
+        cartTotal,
+        user,
+        login,
+        logout,
+        orders,
+        saveOrder,
+        darkMode,
+        toggleDark,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
