@@ -92,7 +92,6 @@ type DashboardPersisted = Partial<DashboardSeed> & {
 
 type NewItemFormState = {
   itemName: string;
-
   price: string;
   prepTime: string;
   description: string;
@@ -761,7 +760,6 @@ export default function VendorDashboard() {
   const resetMenuForm = () => {
     setMenuForm({
       itemName: "",
-
       price: "",
       prepTime: "",
       description: "",
@@ -1967,29 +1965,6 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                            Category
-                          </span>
-                          <select
-                            required
-                            value={menuForm.category}
-                            onChange={(event) =>
-                              setMenuForm((current) => ({
-                                ...current,
-                                category: event.target.value,
-                              }))
-                            }
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
-                          >
-                            <option value="">Select Category</option>
-                            {ITEM_CATEGORIES.map((category) => (
-                              <option key={category} value={category}>
-                                {category}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Price (RWF)
@@ -2202,12 +2177,6 @@ export default function VendorDashboard() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200"
-                      >
-                        All Categories
-                      </button>
-                      <button
-                        type="button"
                         className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200"
                         aria-label="Filter menu"
                       >
@@ -2228,15 +2197,7 @@ export default function VendorDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredCatalog.slice(0, 4).map((item, index) => {
-                          const categories = [
-                            "Appetizer",
-                            "Main Course",
-                            "Beverage",
-                            "Dessert",
-                          ];
-                          const category =
-                            categories[index % categories.length];
+                        {filteredCatalog.slice(0, 4).map((item) => {
                           return (
                             <tr
                               key={item.id}
