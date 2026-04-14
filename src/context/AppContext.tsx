@@ -33,6 +33,7 @@ export interface User {
   name: string;
   email: string;
   role: "visitor" | "vendor" | "admin";
+  roles?: string[];
 }
 
 interface AppContextType {
@@ -43,7 +44,8 @@ interface AppContextType {
   clearCart: () => void;
   cartTotal: number;
   user: User | null;
-  login: (user: User) => void;
+  token: string | null;
+  login: (user: User, token?: string) => void;
   logout: () => void;
   orders: Order[];
   saveOrder: (restaurantName: string, items: CartItem[]) => void;
@@ -79,9 +81,7 @@ const initialOrders: Order[] = [
   {
     id: "ORD-003",
     date: "2025-07-05",
-    items: [
-      { name: "Rwandan Coffee (1kg)", price: 12000, quantity: 1 },
-    ],
+    items: [{ name: "Rwandan Coffee (1kg)", price: 12000, quantity: 1 }],
     total: 12000,
     status: "confirmed",
     vendor: "Kigali Fresh Market",
@@ -91,13 +91,16 @@ const initialOrders: Order[] = [
 export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
+  });
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [darkMode, setDarkMode] = useState(false);
 
   const toggleDark = () => {
     setDarkMode(prev => {
       const next = !prev;
-      document.documentElement.classList.toggle('dark', next);
+      document.documentElement.classList.toggle("dark", next);
       return next;
     });
   };
@@ -107,11 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
       date: new Date().toISOString().split("T")[0],
-      items: items.map((item) => ({
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-      })),
+      items: items.map((item) => ({ name: item.name, price: item.price, quantity: item.quantity })),
       total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       status: "confirmed",
       vendor: restaurantName,
@@ -120,20 +119,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCart((prev) => prev.filter((item) => item.vendorName !== restaurantName));
   };
 
-  const buildCartLineId = (item: Pick<CartItem, "id" | "vendorName" | "shopId">) => (typeof item.shopId === "number" ? `shop:${item.shopId}:${item.id}` : `vendor:${item.vendorName}:${item.id}`);
+  const buildCartLineId = (item: Pick<CartItem, "id" | "vendorName" | "shopId">) =>
+    typeof item.shopId === "number" ? `shop:${item.shopId}:${item.id}` : `vendor:${item.vendorName}:${item.id}`;
 
   const addToCart = (item: Omit<CartItem, "quantity" | "lineId">) => {
     setCart((prev) => {
       const lineId = buildCartLineId(item);
       const existing = prev.find((i) => i.lineId === lineId);
       const maxStock = typeof item.stock === "number" && Number.isFinite(item.stock) ? Math.max(0, Math.floor(item.stock)) : null;
-
       if (existing) {
         const nextQty = existing.quantity + 1;
         if (maxStock !== null && nextQty > maxStock) return prev;
         return prev.map((i) => (i.lineId === lineId ? { ...i, quantity: nextQty } : i));
       }
-
       if (maxStock !== null && maxStock <= 0) return prev;
       return [...prev, { ...item, lineId, quantity: 1, stock: maxStock ?? item.stock }];
     });
@@ -147,8 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((i) => {
         if (i.lineId !== lineId) return i;
         const maxStock = typeof i.stock === "number" && Number.isFinite(i.stock) ? Math.max(0, Math.floor(i.stock)) : null;
-        const nextQty = maxStock === null ? qty : Math.min(qty, maxStock);
-        return { ...i, quantity: nextQty };
+        return { ...i, quantity: maxStock === null ? qty : Math.min(qty, maxStock) };
       })
     );
   };
@@ -156,11 +153,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearCart = () => setCart([]);
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  const login = (u: User) => setUser(u);
-  const logout = () => setUser(null);
+  const login = (u: User, t?: string) => {
+    setUser(u);
+    localStorage.setItem("user", JSON.stringify(u));
+    if (t) { setToken(t); localStorage.setItem("token", t); }
+  };
+
+  const logout = () => {
+    setUser(null); setToken(null);
+    localStorage.removeItem("user"); localStorage.removeItem("token");
+  };
 
   return (
-    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, login, logout, orders, saveOrder, darkMode, toggleDark }}>
+    <AppContext.Provider value={{ cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal, user, token, login, logout, orders, saveOrder, darkMode, toggleDark }}>
       {children}
     </AppContext.Provider>
   );
@@ -172,3 +177,11 @@ export const useApp = () => {
   if (!ctx) throw new Error("useApp must be used within AppProvider");
   return ctx;
 };
+
+/** Returns true if the user has the given role (checks both role and roles[]) */
+export function hasRole(user: User | null, role: string): boolean {
+  if (!user) return false;
+  if (user.role === role) return true;
+  if (Array.isArray(user.roles) && user.roles.includes(role)) return true;
+  return false;
+}

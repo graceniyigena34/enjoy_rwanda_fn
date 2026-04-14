@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useApp } from "../../context/AppContext";
+import { useApp, hasRole } from "../../context/AppContext";
 import type { VendorApprovalStatus } from "../../utils/vendorApprovalStorage";
 import { getVendorApplication, upsertVendorApplication } from "../../utils/vendorApprovalStorage";
 import { buildVendorShopId, removeVendorShopByVendorId, upsertVendorShop } from "../../utils/vendorShopStorage";
@@ -410,7 +410,7 @@ export default function VendorDashboard() {
     closeEditMenuItem();
   };
 
-  if (!user || user.role !== "vendor")
+  if (!user || (!hasRole(user, "vendor") && user.role !== "vendor"))
     return (
       <div className="p-10 text-center">
         Access denied. <Link to="/login" className="text-blue-600 underline">Login as vendor</Link>
@@ -1434,7 +1434,7 @@ export default function VendorDashboard() {
                   </thead>
                   <tbody>
                     {bookings.map((booking) => (
-                      <tr key={booking.id} className="border-b border-gray-100">
+                      <tr key={booking.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors duration-200">
                         <td className="py-4">{booking.visitor}</td>
                         <td>{booking.table}</td>
                         <td>{booking.date}</td>
@@ -1481,7 +1481,7 @@ export default function VendorDashboard() {
                 </thead>
                 <tbody>
                   {orders.map((order) => (
-                    <tr key={order.id} className="border-b border-gray-100">
+                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors duration-200">
                       <td className="py-4">{order.id}</td>
                       <td>{order.visitor}</td>
                       <td>{order.items.join(", ")}</td>
