@@ -74,8 +74,8 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-center px-8 xl:px-16 text-white">
           <div className="mb-8">
             <h1 className="text-4xl xl:text-5xl font-black mb-4 leading-tight">
-              Welcome Back<br />
-              <span className="text-5xl xl:text-6xl">Enjoy Rwanda</span>
+              Welcome to<br />
+              <span className="text-5xl xl:text-6xl">Enjoy Rwanda </span>
             </h1>
             <div className="w-20 h-1 bg-white rounded-full mb-6"></div>
             <p className="text-lg xl:text-xl text-gray-200 leading-relaxed">
@@ -91,7 +91,7 @@ export default function Login() {
 
           <div className="lg:hidden text-center mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-black text-[#1a1a2e]">
-              Welcome Back
+              Welcome to Enjoy Rwanda 
             </h2>
           </div>
 
