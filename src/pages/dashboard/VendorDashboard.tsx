@@ -8,13 +8,16 @@ import {
   createMenuItem,
   getMenuItems,
   getMyBusinessProfile,
+  getVendorBookings,
+  updateBookingStatus,
   updateMyBusinessProfile,
+  type BookingRecord,
   type BusinessProfileRecord,
   type MenuItemRecord,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
-type Tab = "overview" | "catalog" | "orders" | "analytics" | "settings";
+type Tab = "overview" | "catalog" | "orders" | "bookings" | "analytics" | "settings";
 type Timeframe = "Weekly" | "Monthly" | "Quarterly";
 type BookingStatus = "confirmed" | "pending" | "cancelled";
 type OrderStatus = "pending" | "processing" | "delivered";
@@ -235,6 +238,16 @@ function NavIcon({ tab }: { tab: Tab }) {
       </svg>
     );
   }
+  if (tab === "bookings") {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    );
+  }
   if (tab === "analytics") {
     return (
       <svg
@@ -400,6 +413,10 @@ export default function VendorDashboard() {
       ]),
     ),
   );
+  const [vendorBookings, setVendorBookings] = useState<BookingRecord[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
   const [menuFormOpen, setMenuFormOpen] = useState(false);
   const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
   const [menuFormMessageType, setMenuFormMessageType] = useState<
@@ -423,6 +440,34 @@ export default function VendorDashboard() {
     imagePreviewUrl: undefined,
     imageFile: null,
   });
+
+  const loadVendorBookings = useCallback(async () => {
+    if (!token) return;
+    setBookingsLoading(true);
+    setBookingsError(null);
+    try {
+      const data = await getVendorBookings(token);
+      setVendorBookings(data);
+    } catch (err) {
+      setBookingsError(err instanceof Error ? err.message : "Failed to load bookings.");
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === "bookings") void loadVendorBookings();
+  }, [tab, loadVendorBookings]);
+
+  const handleBookingStatusChange = async (id: number, status: string) => {
+    if (!token) return;
+    try {
+      const updated = await updateBookingStatus(token, id, status);
+      setVendorBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update status.");
+    }
+  };
 
   const handleSignOut = () => {
     logout();
@@ -626,6 +671,7 @@ export default function VendorDashboard() {
     { value: "overview", label: "Overview" },
     { value: "catalog", label: catalogLabel },
     { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
+    { value: "bookings", label: "Bookings" },
     { value: "analytics", label: "Analytics" },
     { value: "settings", label: "Settings" },
   ];
@@ -2470,6 +2516,142 @@ export default function VendorDashboard() {
                   </div>
                 </SectionCard>
               </section>
+            )}
+
+            {tab === "bookings" && (
+              <section className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Dashboard &gt; Bookings</p>
+                    <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">Reservations</h2>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Manage and confirm customer bookings for your restaurant.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadVendorBookings()} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] dark:border-white/10 dark:text-slate-200">
+                    &#8635; Refresh
+                  </button>
+                </div>
+
+                {bookingsError && (
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-300">{bookingsError}</div>
+                )}
+
+                {bookingsLoading ? (
+                  <div className="rounded-[2rem] border border-white/70 bg-white/85 p-10 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-slate-900/80">Loading bookings...</div>
+                ) : (
+                  <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
+                    <div className="border-b border-slate-200/70 px-6 py-5 dark:border-white/10">
+                      <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">All Bookings</h3>
+                    </div>
+                    {vendorBookings.length === 0 ? (
+                      <div className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">No bookings found.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left">
+                          <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                            <tr>
+                              <th className="px-6 py-3">Full Name</th>
+                              <th className="px-6 py-3">Email</th>
+                              <th className="px-6 py-3">Telephone</th>
+                              <th className="px-6 py-3">Date &amp; Time</th>
+                              <th className="px-6 py-3">People</th>
+                              <th className="px-6 py-3">Special Request</th>
+                              <th className="px-6 py-3">Status</th>
+                              <th className="px-6 py-3">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vendorBookings.map((booking) => (
+                              <tr key={booking.id} className="border-t border-slate-200/70 transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5">
+                                <td className="px-6 py-4 font-semibold text-slate-950 dark:text-white">{booking.fullnames}</td>
+                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.email}</td>
+                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.telephone}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                                  <p>{booking.date}</p>
+                                  <p>{booking.time}</p>
+                                </td>
+                                <td className="px-6 py-4 text-center font-semibold text-slate-950 dark:text-white">{booking.number_of_people}</td>
+                                <td className="max-w-[160px] truncate px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.special_request || "—"}</td>
+                                <td className="px-6 py-4">
+                                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[booking.status] ?? "bg-slate-500/15 text-slate-600"}` }>
+                                    {booking.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => setSelectedBooking(booking)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-white/10 dark:text-slate-300">
+                                      View
+                                    </button>
+                                    {booking.status !== "confirmed" && (
+                                      <button type="button" onClick={() => void handleBookingStatusChange(booking.id, "confirmed")} className="rounded-full bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-80">
+                                        Confirm
+                                      </button>
+                                    )}
+                                    {booking.status !== "cancelled" && (
+                                      <button type="button" onClick={() => void handleBookingStatusChange(booking.id, "cancelled")} className="rounded-full border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10">
+                                        Cancel
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {selectedBooking && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur-sm" onClick={() => setSelectedBooking(null)}>
+                <div className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Booking details</p>
+                      <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">{selectedBooking.fullnames}</h3>
+                    </div>
+                    <button type="button" onClick={() => setSelectedBooking(null)} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:text-slate-400">
+                      &times;
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {([
+                      { label: "Full Name", value: selectedBooking.fullnames },
+                      { label: "Email", value: selectedBooking.email },
+                      { label: "Telephone", value: selectedBooking.telephone },
+                      { label: "Date", value: selectedBooking.date },
+                      { label: "Time", value: selectedBooking.time },
+                      { label: "Number of People", value: String(selectedBooking.number_of_people) },
+                      { label: "Menu ID", value: String(selectedBooking.menu_id) },
+                      { label: "Status", value: selectedBooking.status },
+                      { label: "Special Request", value: selectedBooking.special_request || "None", full: true },
+                      { label: "Booked On", value: new Date(selectedBooking.created_at).toLocaleString(), full: true },
+                    ] as { label: string; value: string; full?: boolean }[]).map(({ label, value, full }) => (
+                      <div key={label} className={`rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5${full ? " sm:col-span-2" : ""}`}>
+                        <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">{label}</p>
+                        <p className="mt-1 break-words text-sm font-semibold text-slate-950 dark:text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 flex justify-end gap-2">
+                    {selectedBooking.status !== "confirmed" && (
+                      <button type="button" onClick={() => { void handleBookingStatusChange(selectedBooking.id, "confirmed"); setSelectedBooking(null); }} className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-80">
+                        Confirm
+                      </button>
+                    )}
+                    {selectedBooking.status !== "cancelled" && (
+                      <button type="button" onClick={() => { void handleBookingStatusChange(selectedBooking.id, "cancelled"); setSelectedBooking(null); }} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10">
+                        Cancel
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setSelectedBooking(null)} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 dark:border-white/10 dark:text-slate-300">
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {tab === "analytics" && (
