@@ -64,6 +64,39 @@ export interface MenuItemRecord {
   imageurl: string | null;
 }
 
+export type BookingCreateInput = {
+  tableId?: number | null;
+  visitorName?: string | null;
+  fullnames: string;
+  email: string;
+  telephone: string;
+  numberOfPeople: number;
+  specialRequest?: string;
+  menuId: number;
+  date: string;
+  time: string;
+  businessId: number;
+};
+
+export interface BookingRecord {
+  id: number;
+  user_id: number | null;
+  table_id: number | null;
+  visitor_name: string | null;
+  fullnames: string;
+  email: string;
+  telephone: string;
+  number_of_people: number;
+  special_request: string | null;
+  menu_id: number;
+  date: string;
+  time: string;
+  status: string;
+  created_at: string;
+  business_id: number;
+  emailSent?: boolean;
+}
+
 function toErrorMessage(data: unknown, fallback: string) {
   if (data && typeof data === "object" && "error" in data) {
     const error = (data as { error?: unknown }).error;
@@ -225,4 +258,34 @@ export async function getMenuItems(params?: { businessId?: number | string }) {
 
   const suffix = search.toString() ? `?${search.toString()}` : "";
   return requestJson<MenuItemRecord[]>(`${BASE_URL}/menu${suffix}`);
+}
+
+export async function createBooking(input: BookingCreateInput) {
+  const payload = {
+    // Preferred payload expected by current backend validators
+    tableId: input.tableId ?? null,
+    visitorName: input.visitorName ?? null,
+    fullnames: input.fullnames,
+    email: input.email,
+    telephone: input.telephone,
+    numberOfPeople: input.numberOfPeople,
+    specialRequest: input.specialRequest ?? "",
+    menuId: input.menuId,
+    date: input.date,
+    time: input.time,
+    businessId: input.businessId,
+    // Backward compatibility for older backend naming
+    table_id: input.tableId ?? null,
+    visitor_name: input.visitorName ?? null,
+    number_of_people: input.numberOfPeople,
+    special_request: input.specialRequest ?? "",
+    menu_id: input.menuId,
+    business_id: input.businessId,
+  };
+
+  return requestJson<BookingRecord>(`${BASE_URL}/bookings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
