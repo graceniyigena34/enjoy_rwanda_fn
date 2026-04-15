@@ -126,7 +126,7 @@ export async function apiLogin(email: string, password: string) {
 }
 
 export async function apiRegister(name: string, email: string, password: string, phone?: string, role: string = "vendor") {
-  const res = await fetch(`${BASE_URL}/auth/register`, {
+  return requestJson<{ token: string; user: AuthUser }>(`${BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, phone, role }),

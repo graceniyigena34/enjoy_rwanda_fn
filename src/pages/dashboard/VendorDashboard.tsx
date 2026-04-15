@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
@@ -159,17 +159,17 @@ const chartSeries = {
 const chartLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const toneClasses: Record<NotificationTone, string> = {
-  emerald: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  emerald: "bg-[#1a1a2e]/15 text-[#1a1a2e] dark:text-[#1a1a2e]",
   amber: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   sky: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
 };
 
 const statusClasses: Record<string, string> = {
-  confirmed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  confirmed: "bg-[#1a1a2e]/15 text-[#1a1a2e] dark:text-[#1a1a2e]",
   pending: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   cancelled: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
   processing: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  delivered: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  delivered: "bg-[#1a1a2e]/15 text-[#1a1a2e] dark:text-[#1a1a2e]",
 };
 
 function NavIcon({ tab }: { tab: Tab }) {
@@ -553,7 +553,7 @@ export default function VendorDashboard() {
           label: "Inventory value",
           value: `RWF ${compact.format(inventoryValue)}`,
           delta: "+14.2% vs last month",
-          accent: "bg-emerald-500",
+          accent: "bg-[#1a1a2e]",
         },
         {
           label: "Active listings",
@@ -581,7 +581,7 @@ export default function VendorDashboard() {
         label: "Total sales",
         value: "RWF 2.4M",
         delta: "+12.5% vs last month",
-        accent: "bg-emerald-500",
+        accent: "bg-[#1a1a2e]",
       },
       {
         label: "Total orders",
@@ -732,7 +732,7 @@ export default function VendorDashboard() {
           price: Number(created.price),
           status: created.available ? "Active" : "Unavailable",
           metric: "New item",
-          accent: "bg-emerald-500",
+          accent: "bg-[#1a1a2e]",
         },
         ...current,
       ]);
@@ -1033,7 +1033,7 @@ export default function VendorDashboard() {
           </p>
           <Link
             to="/login"
-            className="mt-6 inline-flex rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-emerald-600"
+            className="mt-6 inline-flex rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-[#1a1a2e]"
           >
             Go to login
           </Link>
@@ -1066,7 +1066,7 @@ export default function VendorDashboard() {
         <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80 sm:p-8">
             <div>
-              <p className="text-xs uppercase tracking-[0.34em] text-emerald-600 dark:text-emerald-300">
+              <p className="text-xs uppercase tracking-[0.34em] text-[#1a1a2e] dark:text-[#1a1a2e]">
                 Vendor onboarding
               </p>
               <h1 className="mt-3 text-3xl font-semibold text-slate-950 dark:text-white">
@@ -1095,7 +1095,7 @@ export default function VendorDashboard() {
                             businessName: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1108,7 +1108,7 @@ export default function VendorDashboard() {
                             businessType: event.target.value as BusinessType,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       >
                         <option value="Restaurant">Restaurant</option>
                         <option value="Shop">Shop</option>
@@ -1124,7 +1124,7 @@ export default function VendorDashboard() {
                             location: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
@@ -1138,7 +1138,7 @@ export default function VendorDashboard() {
                             description: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                   </div>
@@ -1156,7 +1156,7 @@ export default function VendorDashboard() {
                             businessPhone: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1170,7 +1170,7 @@ export default function VendorDashboard() {
                             businessEmail: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1183,7 +1183,7 @@ export default function VendorDashboard() {
                             managerName: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1197,7 +1197,7 @@ export default function VendorDashboard() {
                             managerEmail: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                   </div>
@@ -1216,7 +1216,7 @@ export default function VendorDashboard() {
                             openingHours: event.target.value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
@@ -1305,7 +1305,7 @@ export default function VendorDashboard() {
                 <button
                   type="button"
                   onClick={goToNextStep}
-                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                  className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
                 >
                   Next
                 </button>
@@ -1314,7 +1314,7 @@ export default function VendorDashboard() {
                   type="button"
                   onClick={submitOnboarding}
                   disabled={onboardingSubmitting}
-                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {onboardingSubmitting
                     ? "Saving profile..."
@@ -1339,12 +1339,12 @@ export default function VendorDashboard() {
                       <span className="absolute left-[11px] top-7 h-10 w-[2px] bg-slate-200 dark:bg-white/10" />
                     )}
                     <span
-                      className={`absolute left-0 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${isCompleted ? "bg-emerald-500 text-white" : isCurrent ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}
+                      className={`absolute left-0 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${isCompleted ? "bg-[#1a1a2e] text-white" : isCurrent ? "bg-[#1a1a2e]/20 text-[#1a1a2e] dark:text-[#1a1a2e]" : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}
                     >
-                      {isCompleted ? "✔" : step.id}
+                      {isCompleted ? "âœ”" : step.id}
                     </span>
                     <p
-                      className={`text-sm ${isCurrent ? "font-bold text-emerald-600 dark:text-emerald-300" : isUpcoming ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
+                      className={`text-sm ${isCurrent ? "font-bold text-[#1a1a2e] dark:text-[#1a1a2e]" : isUpcoming ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
                     >
                       {step.title}
                     </p>
@@ -1376,7 +1376,7 @@ export default function VendorDashboard() {
           <div className="flex items-start justify-between gap-2 px-3 pb-2 pt-1">
             <div className="min-w-0">
               {sidebarCollapsed ? (
-                <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white md:flex">
+                <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-[#1a1a2e] text-xs font-bold text-white md:flex">
                   {business.businessName.slice(0, 2).toUpperCase()}
                 </div>
               ) : (
@@ -1393,13 +1393,13 @@ export default function VendorDashboard() {
             <button
               type="button"
               onClick={() => setSidebarCollapsed((prev) => !prev)}
-              className="hidden h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 transition hover:border-emerald-400 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 md:inline-flex"
+              className="hidden h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 md:inline-flex"
               aria-label={
                 sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
               }
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {sidebarCollapsed ? "»" : "«"}
+              {sidebarCollapsed ? "Â»" : "Â«"}
             </button>
           </div>
 
@@ -1417,7 +1417,7 @@ export default function VendorDashboard() {
                   setSidebarOpen(false);
                 }}
                 title={item.label}
-                className={`group flex w-full items-center rounded-2xl py-3 text-left text-sm font-medium transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-950/5 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-4"} ${tab === item.value ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-600 dark:text-slate-300"}`}
+                className={`group flex w-full items-center rounded-2xl py-3 text-left text-sm font-medium transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-950/5 hover:text-slate-950 dark:hover:bg-white/10 dark:hover:text-white ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-4"} ${tab === item.value ? "bg-[#1a1a2e] text-white shadow-lg shadow-[#1a1a2e]/20" : "text-slate-600 dark:text-slate-300"}`}
               >
                 {sidebarCollapsed ? (
                   <span className="inline-flex items-center justify-center">
@@ -1429,7 +1429,7 @@ export default function VendorDashboard() {
                     <span
                       className={`text-xs transition-transform duration-300 group-hover:translate-x-0.5 ${tab === item.value ? "text-white/80" : "text-slate-400"}`}
                     >
-                      →
+                      â†’
                     </span>
                   </>
                 )}
@@ -1474,13 +1474,13 @@ export default function VendorDashboard() {
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(true)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 md:hidden"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 md:hidden"
                   aria-label="Open sidebar"
                 >
-                  ☰
+                  â˜°
                 </button>
                 <label className="flex min-w-[180px] flex-1 items-center gap-3 rounded-full border border-slate-200 bg-slate-200/60 px-4 py-2.5 text-sm text-slate-500 dark:border-white/10 dark:bg-white/10 dark:text-slate-300 sm:max-w-md">
-                  <span>⌕</span>
+                  <span>âŒ•</span>
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
@@ -1494,7 +1494,7 @@ export default function VendorDashboard() {
                 <button
                   type="button"
                   onClick={() => setTab("settings")}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
                   aria-label="Open notifications"
                   title="Notifications"
                 >
@@ -1513,7 +1513,7 @@ export default function VendorDashboard() {
                       <path d="M9 17a3 3 0 0 0 6 0" />
                     </svg>
                     {notificationCount > 0 && (
-                      <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                      <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a1a2e] px-1 text-[10px] font-bold text-white">
                         {notificationCount > 9 ? "9+" : notificationCount}
                       </span>
                     )}
@@ -1522,7 +1522,7 @@ export default function VendorDashboard() {
                 <button
                   type="button"
                   onClick={toggleDark}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
                   aria-label={
                     darkMode ? "Switch to light mode" : "Switch to dark mode"
                   }
@@ -1530,13 +1530,13 @@ export default function VendorDashboard() {
                     darkMode ? "Switch to light mode" : "Switch to dark mode"
                   }
                 >
-                  {darkMode ? "☀" : "☾"}
+                  {darkMode ? "â˜€" : "â˜¾"}
                 </button>
                 <div className="relative" ref={profileMenuRef}>
                   <button
                     type="button"
                     onClick={() => setProfileMenuOpen((prev) => !prev)}
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5 text-left text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5 text-left text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
                     aria-label="Open profile menu"
                   >
                     <span className="hidden text-right sm:block">
@@ -1547,7 +1547,7 @@ export default function VendorDashboard() {
                         Premium vendor
                       </span>
                     </span>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-emerald-500 bg-slate-900 text-xs font-bold text-white">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#1a1a2e] bg-slate-900 text-xs font-bold text-white">
                       {user.name.charAt(0)}
                     </span>
                   </button>
@@ -1571,7 +1571,7 @@ export default function VendorDashboard() {
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
                       >
                         <span>{darkMode ? "Light mode" : "Dark mode"}</span>
-                        <span>{darkMode ? "☀" : "☾"}</span>
+                        <span>{darkMode ? "â˜€" : "â˜¾"}</span>
                       </button>
                       <button
                         type="button"
@@ -1579,7 +1579,7 @@ export default function VendorDashboard() {
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:hover:bg-rose-500/10"
                       >
                         <span>Logout</span>
-                        <span>↪</span>
+                        <span>â†ª</span>
                       </button>
                     </div>
                   )}
@@ -1612,7 +1612,7 @@ export default function VendorDashboard() {
                           key={item.value}
                           type="button"
                           onClick={() => setTab(item.value)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === item.value ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"}`}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === item.value ? "bg-[#1a1a2e] text-white shadow-lg shadow-[#1a1a2e]/25" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"}`}
                         >
                           {item.label}
                         </button>
@@ -1631,7 +1631,7 @@ export default function VendorDashboard() {
                   title="Notifications"
                   subtitle="Real-time updates from bookings, orders, and inventory syncs"
                   action={
-                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    <span className="rounded-full bg-[#1a1a2e]/15 px-3 py-1 text-xs font-semibold text-[#1a1a2e] dark:text-[#1a1a2e]">
                       {liveLabel}
                     </span>
                   }
@@ -1650,10 +1650,10 @@ export default function VendorDashboard() {
                             ),
                           )
                         }
-                        className="flex w-full items-start gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                        className="flex w-full items-start gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1a1a2e] hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                       >
                         <span
-                          className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.unread ? "bg-emerald-500" : "bg-slate-300"}`}
+                          className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.unread ? "bg-[#1a1a2e]" : "bg-slate-300"}`}
                         />
                         <span
                           className={`rounded-full px-2 py-1 text-[11px] font-semibold ${toneClasses[notification.tone]}`}
@@ -1788,7 +1788,7 @@ export default function VendorDashboard() {
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-white/80 dark:bg-white/10">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-500"
+                              className="h-full rounded-full bg-gradient-to-r from-[#1a1a2e] to-sky-500"
                               style={{ width: `${value}%` }}
                             />
                           </div>
@@ -1813,10 +1813,10 @@ export default function VendorDashboard() {
                       {filteredCatalog.slice(0, 3).map((item) => (
                         <div
                           key={item.id}
-                          className="group flex items-center gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                          className="group flex items-center gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1a1a2e] hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                         >
                           <div
-                            className={`h-14 w-14 rounded-2xl ${item.accent} shadow-lg shadow-emerald-500/15`}
+                            className={`h-14 w-14 rounded-2xl ${item.accent} shadow-lg shadow-[#1a1a2e]/15`}
                           />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-3">
@@ -1876,7 +1876,7 @@ export default function VendorDashboard() {
                         <button
                           key={action.title}
                           type="button"
-                          className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white px-4 py-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                          className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white px-4 py-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1a1a2e] hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                         >
                           <span>
                             <span className="block font-semibold text-slate-950 dark:text-white">
@@ -1886,7 +1886,7 @@ export default function VendorDashboard() {
                               {action.detail}
                             </span>
                           </span>
-                          <span className="text-lg text-emerald-500">+</span>
+                          <span className="text-lg text-[#1a1a2e]">+</span>
                         </button>
                       ))}
                     </div>
@@ -1913,7 +1913,7 @@ export default function VendorDashboard() {
                   <button
                     type="button"
                     onClick={handleOpenMenuForm}
-                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
                   >
                     <span className="text-lg leading-none">+</span>
                     {isShop ? "Add New Product" : "Add New Item"}
@@ -1948,7 +1948,7 @@ export default function VendorDashboard() {
                                 ? "e.g. Handwoven Basket"
                                 : "e.g. Traditional Akabenz"
                             }
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1967,7 +1967,7 @@ export default function VendorDashboard() {
                               }))
                             }
                             placeholder="5500"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1985,7 +1985,7 @@ export default function VendorDashboard() {
                               }))
                             }
                             placeholder="25"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
@@ -2003,15 +2003,15 @@ export default function VendorDashboard() {
                               }))
                             }
                             placeholder="Tell your customers about this item, its ingredients, and what makes it special."
-                            className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                            className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
                       </div>
 
                       <div className="space-y-4">
                         <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-white/20 dark:bg-white/5">
-                          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-2xl text-emerald-600 dark:text-emerald-300">
-                            📷
+                          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#1a1a2e]/15 text-2xl text-[#1a1a2e] dark:text-[#1a1a2e]">
+                            ðŸ“·
                           </span>
                           <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
                             Images in public directory
@@ -2039,7 +2039,7 @@ export default function VendorDashboard() {
                           />
                         )}
 
-                        <div className="rounded-[1.5rem] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+                        <div className="rounded-[1.5rem] border border-[#1a1a2e]/20 bg-[#1a1a2e]/10 px-4 py-3 text-sm text-[#1a1a2e] dark:text-[#1a1a2e]">
                           Items with high-quality photos receive more orders.
                           {menuForm.imageName && (
                             <span className="mt-1 block text-xs">
@@ -2063,7 +2063,7 @@ export default function VendorDashboard() {
                         <button
                           type="submit"
                           disabled={menuFormSubmitting}
-                          className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {menuFormSubmitting ? "Saving..." : "Create Item"}
                         </button>
@@ -2074,7 +2074,7 @@ export default function VendorDashboard() {
 
                 {menuFormMessage && (
                   <div
-                    className={`rounded-2xl px-4 py-3 text-sm font-medium ${menuFormMessageType === "success" ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                    className={`rounded-2xl px-4 py-3 text-sm font-medium ${menuFormMessageType === "success" ? "border border-[#1a1a2e]/30 bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]" : "border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
                   >
                     {menuFormMessage}
                   </div>
@@ -2084,14 +2084,14 @@ export default function VendorDashboard() {
                   <article className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                     <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/5">
                       <div>
-                        <p className="inline-flex rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                        <p className="inline-flex rounded-full bg-[#1a1a2e]/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#1a1a2e] dark:text-[#1a1a2e]">
                           Primary outlet
                         </p>
                         <h3 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
                           {business.businessName}
                         </h3>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                          📍{" "}
+                          ðŸ“{" "}
                           {business.location ||
                             "Complete onboarding to set your business location."}
                         </p>
@@ -2100,11 +2100,11 @@ export default function VendorDashboard() {
                         <img
                           src={business.businessProfileImage.previewUrl}
                           alt="Business profile"
-                          className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-emerald-500/25"
+                          className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-[#1a1a2e]/25"
                         />
                       ) : (
-                        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-sky-500 text-3xl text-white shadow-lg shadow-emerald-500/25">
-                          {business.businessType === "Shop" ? "🛍️" : "🍽️"}
+                        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-[#1a1a2e] to-sky-500 text-3xl text-white shadow-lg shadow-[#1a1a2e]/25">
+                          {business.businessType === "Shop" ? "ðŸ›ï¸" : "ðŸ½ï¸"}
                         </div>
                       )}
                     </div>
@@ -2122,7 +2122,7 @@ export default function VendorDashboard() {
                         <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
                           Today's Sales
                         </p>
-                        <p className="mt-1 text-3xl font-semibold text-emerald-600 dark:text-emerald-300">
+                        <p className="mt-1 text-3xl font-semibold text-[#1a1a2e] dark:text-[#1a1a2e]">
                           {money.format(
                             orders.reduce((sum, order) => sum + order.total, 0),
                           )}
@@ -2131,11 +2131,11 @@ export default function VendorDashboard() {
                     </div>
                   </article>
 
-                  <article className="rounded-[2rem] bg-emerald-700 p-6 text-white shadow-[0_20px_50px_rgba(5,150,105,0.35)]">
+                  <article className="rounded-[2rem] bg-[#1a1a2e] p-6 text-white shadow-[0_20px_50px_rgba(5,150,105,0.35)]">
                     <h3 className="text-3xl font-semibold tracking-tight">
                       Setup Status
                     </h3>
-                    <p className="mt-3 text-sm text-emerald-50/90">
+                    <p className="mt-3 text-sm text-[#1a1a2e]/90">
                       Your business data now comes from the backend. Add a menu
                       item or complete onboarding to populate this dashboard.
                     </p>
@@ -2152,11 +2152,11 @@ export default function VendorDashboard() {
                       ].map((item) => (
                         <div
                           key={item.label}
-                          className="flex items-center justify-between rounded-2xl bg-emerald-600/70 px-4 py-3 text-sm"
+                          className="flex items-center justify-between rounded-2xl bg-[#1a1a2e]/70 px-4 py-3 text-sm"
                         >
                           <span>{item.label}</span>
                           <span
-                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === "READY" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === "READY" ? "bg-[#1a1a2e] text-[#1a1a2e]" : "bg-amber-100 text-amber-700"}`}
                           >
                             {item.status}
                           </span>
@@ -2166,7 +2166,7 @@ export default function VendorDashboard() {
                     <button
                       type="button"
                       onClick={() => setTab("catalog")}
-                      className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-white"
+                      className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-white"
                     >
                       Add Menu Item
                     </button>
@@ -2184,7 +2184,7 @@ export default function VendorDashboard() {
                         className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200"
                         aria-label="Filter menu"
                       >
-                        ≡
+                        â‰¡
                       </button>
                     </div>
                   </div>
@@ -2254,7 +2254,7 @@ export default function VendorDashboard() {
                                       [item.id]: !(current[item.id] ?? true),
                                     }))
                                   }
-                                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-600"}`}
+                                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-[#1a1a2e]" : "bg-slate-300 dark:bg-slate-600"}`}
                                 >
                                   <span
                                     className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${(availabilityByItemId[item.id] ?? true) ? "translate-x-6" : "translate-x-1"}`}
@@ -2279,7 +2279,7 @@ export default function VendorDashboard() {
                   <div className="border-t border-slate-200/70 px-6 py-5 text-center dark:border-white/10">
                     <button
                       type="button"
-                      className="rounded-full border border-emerald-200 px-10 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-500 hover:text-emerald-600 dark:border-emerald-500/30 dark:text-slate-200"
+                      className="rounded-full border border-[#1a1a2e] px-10 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-[#1a1a2e]/30 dark:text-slate-200"
                     >
                       Load More Items
                     </button>
@@ -2318,8 +2318,8 @@ export default function VendorDashboard() {
                               </p>
                               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 {isBooking
-                                  ? `${bookingEntry.table} • ${bookingEntry.slot}`
-                                  : `${orderEntry.items.join(", ")} • ${orderEntry.age}`}
+                                  ? `${bookingEntry.table} â€¢ ${bookingEntry.slot}`
+                                  : `${orderEntry.items.join(", ")} â€¢ ${orderEntry.age}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-3">
@@ -2372,7 +2372,7 @@ export default function VendorDashboard() {
                         <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
                           {order.items.join(", ")}
                         </p>
-                        <p className="mt-3 text-base font-semibold text-emerald-600 dark:text-emerald-300">
+                        <p className="mt-3 text-base font-semibold text-[#1a1a2e] dark:text-[#1a1a2e]">
                           {money.format(order.total)}
                         </p>
                       </div>
@@ -2408,7 +2408,7 @@ export default function VendorDashboard() {
                                 style={{ height: `${100 - value}%` }}
                               />
                               <div
-                                className="w-full rounded-t-2xl bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/15"
+                                className="w-full rounded-t-2xl bg-gradient-to-t from-[#1a1a2e] to-[#1a1a2e] shadow-lg shadow-[#1a1a2e]/15"
                                 style={{ height: `${value}%`, minHeight: 48 }}
                               />
                             </div>
@@ -2515,7 +2515,7 @@ export default function VendorDashboard() {
                             ownerName: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2530,7 +2530,7 @@ export default function VendorDashboard() {
                             email: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2545,7 +2545,7 @@ export default function VendorDashboard() {
                             phone: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2560,7 +2560,7 @@ export default function VendorDashboard() {
                             businessName: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2575,7 +2575,7 @@ export default function VendorDashboard() {
                             location: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2590,7 +2590,7 @@ export default function VendorDashboard() {
                             openingHours: event.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
@@ -2606,7 +2606,7 @@ export default function VendorDashboard() {
                           }))
                         }
                         rows={4}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
                   </div>
@@ -2615,14 +2615,14 @@ export default function VendorDashboard() {
                     <button
                       type="button"
                       onClick={() => applyBusinessType("Restaurant")}
-                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
                     >
                       Switch to restaurant view
                     </button>
                     <button
                       type="button"
                       onClick={() => applyBusinessType("Shop")}
-                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
                     >
                       Switch to shop view
                     </button>
@@ -2675,3 +2675,5 @@ export default function VendorDashboard() {
     </div>
   );
 }
+
+
