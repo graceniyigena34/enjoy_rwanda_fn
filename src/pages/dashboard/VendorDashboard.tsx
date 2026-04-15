@@ -3,11 +3,14 @@ import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import {
+  BASE_URL,
   createBusinessProfile,
   createMenuItem,
+  getMenuItems,
   getMyBusinessProfile,
   updateMyBusinessProfile,
   type BusinessProfileRecord,
+  type MenuItemRecord,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
@@ -54,6 +57,7 @@ type CatalogItem = {
   status: string;
   metric: string;
   accent: string;
+  imageUrl?: string;
 };
 
 type BookingItem = {
@@ -157,6 +161,7 @@ const chartSeries = {
 };
 
 const chartLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
 
 const toneClasses: Record<NotificationTone, string> = {
   emerald: "bg-[#1a1a2e]/15 text-[#1a1a2e] dark:text-[#1a1a2e]",
@@ -401,6 +406,7 @@ export default function VendorDashboard() {
     "success" | "error"
   >("success");
   const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
+  const [businessId, setBusinessId] = useState<number | null>(null);
   const [businessFiles, setBusinessFiles] = useState<{
     businessProfileImage: File | null;
     rdbCertificate: File | null;
@@ -465,6 +471,28 @@ export default function VendorDashboard() {
     return [];
   };
 
+  const resolveMediaUrl = (value: string | null | undefined) => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    if (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:") ||
+      trimmed.startsWith("blob:")
+    ) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith("//")) {
+      return `${window.location.protocol}${trimmed}`;
+    }
+
+    const normalizedPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    return `${API_ORIGIN}${normalizedPath}`;
+  };
+
   const buildBusinessSeed = (businessType: BusinessType) => {
     const seed = createBlankSeed(businessType);
     return {
@@ -483,7 +511,10 @@ export default function VendorDashboard() {
   const applyBusinessProfile = useCallback((record: BusinessProfileRecord) => {
     const businessType =
       record.business_type === "Shop" ? "Shop" : "Restaurant";
+    const nextBusinessId = Number(record.business_id);
     const seed = buildBusinessSeed(businessType);
+
+    setBusinessId(Number.isFinite(nextBusinessId) ? nextBusinessId : null);
 
     setProfile(seed.profile);
     setBusiness({
@@ -503,7 +534,7 @@ export default function VendorDashboard() {
             name: getFileNameFromUrl(record.business_profile_image),
             type: "image/*",
             size: 0,
-            previewUrl: record.business_profile_image,
+            previewUrl: resolveMediaUrl(record.business_profile_image),
           }
         : undefined,
       rdbCertificate: record.rdb_certificate
@@ -511,7 +542,7 @@ export default function VendorDashboard() {
             name: getFileNameFromUrl(record.rdb_certificate),
             type: "application/octet-stream",
             size: 0,
-            previewUrl: record.rdb_certificate,
+            previewUrl: resolveMediaUrl(record.rdb_certificate),
           }
         : undefined,
     });
@@ -530,6 +561,64 @@ export default function VendorDashboard() {
   }, []);
 
   const isShop = business.businessType === "Shop";
+  const mapMenuRecordToCatalogItem = useCallback(
+    (record: MenuItemRecord): CatalogItem => {
+      const description = (record.description ?? "").trim();
+      return {
+        id: record.id,
+        name: record.name,
+        subtitle:
+          description.slice(0, 44) || (isShop ? "Catalog item" : "Menu item"),
+        price: Number(record.price),
+        status: Number(record.available) === 1 ? "Active" : "Unavailable",
+        metric: "Live item",
+        accent: "bg-[#1a1a2e]",
+        imageUrl: resolveMediaUrl(record.imageurl),
+      };
+    },
+    [isShop],
+  );
+
+  useEffect(() => {
+    if (!token || !businessId) {
+      setCatalogItems([]);
+      setAvailabilityByItemId({});
+      return;
+    }
+
+    let active = true;
+
+    const loadMenuItems = async () => {
+      try {
+        const rows = await getMenuItems({ businessId });
+        if (!active) return;
+
+        const mapped = rows.map(mapMenuRecordToCatalogItem);
+        setCatalogItems(mapped);
+        setAvailabilityByItemId(
+          Object.fromEntries(
+            mapped.map((item) => [
+              item.id,
+              item.status.toLowerCase() === "active",
+            ]),
+          ),
+        );
+      } catch (error) {
+        if (!active) return;
+        setMenuFormMessageType("error");
+        setMenuFormMessage(
+          error instanceof Error ? error.message : "Failed to load menu items.",
+        );
+      }
+    };
+
+    void loadMenuItems();
+
+    return () => {
+      active = false;
+    };
+  }, [businessId, mapMenuRecordToCatalogItem, token]);
+
   const catalogLabel = isShop ? "Products" : "Menu items";
   const primaryActionLabel = isShop ? "Add Product" : "Add Menu Item";
   const liveLabel = isShop ? "Inventory live" : "Service live";
@@ -730,9 +819,10 @@ export default function VendorDashboard() {
           name: created.name,
           subtitle,
           price: Number(created.price),
-          status: created.available ? "Active" : "Unavailable",
+          status: Number(created.available) === 1 ? "Active" : "Unavailable",
           metric: "New item",
           accent: "bg-[#1a1a2e]",
+          imageUrl: resolveMediaUrl(created.imageurl),
         },
         ...current,
       ]);
@@ -911,6 +1001,7 @@ export default function VendorDashboard() {
       description: seed.business.description,
     }));
     setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+    setBusinessId(null);
     setProfile(seed.profile);
     setCatalogItems(seed.catalogItems);
     setBookings(seed.bookings);
@@ -940,11 +1031,13 @@ export default function VendorDashboard() {
           setOnboardingStep(4);
         } else {
           setHasRemoteBusinessProfile(false);
+          setBusinessId(null);
           setOnboardingComplete(Boolean(storedState?.onboardingComplete));
         }
       } catch (error) {
         if (!active) return;
         setHasRemoteBusinessProfile(false);
+        setBusinessId(null);
         setOnboardingError(
           error instanceof Error
             ? error.message
@@ -1341,7 +1434,7 @@ export default function VendorDashboard() {
                     <span
                       className={`absolute left-0 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${isCompleted ? "bg-[#1a1a2e] text-white" : isCurrent ? "bg-[#1a1a2e]/20 text-[#1a1a2e] dark:text-[#1a1a2e]" : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}
                     >
-                      {isCompleted ? "âœ”" : step.id}
+                      {isCompleted ? "\u2714" : step.id}
                     </span>
                     <p
                       className={`text-sm ${isCurrent ? "font-bold text-[#1a1a2e] dark:text-[#1a1a2e]" : isUpcoming ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
@@ -1399,7 +1492,7 @@ export default function VendorDashboard() {
               }
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {sidebarCollapsed ? "Â»" : "Â«"}
+              {sidebarCollapsed ? "\u00BB" : "\u00AB"}
             </button>
           </div>
 
@@ -1429,7 +1522,7 @@ export default function VendorDashboard() {
                     <span
                       className={`text-xs transition-transform duration-300 group-hover:translate-x-0.5 ${tab === item.value ? "text-white/80" : "text-slate-400"}`}
                     >
-                      â†’
+                      {"\u2192"}
                     </span>
                   </>
                 )}
@@ -1477,10 +1570,10 @@ export default function VendorDashboard() {
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 md:hidden"
                   aria-label="Open sidebar"
                 >
-                  â˜°
+                  {"\u2630"}
                 </button>
                 <label className="flex min-w-[180px] flex-1 items-center gap-3 rounded-full border border-slate-200 bg-slate-200/60 px-4 py-2.5 text-sm text-slate-500 dark:border-white/10 dark:bg-white/10 dark:text-slate-300 sm:max-w-md">
-                  <span>âŒ•</span>
+                  <span>{"\u2315"}</span>
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
@@ -1530,7 +1623,7 @@ export default function VendorDashboard() {
                     darkMode ? "Switch to light mode" : "Switch to dark mode"
                   }
                 >
-                  {darkMode ? "â˜€" : "â˜¾"}
+                  {darkMode ? "\u2600" : "\u263E"}
                 </button>
                 <div className="relative" ref={profileMenuRef}>
                   <button
@@ -1571,7 +1664,7 @@ export default function VendorDashboard() {
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
                       >
                         <span>{darkMode ? "Light mode" : "Dark mode"}</span>
-                        <span>{darkMode ? "â˜€" : "â˜¾"}</span>
+                        <span>{darkMode ? "\u2600" : "\u263E"}</span>
                       </button>
                       <button
                         type="button"
@@ -1579,7 +1672,7 @@ export default function VendorDashboard() {
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:hover:bg-rose-500/10"
                       >
                         <span>Logout</span>
-                        <span>â†ª</span>
+                        <span>{"\u21AA"}</span>
                       </button>
                     </div>
                   )}
@@ -2011,7 +2104,7 @@ export default function VendorDashboard() {
                       <div className="space-y-4">
                         <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-white/20 dark:bg-white/5">
                           <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#1a1a2e]/15 text-2xl text-[#1a1a2e] dark:text-[#1a1a2e]">
-                            ðŸ“·
+                            IMG
                           </span>
                           <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
                             Images in public directory
@@ -2091,7 +2184,7 @@ export default function VendorDashboard() {
                           {business.businessName}
                         </h3>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                          ðŸ“{" "}
+                          Location:{" "}
                           {business.location ||
                             "Complete onboarding to set your business location."}
                         </p>
@@ -2104,7 +2197,7 @@ export default function VendorDashboard() {
                         />
                       ) : (
                         <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-[#1a1a2e] to-sky-500 text-3xl text-white shadow-lg shadow-[#1a1a2e]/25">
-                          {business.businessType === "Shop" ? "ðŸ›ï¸" : "ðŸ½ï¸"}
+                          {business.businessType === "Shop" ? "SHOP" : "FOOD"}
                         </div>
                       )}
                     </div>
@@ -2184,7 +2277,7 @@ export default function VendorDashboard() {
                         className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200"
                         aria-label="Filter menu"
                       >
-                        â‰¡
+                        {"\u2261"}
                       </button>
                     </div>
                   </div>
@@ -2211,11 +2304,8 @@ export default function VendorDashboard() {
                                 <div className="flex items-center gap-3">
                                   <img
                                     src={
-                                      item.id === 1
-                                        ? "/pexels-tahaasamett-7627418.jpg"
-                                        : item.id === 2
-                                          ? "/pexels-aksinfo7-36749693.jpg"
-                                          : "/pexels-tahaasamett-7627418.jpg"
+                                      item.imageUrl ||
+                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E"
                                     }
                                     alt={item.name}
                                     className="h-12 w-12 rounded-full object-cover"
@@ -2318,8 +2408,8 @@ export default function VendorDashboard() {
                               </p>
                               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 {isBooking
-                                  ? `${bookingEntry.table} â€¢ ${bookingEntry.slot}`
-                                  : `${orderEntry.items.join(", ")} â€¢ ${orderEntry.age}`}
+                                  ? `${bookingEntry.table} \u2022 ${bookingEntry.slot}`
+                                  : `${orderEntry.items.join(", ")} \u2022 ${orderEntry.age}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-3">
@@ -2675,5 +2765,3 @@ export default function VendorDashboard() {
     </div>
   );
 }
-
-
