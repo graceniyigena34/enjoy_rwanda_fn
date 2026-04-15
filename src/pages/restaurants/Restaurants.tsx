@@ -1,11 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { restaurants } from "../../data/mockData";
+
+const BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+
+interface Restaurant {
+  id: number;
+  name: string;
+  description: string;
+  location: string;
+  rating?: number;
+  reviews?: number;
+  hours: string;
+  image: string;
+  cuisine: string;
+  price_range: string;
+  deposit: number;
+  status: string;
+}
 
 export default function Restaurants() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [cuisine, setCuisine] = useState("All");
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, []);
+
+  async function fetchRestaurants() {
+    try {
+      const res = await fetch(`${BASE_URL}/restaurants`);
+      if (!res.ok) {
+        console.error("Failed to fetch restaurants");
+        setRestaurants([]);
+        return;
+      }
+      const data = await res.json();
+      setRestaurants(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch restaurants:", error);
+      setRestaurants([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const cuisines = ["All", ...Array.from(new Set(restaurants.map(r => r.cuisine)))];
   const filtered = restaurants.filter(r => {
     const matchQ = r.name.toLowerCase().includes(query.toLowerCase()) || r.location.toLowerCase().includes(query.toLowerCase());
@@ -31,7 +72,15 @@ export default function Restaurants() {
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.length === 0 ? <p className="text-gray-400 col-span-3">No restaurants found.</p> : filtered.map(r => (
+        {loading ? (
+          <div className="col-span-3 text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading restaurants...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-gray-400 col-span-3">No restaurants found.</p>
+        ) : (
+          filtered.map(r => (
           <Link to={`/restaurants/${r.id}`} key={r.id} className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 no-underline">
             <img src={r.image} alt={r.name} className="w-full h-48 object-cover" />
             <div className="p-4">
@@ -42,11 +91,11 @@ export default function Restaurants() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{r.description}</p>
               <div className="flex justify-between text-xs text-gray-400">
                 <span>📍 {r.location}</span>
-                <span>⭐ {r.rating} · {r.priceRange}</span>
+                <span>⭐ {r.rating || 'N/A'} · {r.price_range}</span>
               </div>
             </div>
           </Link>
-        ))}
+        )))}
       </div>
     </div>
   );

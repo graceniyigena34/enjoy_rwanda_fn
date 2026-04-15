@@ -1,23 +1,47 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getAllShops } from "../../utils/shopCatalog";
+
+const BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+
+interface Shop {
+  id: number;
+  name: string;
+  description: string;
+  location: string;
+  category: string;
+  rating?: number;
+  image: string;
+}
 
 export default function Shops() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [category, setCategory] = useState("All");
-  const [, bumpCatalogVersion] = useState(0);
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== "enjoy-rwanda.vendorShops.v1" && event.key !== "enjoy-rwanda.shopStock.v1") return;
-      bumpCatalogVersion((v) => v + 1);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    fetchShops();
   }, []);
 
-  const shops = getAllShops();
+  async function fetchShops() {
+    try {
+      const res = await fetch(`${BASE_URL}/shops`);
+      if (!res.ok) {
+        console.error("Failed to fetch shops");
+        setShops([]);
+        return;
+      }
+      const data = await res.json();
+      setShops(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch shops:", error);
+      setShops([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const categories = ["All", ...Array.from(new Set(shops.map((s) => s.category)))];
   const filtered = shops.filter((s) => {
     const matchQ = s.name.toLowerCase().includes(query.toLowerCase()) || s.location.toLowerCase().includes(query.toLowerCase());
@@ -43,22 +67,31 @@ export default function Shops() {
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.length === 0 ? <p className="text-gray-400 col-span-3">No shops found.</p> : filtered.map(s => (
-          <Link to={`/shops/${s.id}`} key={s.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 no-underline">
-            <img src={s.image} alt={s.name} className="w-full h-48 object-cover" />
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-bold text-gray-900 text-base">{s.name}</h3>
-                <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">{s.category}</span>
+        {loading ? (
+          <div className="col-span-3 text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="mt-4 text-gray-600">Loading shops...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-gray-400 col-span-3">No shops found.</p>
+        ) : (
+          filtered.map(s => (
+            <Link to={`/shops/${s.id}`} key={s.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 no-underline">
+              <img src={s.image} alt={s.name} className="w-full h-48 object-cover" />
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-bold text-gray-900 text-base">{s.name}</h3>
+                  <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">{s.category}</span>
+                </div>
+                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{s.description}</p>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>📍 {s.location}</span>
+                  <span>⭐ {s.rating || 'N/A'}</span>
+                </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3 line-clamp-2">{s.description}</p>
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>📍 {s.location}</span>
-                <span>⭐ {s.rating}</span>
-              </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          ))
+        )}
       </div>
     </div>
   );

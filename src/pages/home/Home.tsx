@@ -1,7 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { restaurants } from "../../data/mockData";
 import heroBg from "../../assets/hero.jpg";
+
+const BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+
+interface Restaurant {
+  id: number;
+  name: string;
+  description: string;
+  location: string;
+  rating?: number;
+  reviews?: number;
+  hours: string;
+  image: string;
+  cuisine: string;
+  price_range: string;
+  deposit: number;
+  status: string;
+  tables?: any[];
+  menu?: any[];
+}
 
 const cuisineFilters = ["All", "Rwandan", "International", "Asian", "African", "European"];
 type SearchTab = "Shop" | "Restaurants" | "Events";
@@ -10,7 +28,31 @@ export default function Home() {
   const [searchTab, setSearchTab] = useState<SearchTab>("Restaurants");
   const [location, setLocation] = useState("");
   const [cuisineFilter, setCuisineFilter] = useState("All");
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, []);
+
+  async function fetchRestaurants() {
+    try {
+      const res = await fetch(`${BASE_URL}/restaurants`);
+      if (!res.ok) {
+        console.error("Failed to fetch restaurants: Server error");
+        setRestaurants([]);
+        return;
+      }
+      const data = await res.json();
+      setRestaurants(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch restaurants:", error);
+      setRestaurants([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filtered = restaurants.filter(r => cuisineFilter === "All" || r.cuisine === cuisineFilter);
 
@@ -118,6 +160,16 @@ export default function Home() {
         </div>
 
         {/* Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading restaurants...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600 dark:text-gray-400">No restaurants found.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {filtered.map(r => (
             <div key={r.id} className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-200">
@@ -132,13 +184,15 @@ export default function Home() {
               <div className="p-5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">{r.cuisine}</span>
-                  <span className="text-sm text-gray-400 font-medium">{r.priceRange}</span>
+                  <span className="text-sm text-gray-400 font-medium">{r.price_range}</span>
                 </div>
                 <div className="flex gap-5 mb-2 flex-wrap">
-                  <span className="flex items-center gap-1 text-sm text-gray-600">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    <strong>{r.rating}</strong><span className="text-gray-400">({r.reviews})</span>
-                  </span>
+                  {r.rating && (
+                    <span className="flex items-center gap-1 text-sm text-gray-600">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      <strong>{r.rating}</strong>{r.reviews && <span className="text-gray-400">({r.reviews})</span>}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1 text-sm text-gray-500">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     {r.hours}
@@ -159,6 +213,7 @@ export default function Home() {
             </div>
           ))}
         </div>
+        )}
       </section>
     </div>
   );

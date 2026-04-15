@@ -1,14 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { restaurants } from "../../data/mockData";
 
-type MenuItem = { id: number; name: string; price: number; description: string; category: string; image?: string };
+const BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+
+type MenuItem = { id: number; name: string; price: number; description: string; category?: string; available?: boolean; imageurl?: string };
+
+interface Restaurant {
+  id: number;
+  name: string;
+  description: string;
+  location: string;
+  rating?: number;
+  reviews?: number;
+  hours: string;
+  image: string;
+  cuisine: string;
+  price_range: string;
+  deposit: number;
+  status: string;
+  tables?: any[];
+  menu?: MenuItem[];
+}
 
 export default function RestaurantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const restaurant = restaurants.find(r => r.id === Number(id));
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRestaurant();
+  }, [id]);
+
+  async function fetchRestaurant() {
+    try {
+      const res = await fetch(`${BASE_URL}/restaurants/${id}`);
+      if (!res.ok) {
+        setRestaurant(null);
+        return;
+      }
+      const data = await res.json();
+      setRestaurant(data);
+    } catch (error) {
+      console.error("Failed to fetch restaurant:", error);
+      setRestaurant(null);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [bookingDate, setBookingDate] = useState("");
@@ -23,6 +63,15 @@ export default function RestaurantDetail() {
   const [searchTerm, setSearchTerm] = useState("");
   const [menuCategory, setMenuCategory] = useState<"All" | "Food" | "Drinks">("All");
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
+
+  if (loading) {
+    return (
+      <div className="p-10 text-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <p className="mt-4 text-gray-600">Loading restaurant...</p>
+      </div>
+    );
+  }
 
   if (!restaurant)
     return (
@@ -64,16 +113,16 @@ export default function RestaurantDetail() {
   const handleRemoveFromOrder = (index: number) => setOrderList(prev => prev.filter((_, i) => i !== index));
   const orderTotal = orderList.reduce((sum, item) => sum + item.price, 0);
 
-  const foodItems = (restaurant.menu as MenuItem[]).filter(i => i.category === "Food");
-  const drinkItems = (restaurant.menu as MenuItem[]).filter(i => i.category === "Drinks");
+  const foodItems = (restaurant.menu || []).filter(i => i.category === "Food");
+  const drinkItems = (restaurant.menu || []).filter(i => i.category === "Drinks");
   const visibleFood = foodItems.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const visibleDrinks = drinkItems.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalVisible = visibleFood.length + visibleDrinks.length;
 
   const MenuCard = ({ item, priceColor }: { item: MenuItem; priceColor: string }) => (
     <div className="flex items-center gap-3 border border-gray-100 rounded-xl p-3 hover:shadow-sm hover:border-gray-200 transition-all">
-      {item.image && (
-        <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-xl shrink-0" />
+      {item.imageurl && (
+        <img src={item.imageurl} alt={item.name} className="w-16 h-16 object-cover rounded-xl shrink-0" />
       )}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
@@ -97,8 +146,8 @@ export default function RestaurantDetail() {
           <p className="text-gray-500 mb-3">{restaurant.description}</p>
           <div className="flex gap-4 text-sm text-gray-500 flex-wrap">
             <span>📍 {restaurant.location}</span>
-            <span>⭐ {restaurant.rating}</span>
-            <span>💰 {restaurant.priceRange}</span>
+            <span>⭐ {restaurant.rating || 'N/A'}</span>
+            <span>💰 {restaurant.price_range}</span>
             <span>🕐 {restaurant.hours}</span>
           </div>
         </div>
