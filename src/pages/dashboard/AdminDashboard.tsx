@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp, hasRole } from "../../context/AppContext";
-import { readVendorApplications, updateVendorApplicationStatus } from "../../utils/vendorApprovalStorage";
-
-const mockUsers = [
-  { id: 1, name: "Alice Uwase", email: "alice@demo.com", role: "visitor", status: "active" },
-  { id: 2, name: "Bob Nkurunziza", email: "bob@demo.com", role: "vendor", status: "active" },
-  { id: 3, name: "Claire Mukamana", email: "claire@demo.com", role: "visitor", status: "active" },
-];
-const mockVendors = [
-  { id: 1, name: "Bob Nkurunziza", business: "Kigali Serena Restaurant", type: "Restaurant", status: "approved" },
-  { id: 2, name: "Diane Uwimana", business: "Inzozi Fashion", type: "Shop", status: "pending" },
-  { id: 3, name: "Eric Habimana", business: "Kigali Fresh Market", type: "Shop", status: "pending" },
-];
+import {
+  getAdminUsers,
+  getBusinessProfiles,
+  getVendorApplications,
+  setBusinessVerification,
+  reviewVendorApplication,
+  type AdminUserRecord,
+  type BusinessProfileRecord,
+  type VendorApplicationRecord,
+} from "../../utils/api";
 
 type Tab = "overview" | "users" | "vendors" | "reports";
 
@@ -24,13 +22,28 @@ const navItems: { tab: Tab; icon: string; label: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { user, logout } = useApp();
+  const { user, token, logout } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [vendors, setVendors] = useState(mockVendors);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [vendorApplications, setVendorApplications] = useState(() => readVendorApplications());
-  const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
+  const [users, setUsers] = useState<AdminUserRecord[]>([]);
+  const [businessProfiles, setBusinessProfiles] = useState<
+    BusinessProfileRecord[]
+  >([]);
+  const [vendorApplications, setVendorApplications] = useState<
+    VendorApplicationRecord[]
+  >([]);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<
+    number | null
+  >(null);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
+    null,
+  );
+  const [isTogglingBusinessId, setIsTogglingBusinessId] = useState<
+    number | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const handleSignOut = () => {
     logout();
@@ -43,23 +56,53 @@ export default function AdminDashboard() {
   };
 
   const selectedApplication = useMemo(
-    () => (selectedApplicationId === null ? null : vendorApplications.find((app) => app.vendorId === selectedApplicationId) ?? null),
-    [selectedApplicationId, vendorApplications]
+    () =>
+      selectedApplicationId === null
+        ? null
+        : (vendorApplications.find((app) => app.id === selectedApplicationId) ??
+          null),
+    [selectedApplicationId, vendorApplications],
   );
 
-  const getApplicationChecklist = (application: (typeof vendorApplications)[number]) => {
-    const payload = (application.payload ?? {}) as { profile?: Record<string, unknown>; business?: Record<string, unknown> };
+  const selectedBusiness = useMemo(
+    () =>
+      selectedBusinessId === null
+        ? null
+        : (businessProfiles.find(
+            (business) => business.business_id === selectedBusinessId,
+          ) ?? null),
+    [selectedBusinessId, businessProfiles],
+  );
+
+  const getApplicationChecklist = (application: VendorApplicationRecord) => {
+    const payloadInput = application.payload;
+    const payloadParsed =
+      typeof payloadInput === "string"
+        ? (() => {
+            try {
+              return JSON.parse(payloadInput) as unknown;
+            } catch {
+              return {};
+            }
+          })()
+        : payloadInput;
+    const payload = (payloadParsed ?? {}) as {
+      profile?: Record<string, unknown>;
+      business?: Record<string, unknown>;
+    };
     const profile = (payload.profile ?? {}) as Record<string, unknown>;
     const business = (payload.business ?? {}) as Record<string, unknown>;
 
     const missing: string[] = [];
 
     const requiredText = (label: string, value: unknown) => {
-      if (typeof value !== "string" || value.trim().length === 0) missing.push(label);
+      if (typeof value !== "string" || value.trim().length === 0)
+        missing.push(label);
     };
 
     const requiredNumber = (label: string, value: unknown) => {
-      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) missing.push(label);
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+        missing.push(label);
     };
 
     const requiredArray = (label: string, value: unknown) => {
@@ -68,7 +111,12 @@ export default function AdminDashboard() {
 
     const requiredUpload = (label: string, value: unknown) => {
       const upload = value as { name?: unknown } | undefined;
-      if (!upload || typeof upload.name !== "string" || upload.name.trim().length === 0) missing.push(label);
+      if (
+        !upload ||
+        typeof upload.name !== "string" ||
+        upload.name.trim().length === 0
+      )
+        missing.push(label);
     };
 
     requiredText("Owner name", profile.ownerName);
@@ -98,32 +146,144 @@ export default function AdminDashboard() {
 
   const pendingApplications = useMemo(
     () => vendorApplications.filter((app) => app.status === "pending").length,
-    [vendorApplications]
+    [vendorApplications],
   );
 
   useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== "enjoy-rwanda.vendorApprovals.v1") return;
-      setVendorApplications(readVendorApplications());
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    let mounted = true;
 
-  const pendingApprovals = vendors.filter(v => v.status === "pending").length;
-  const approvedVendors = vendors.filter(v => v.status === "approved").length;
+    const loadDashboardData = async () => {
+      if (!token) {
+        if (mounted) {
+          setIsLoading(false);
+          setLoadError("Missing auth token. Please sign in again.");
+        }
+        return;
+      }
+
+      try {
+        if (mounted) {
+          setIsLoading(true);
+          setLoadError(null);
+        }
+
+        const [usersData, businessesData, applicationsData] = await Promise.all(
+          [
+            getAdminUsers(token),
+            getBusinessProfiles(),
+            getVendorApplications(token),
+          ],
+        );
+
+        if (!mounted) return;
+        setUsers(usersData);
+        setBusinessProfiles(businessesData);
+        setVendorApplications(applicationsData);
+      } catch (error) {
+        if (!mounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load admin dashboard data.",
+        );
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadDashboardData();
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  const pendingApprovals = pendingApplications;
+  const approvedVendors = businessProfiles.filter(
+    (business) => business.is_verified === true,
+  ).length;
+
+  const refreshBusinesses = async () => {
+    try {
+      setLoadError(null);
+      const businessesData = await getBusinessProfiles();
+      setBusinessProfiles(businessesData);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to refresh registered businesses.",
+      );
+    }
+  };
+
+  const refreshApplications = async () => {
+    if (!token) return;
+    try {
+      setLoadError(null);
+      const applicationsData = await getVendorApplications(token);
+      setVendorApplications(applicationsData);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to refresh vendor applications.",
+      );
+    }
+  };
+
+  const handleReviewApplication = async (
+    id: number,
+    status: "approved" | "rejected",
+  ) => {
+    if (!token) return;
+    try {
+      setLoadError(null);
+      await reviewVendorApplication(token, id, status);
+      await refreshApplications();
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update application status.",
+      );
+    }
+  };
+
+  const handleToggleBusinessVerification = async (
+    business: BusinessProfileRecord,
+  ) => {
+    if (!token || typeof business.business_id !== "number") return;
+
+    const nextVerified = !(business.is_verified ?? false);
+
+    try {
+      setLoadError(null);
+      setIsTogglingBusinessId(business.business_id);
+      await setBusinessVerification(token, business.business_id, nextVerified);
+      await refreshBusinesses();
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update business verification status.",
+      );
+    } finally {
+      setIsTogglingBusinessId(null);
+    }
+  };
 
   if (!user || (!hasRole(user, "admin") && user.role !== "admin"))
     return (
       <div className="p-10 text-center">
         Access denied.{" "}
-        <Link to="/login" className="text-blue-600 underline">Login as admin</Link>
+        <Link to="/login" className="text-blue-600 underline">
+          Login as admin
+        </Link>
       </div>
     );
 
   return (
     <div className="min-h-screen bg-slate-100 sm:flex">
-
       {sidebarOpen && (
         <button
           type="button"
@@ -144,7 +304,11 @@ export default function AdminDashboard() {
           <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0">
             <span className="text-[#1a1a2e] font-black text-xs">RW</span>
           </div>
-          {sidebarOpen && <span className="font-black text-sm tracking-tight">Enjoy Rwanda</span>}
+          {sidebarOpen && (
+            <span className="font-black text-sm tracking-tight">
+              Enjoy Rwanda
+            </span>
+          )}
         </div>
 
         {/* Nav */}
@@ -157,13 +321,17 @@ export default function AdminDashboard() {
                 closeSidebarIfMobile();
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                tab === t ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"
+                tab === t
+                  ? "bg-white/15 text-white"
+                  : "text-white/60 hover:bg-white/10 hover:text-white"
               }`}
             >
               <span className="text-base shrink-0">{icon}</span>
               {sidebarOpen && <span>{label}</span>}
               {sidebarOpen && t === "vendors" && pendingApprovals > 0 && (
-                <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingApprovals}</span>
+                <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingApprovals}
+                </span>
               )}
             </button>
           ))}
@@ -195,32 +363,61 @@ export default function AdminDashboard() {
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0">
-
         {/* Topbar */}
         <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(o => !o)} className="text-slate-500 hover:text-slate-900 transition-colors">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
             </button>
             <div>
               <h1 className="text-lg font-black text-slate-900">
-                {navItems.find(n => n.tab === tab)?.icon} {navItems.find(n => n.tab === tab)?.label}
+                {navItems.find((n) => n.tab === tab)?.icon}{" "}
+                {navItems.find((n) => n.tab === tab)?.label}
               </h1>
-              <p className="text-xs text-slate-400">Welcome back, {user.name?.split(" ")[0]}</p>
+              <p className="text-xs text-slate-400">
+                Welcome back, {user.name?.split(" ")[0]}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {pendingApprovals > 0 && (
               <span className="bg-yellow-100 text-yellow-700 text-xs font-semibold px-3 py-1 rounded-full">
-                {pendingApprovals} pending approval{pendingApprovals > 1 ? "s" : ""}
+                {pendingApprovals} pending approval
+                {pendingApprovals > 1 ? "s" : ""}
               </span>
             )}
-            <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">● Live</span>
+            <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">
+              ● Live
+            </span>
           </div>
         </header>
 
         {/* Content */}
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+          {loadError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+          {isLoading && (
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              Loading latest dashboard data...
+            </div>
+          )}
 
           {/* ── Overview ── */}
           {tab === "overview" && (
@@ -228,17 +425,46 @@ export default function AdminDashboard() {
               {/* Stats */}
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Users", value: mockUsers.length, icon: "👥", color: "bg-blue-50 text-blue-700" },
-                  { label: "Approved Vendors", value: approvedVendors, icon: "🏪", color: "bg-green-50 text-green-700" },
-                  { label: "Total Orders", value: 40, icon: "🛒", color: "bg-purple-50 text-purple-700" },
-                  { label: "Pending Approvals", value: pendingApprovals, icon: "⏳", color: "bg-yellow-50 text-yellow-700" },
-                ].map(item => (
-                  <div key={item.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                  {
+                    label: "Total Users",
+                    value: users.length,
+                    icon: "👥",
+                    color: "bg-blue-50 text-blue-700",
+                  },
+                  {
+                    label: "Approved Vendors",
+                    value: approvedVendors,
+                    icon: "🏪",
+                    color: "bg-green-50 text-green-700",
+                  },
+                  {
+                    label: "Total Orders",
+                    value: 40,
+                    icon: "🛒",
+                    color: "bg-purple-50 text-purple-700",
+                  },
+                  {
+                    label: "Pending Approvals",
+                    value: pendingApprovals,
+                    icon: "⏳",
+                    color: "bg-yellow-50 text-yellow-700",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${item.color}`}>{item.label}</span>
+                      <span
+                        className={`text-xs font-semibold px-2 py-1 rounded-full ${item.color}`}
+                      >
+                        {item.label}
+                      </span>
                       <span className="text-xl">{item.icon}</span>
                     </div>
-                    <p className="text-4xl font-black text-slate-900">{item.value}</p>
+                    <p className="text-4xl font-black text-slate-900">
+                      {item.value}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -247,18 +473,38 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Recent Activity */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                  <h3 className="font-bold text-slate-900 mb-4">Recent Activity</h3>
+                  <h3 className="font-bold text-slate-900 mb-4">
+                    Recent Activity
+                  </h3>
                   <ul className="space-y-3">
                     {[
-                      { icon: "📅", title: "New booking from Alice Uwase", time: "2 min ago" },
-                      { icon: "🛒", title: "New order ORD-011 received", time: "15 min ago" },
-                      { icon: "🏪", title: "Vendor Diane Uwimana registered", time: "1 hr ago" },
-                      { icon: "💬", title: "Support ticket from Jean Pierre", time: "3 hr ago" },
+                      {
+                        icon: "📅",
+                        title: "New booking from Alice Uwase",
+                        time: "2 min ago",
+                      },
+                      {
+                        icon: "🛒",
+                        title: "New order ORD-011 received",
+                        time: "15 min ago",
+                      },
+                      {
+                        icon: "🏪",
+                        title: "Vendor Diane Uwimana registered",
+                        time: "1 hr ago",
+                      },
+                      {
+                        icon: "💬",
+                        title: "Support ticket from Jean Pierre",
+                        time: "3 hr ago",
+                      },
                     ].map((a, i) => (
                       <li key={i} className="flex items-start gap-3 text-sm">
                         <span className="text-base mt-0.5">{a.icon}</span>
                         <div className="flex-1">
-                          <p className="text-slate-800 font-medium">{a.title}</p>
+                          <p className="text-slate-800 font-medium">
+                            {a.title}
+                          </p>
                           <p className="text-slate-400 text-xs">{a.time}</p>
                         </div>
                       </li>
@@ -268,23 +514,57 @@ export default function AdminDashboard() {
 
                 {/* Pending Vendors */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                  <h3 className="font-bold text-slate-900 mb-4">Pending Vendor Approvals</h3>
-                  {vendors.filter(v => v.status === "pending").length === 0 ? (
-                    <p className="text-slate-400 text-sm text-center py-6">All vendors approved ✅</p>
+                  <h3 className="font-bold text-slate-900 mb-4">
+                    Pending Vendor Approvals
+                  </h3>
+                  {vendorApplications.filter((app) => app.status === "pending")
+                    .length === 0 ? (
+                    <p className="text-slate-400 text-sm text-center py-6">
+                      All vendors approved ✅
+                    </p>
                   ) : (
                     <ul className="space-y-3">
-                      {vendors.filter(v => v.status === "pending").map(v => (
-                        <li key={v.id} className="flex items-center justify-between text-sm border border-slate-100 rounded-xl p-3">
-                          <div>
-                            <p className="font-semibold text-slate-900">{v.business}</p>
-                            <p className="text-xs text-slate-400">{v.name} · {v.type}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => setVendors(prev => prev.map(x => x.id === v.id ? { ...x, status: "approved" } : x))} className="bg-green-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-green-600">Approve</button>
-                            <button onClick={() => setVendors(prev => prev.map(x => x.id === v.id ? { ...x, status: "rejected" } : x))} className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600">Reject</button>
-                          </div>
-                        </li>
-                      ))}
+                      {vendorApplications
+                        .filter((app) => app.status === "pending")
+                        .map((app) => (
+                          <li
+                            key={app.id}
+                            className="flex items-center justify-between text-sm border border-slate-100 rounded-xl p-3"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {app.vendor_name}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {app.vendor_email}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  void handleReviewApplication(
+                                    app.id,
+                                    "approved",
+                                  )
+                                }
+                                className="bg-green-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-green-600"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() =>
+                                  void handleReviewApplication(
+                                    app.id,
+                                    "rejected",
+                                  )
+                                }
+                                className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </li>
+                        ))}
                     </ul>
                   )}
                 </div>
@@ -297,28 +577,58 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="font-bold text-slate-900 text-lg">All Users</h2>
-                  <p className="text-sm text-slate-400">{mockUsers.length} registered users</p>
+                  <h2 className="font-bold text-slate-900 text-lg">
+                    All Users
+                  </h2>
+                  <p className="text-sm text-slate-400">
+                    {users.length} registered users
+                  </p>
                 </div>
-                <button className="bg-[#1a1a2e] !text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#2d2d4e]">+ Invite User</button>
+                <button className="bg-[#1a1a2e] !text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#2d2d4e]">
+                  + Invite User
+                </button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-slate-500">
-                      {["Name", "Email", "Role", "Status", "Actions"].map(h => (
-                        <th key={h} className="pb-3 font-semibold text-xs uppercase tracking-wide">{h}</th>
-                      ))}
+                      {["Name", "Email", "Role", "Status", "Actions"].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            className="pb-3 font-semibold text-xs uppercase tracking-wide"
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {mockUsers.map(u => (
-                      <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                        <td className="py-3 font-medium text-slate-900">{u.name}</td>
+                    {users.map((u) => (
+                      <tr
+                        key={u.id}
+                        className="border-b border-slate-100 hover:bg-slate-50 transition"
+                      >
+                        <td className="py-3 font-medium text-slate-900">
+                          {u.name}
+                        </td>
                         <td className="py-3 text-slate-500">{u.email}</td>
-                        <td className="py-3"><span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-1 rounded-full">{u.role}</span></td>
-                        <td className="py-3"><span className="bg-green-50 text-green-700 text-xs font-semibold px-2 py-1 rounded-full">{u.status}</span></td>
-                        <td className="py-3"><button className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600">Suspend</button></td>
+                        <td className="py-3">
+                          <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-1 rounded-full">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <span className="bg-green-50 text-green-700 text-xs font-semibold px-2 py-1 rounded-full">
+                            active
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <button className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600">
+                            Suspend
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -333,10 +643,17 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-6 gap-4">
                   <div>
-                    <h2 className="font-bold text-slate-900 text-lg">Vendor Applications</h2>
-                    <p className="text-sm text-slate-400">{pendingApplications} pending submissions</p>
+                    <h2 className="font-bold text-slate-900 text-lg">
+                      Vendor Applications
+                    </h2>
+                    <p className="text-sm text-slate-400">
+                      {pendingApplications} pending submissions
+                    </p>
                   </div>
-                  <button onClick={() => setVendorApplications(readVendorApplications())} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300">
+                  <button
+                    onClick={() => void refreshApplications()}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300"
+                  >
                     Refresh
                   </button>
                 </div>
@@ -350,8 +667,20 @@ export default function AdminDashboard() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-slate-500">
-                          {["Vendor", "Email", "Checklist", "Status", "Submitted", "Actions"].map((h) => (
-                            <th key={h} className="pb-3 font-semibold text-xs uppercase tracking-wide">{h}</th>
+                          {[
+                            "Vendor",
+                            "Email",
+                            "Checklist",
+                            "Status",
+                            "Submitted",
+                            "Actions",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="pb-3 font-semibold text-xs uppercase tracking-wide"
+                            >
+                              {h}
+                            </th>
                           ))}
                         </tr>
                       </thead>
@@ -359,72 +688,102 @@ export default function AdminDashboard() {
                         {vendorApplications.map((app) => {
                           const checklist = getApplicationChecklist(app);
                           return (
-                          <tr key={app.vendorId} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                            <td className="py-3 font-medium text-slate-900">{app.vendorName}</td>
-                            <td className="py-3 text-slate-500">{app.vendorEmail}</td>
-                            <td className="py-3">
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                                checklist.isComplete ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
-                              }`}>
-                                {checklist.isComplete ? "Complete" : `Missing ${checklist.missing.length}`}
-                              </span>
-                            </td>
-                            <td className="py-3">
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                                app.status === "approved" ? "bg-green-50 text-green-700" :
-                                app.status === "rejected" ? "bg-red-50 text-red-700" :
-                                app.status === "pending" ? "bg-yellow-50 text-yellow-700" :
-                                "bg-slate-100 text-slate-700"
-                              }`}>{app.status}</span>
-                            </td>
-                            <td className="py-3 text-slate-500">{app.submittedAt ? new Date(app.submittedAt).toLocaleString() : "-"}</td>
-                            <td className="py-3">
-                              <div className="flex gap-2 flex-wrap">
-                                <button
-                                  onClick={() => setSelectedApplicationId(app.vendorId)}
-                                  className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300"
+                            <tr
+                              key={app.id}
+                              className="border-b border-slate-100 hover:bg-slate-50 transition"
+                            >
+                              <td className="py-3 font-medium text-slate-900">
+                                {app.vendor_name}
+                              </td>
+                              <td className="py-3 text-slate-500">
+                                {app.vendor_email}
+                              </td>
+                              <td className="py-3">
+                                <span
+                                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    checklist.isComplete
+                                      ? "bg-green-50 text-green-700"
+                                      : "bg-amber-50 text-amber-700"
+                                  }`}
                                 >
-                                  View
-                                </button>
-                                {app.status === "pending" ? (
-                                  <>
+                                  {checklist.isComplete
+                                    ? "Complete"
+                                    : `Missing ${checklist.missing.length}`}
+                                </span>
+                              </td>
+                              <td className="py-3">
+                                <span
+                                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    app.status === "approved"
+                                      ? "bg-green-50 text-green-700"
+                                      : app.status === "rejected"
+                                        ? "bg-red-50 text-red-700"
+                                        : app.status === "pending"
+                                          ? "bg-yellow-50 text-yellow-700"
+                                          : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {app.status}
+                                </span>
+                              </td>
+                              <td className="py-3 text-slate-500">
+                                {app.submitted_at
+                                  ? new Date(app.submitted_at).toLocaleString()
+                                  : "-"}
+                              </td>
+                              <td className="py-3">
+                                <div className="flex gap-2 flex-wrap">
                                   <button
-                                    onClick={() => {
-                                      updateVendorApplicationStatus(app.vendorId, {
-                                        status: "approved",
-                                        reviewedAt: new Date().toISOString(),
-                                        reviewerName: user.name,
-                                      });
-                                      setVendorApplications(readVendorApplications());
-                                    }}
-                                    disabled={!checklist.isComplete}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold !text-white ${
-                                      checklist.isComplete ? "bg-green-500 hover:bg-green-600" : "bg-slate-300 cursor-not-allowed"
-                                    }`}
-                                    title={checklist.isComplete ? "Approve" : "Complete the checklist first"}
+                                    onClick={() =>
+                                      setSelectedApplicationId(app.id)
+                                    }
+                                    className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300"
                                   >
-                                    Approve
+                                    View
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      updateVendorApplicationStatus(app.vendorId, {
-                                        status: "rejected",
-                                        reviewedAt: new Date().toISOString(),
-                                        reviewerName: user.name,
-                                      });
-                                      setVendorApplications(readVendorApplications());
-                                    }}
-                                    className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600"
-                                  >
-                                    Reject
-                                  </button>
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-slate-400 self-center">Completed</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                                  {app.status === "pending" ? (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          void handleReviewApplication(
+                                            app.id,
+                                            "approved",
+                                          )
+                                        }
+                                        disabled={!checklist.isComplete}
+                                        className={`px-3 py-1 rounded-lg text-xs font-semibold !text-white ${
+                                          checklist.isComplete
+                                            ? "bg-green-500 hover:bg-green-600"
+                                            : "bg-slate-300 cursor-not-allowed"
+                                        }`}
+                                        title={
+                                          checklist.isComplete
+                                            ? "Approve"
+                                            : "Complete the checklist first"
+                                        }
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          void handleReviewApplication(
+                                            app.id,
+                                            "rejected",
+                                          )
+                                        }
+                                        className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 self-center">
+                                      Completed
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
                           );
                         })}
                       </tbody>
@@ -438,45 +797,111 @@ export default function AdminDashboard() {
                   <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Vendor application</p>
-                        <h3 className="mt-2 text-xl font-black text-slate-900">{selectedApplication.vendorName}</h3>
-                        <p className="text-sm text-slate-500">{selectedApplication.vendorEmail}</p>
+                        <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
+                          Vendor application
+                        </p>
+                        <h3 className="mt-2 text-xl font-black text-slate-900">
+                          {selectedApplication.vendor_name}
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          {selectedApplication.vendor_email}
+                        </p>
                       </div>
-                      <button onClick={() => setSelectedApplicationId(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300">
+                      <button
+                        onClick={() => setSelectedApplicationId(null)}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300"
+                      >
                         Close
                       </button>
                     </div>
 
                     {(() => {
-                      const checklist = getApplicationChecklist(selectedApplication);
-                      const payload = (selectedApplication.payload ?? {}) as { profile?: Record<string, unknown>; business?: Record<string, unknown> };
-                      const profile = (payload.profile ?? {}) as Record<string, unknown>;
-                      const business = (payload.business ?? {}) as Record<string, unknown>;
+                      const checklist =
+                        getApplicationChecklist(selectedApplication);
+                      const payloadInput = selectedApplication.payload;
+                      const payloadParsed =
+                        typeof payloadInput === "string"
+                          ? (() => {
+                              try {
+                                return JSON.parse(payloadInput) as unknown;
+                              } catch {
+                                return {};
+                              }
+                            })()
+                          : payloadInput;
+                      const payload = (payloadParsed ?? {}) as {
+                        profile?: Record<string, unknown>;
+                        business?: Record<string, unknown>;
+                      };
+                      const profile = (payload.profile ?? {}) as Record<
+                        string,
+                        unknown
+                      >;
+                      const business = (payload.business ?? {}) as Record<
+                        string,
+                        unknown
+                      >;
 
                       const uploadName = (value: unknown) => {
                         const upload = value as { name?: unknown } | undefined;
-                        return upload && typeof upload.name === "string" ? upload.name : "Not uploaded";
+                        return upload && typeof upload.name === "string"
+                          ? upload.name
+                          : "Not uploaded";
                       };
 
                       const getUpload = (value: unknown) => {
-                        const upload = value as { name?: unknown; type?: unknown; dataUrl?: unknown; size?: unknown } | undefined;
+                        const upload = value as
+                          | {
+                              name?: unknown;
+                              type?: unknown;
+                              dataUrl?: unknown;
+                              size?: unknown;
+                            }
+                          | undefined;
                         if (!upload || typeof upload !== "object") return null;
-                        const name = typeof upload.name === "string" ? upload.name : null;
+                        const name =
+                          typeof upload.name === "string" ? upload.name : null;
                         if (!name) return null;
-                        const type = typeof upload.type === "string" ? upload.type : "";
-                        const dataUrl = typeof upload.dataUrl === "string" ? upload.dataUrl : null;
-                        const size = typeof upload.size === "number" ? upload.size : null;
+                        const type =
+                          typeof upload.type === "string" ? upload.type : "";
+                        const dataUrl =
+                          typeof upload.dataUrl === "string"
+                            ? upload.dataUrl
+                            : null;
+                        const size =
+                          typeof upload.size === "number" ? upload.size : null;
                         return { name, type, dataUrl, size };
                       };
 
                       const renderUploadActions = (value: unknown) => {
                         const upload = getUpload(value);
-                        if (!upload) return <span className="text-slate-400">Not uploaded</span>;
-                        if (!upload.dataUrl) return <span className="text-slate-400">Stored as filename only (too large to preview)</span>;
+                        if (!upload)
+                          return (
+                            <span className="text-slate-400">Not uploaded</span>
+                          );
+                        if (!upload.dataUrl)
+                          return (
+                            <span className="text-slate-400">
+                              Stored as filename only (too large to preview)
+                            </span>
+                          );
                         return (
                           <div className="flex items-center gap-3">
-                            <a href={upload.dataUrl} target="_blank" rel="noreferrer" className="font-semibold text-slate-900 hover:underline">Open</a>
-                            <a href={upload.dataUrl} download={upload.name} className="font-semibold text-slate-900 hover:underline">Download</a>
+                            <a
+                              href={upload.dataUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-slate-900 hover:underline"
+                            >
+                              Open
+                            </a>
+                            <a
+                              href={upload.dataUrl}
+                              download={upload.name}
+                              className="font-semibold text-slate-900 hover:underline"
+                            >
+                              Download
+                            </a>
                           </div>
                         );
                       };
@@ -485,11 +910,21 @@ export default function AdminDashboard() {
                         const upload = getUpload(value);
                         if (!upload?.dataUrl) return null;
                         if (upload.type.startsWith("image/")) {
-                          return <img alt={upload.name} src={upload.dataUrl} className="mt-3 h-32 w-full rounded-2xl object-cover border border-slate-200" />;
+                          return (
+                            <img
+                              alt={upload.name}
+                              src={upload.dataUrl}
+                              className="mt-3 h-32 w-full rounded-2xl object-cover border border-slate-200"
+                            />
+                          );
                         }
                         if (upload.type === "application/pdf") {
                           return (
-                            <iframe title={upload.name} src={upload.dataUrl} className="mt-3 h-40 w-full rounded-2xl border border-slate-200" />
+                            <iframe
+                              title={upload.name}
+                              src={upload.dataUrl}
+                              className="mt-3 h-40 w-full rounded-2xl border border-slate-200"
+                            />
                           );
                         }
                         return null;
@@ -497,8 +932,14 @@ export default function AdminDashboard() {
 
                       return (
                         <div className="mt-6 space-y-6">
-                          <div className={`rounded-2xl p-4 text-sm ${checklist.isComplete ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}>
-                            <p className="font-semibold">{checklist.isComplete ? "All requirements are complete." : "Missing requirements:"}</p>
+                          <div
+                            className={`rounded-2xl p-4 text-sm ${checklist.isComplete ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}
+                          >
+                            <p className="font-semibold">
+                              {checklist.isComplete
+                                ? "All requirements are complete."
+                                : "Missing requirements:"}
+                            </p>
                             {!checklist.isComplete && (
                               <ul className="mt-2 list-disc pl-5">
                                 {checklist.missing.map((item) => (
@@ -510,76 +951,180 @@ export default function AdminDashboard() {
 
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="rounded-2xl border border-slate-200 p-4">
-                              <h4 className="font-bold text-slate-900 mb-3">Profile</h4>
+                              <h4 className="font-bold text-slate-900 mb-3">
+                                Profile
+                              </h4>
                               <div className="space-y-2 text-sm text-slate-700">
-                                <p><span className="text-slate-500">Owner name:</span> {String(profile.ownerName ?? "-")}</p>
-                                <p><span className="text-slate-500">Owner email:</span> {String(profile.email ?? "-")}</p>
-                                <p><span className="text-slate-500">Owner phone:</span> {String(profile.phone ?? "-")}</p>
-                                <p><span className="text-slate-500">Description:</span> {String(profile.description ?? "-")}</p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Owner name:
+                                  </span>{" "}
+                                  {String(profile.ownerName ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Owner email:
+                                  </span>{" "}
+                                  {String(profile.email ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Owner phone:
+                                  </span>{" "}
+                                  {String(profile.phone ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Description:
+                                  </span>{" "}
+                                  {String(profile.description ?? "-")}
+                                </p>
                               </div>
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 p-4">
-                              <h4 className="font-bold text-slate-900 mb-3">Business</h4>
+                              <h4 className="font-bold text-slate-900 mb-3">
+                                Business
+                              </h4>
                               <div className="space-y-2 text-sm text-slate-700">
-                                <p><span className="text-slate-500">Name:</span> {String(business.businessName ?? "-")}</p>
-                                <p><span className="text-slate-500">Type:</span> {String(business.businessType ?? "-")}</p>
-                                <p><span className="text-slate-500">Location:</span> {String(business.location ?? "-")}</p>
-                                <p><span className="text-slate-500">Business email:</span> {String(business.businessEmail ?? "-")}</p>
-                                <p><span className="text-slate-500">Business phone:</span> {String(business.businessPhone ?? "-")}</p>
-                                <p><span className="text-slate-500">Manager:</span> {String(business.managerName ?? "-")} ({String(business.managerEmail ?? "-")})</p>
-                                <p><span className="text-slate-500">Opening hours:</span> {String(business.openingHours ?? "-")}</p>
-                                <p><span className="text-slate-500">Website:</span> {String(business.website ?? "-")}</p>
-                                <p><span className="text-slate-500">Tables:</span> {String(business.tablesCount ?? "-")} · <span className="text-slate-500">Capacity:</span> {String(business.capacity ?? "-")}</p>
-                                <p><span className="text-slate-500">Categories:</span> {Array.isArray(business.categories) ? business.categories.join(", ") : "-"}</p>
+                                <p>
+                                  <span className="text-slate-500">Name:</span>{" "}
+                                  {String(business.businessName ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">Type:</span>{" "}
+                                  {String(business.businessType ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Location:
+                                  </span>{" "}
+                                  {String(business.location ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Business email:
+                                  </span>{" "}
+                                  {String(business.businessEmail ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Business phone:
+                                  </span>{" "}
+                                  {String(business.businessPhone ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Manager:
+                                  </span>{" "}
+                                  {String(business.managerName ?? "-")} (
+                                  {String(business.managerEmail ?? "-")})
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Opening hours:
+                                  </span>{" "}
+                                  {String(business.openingHours ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Website:
+                                  </span>{" "}
+                                  {String(business.website ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Tables:
+                                  </span>{" "}
+                                  {String(business.tablesCount ?? "-")} ·{" "}
+                                  <span className="text-slate-500">
+                                    Capacity:
+                                  </span>{" "}
+                                  {String(business.capacity ?? "-")}
+                                </p>
+                                <p>
+                                  <span className="text-slate-500">
+                                    Categories:
+                                  </span>{" "}
+                                  {Array.isArray(business.categories)
+                                    ? business.categories.join(", ")
+                                    : "-"}
+                                </p>
                               </div>
                             </div>
                           </div>
 
                           <div className="rounded-2xl border border-slate-200 p-4">
-                            <h4 className="font-bold text-slate-900 mb-3">Documents</h4>
+                            <h4 className="font-bold text-slate-900 mb-3">
+                              Documents
+                            </h4>
                             <div className="grid gap-3 sm:grid-cols-3 text-sm text-slate-700">
                               <div className="rounded-2xl bg-slate-50 p-3">
-                                <p className="text-slate-500 text-xs uppercase tracking-wide">Profile image</p>
-                                <p className="mt-1 font-semibold">{uploadName(business.profileImage)}</p>
-                                <div className="mt-2 text-xs">{renderUploadActions(business.profileImage)}</div>
+                                <p className="text-slate-500 text-xs uppercase tracking-wide">
+                                  Profile image
+                                </p>
+                                <p className="mt-1 font-semibold">
+                                  {uploadName(business.profileImage)}
+                                </p>
+                                <div className="mt-2 text-xs">
+                                  {renderUploadActions(business.profileImage)}
+                                </div>
                                 {renderUploadPreview(business.profileImage)}
                               </div>
                               <div className="rounded-2xl bg-slate-50 p-3">
-                                <p className="text-slate-500 text-xs uppercase tracking-wide">Menu PDF</p>
-                                <p className="mt-1 font-semibold">{uploadName(business.menuPdf)}</p>
-                                <div className="mt-2 text-xs">{renderUploadActions(business.menuPdf)}</div>
+                                <p className="text-slate-500 text-xs uppercase tracking-wide">
+                                  Menu PDF
+                                </p>
+                                <p className="mt-1 font-semibold">
+                                  {uploadName(business.menuPdf)}
+                                </p>
+                                <div className="mt-2 text-xs">
+                                  {renderUploadActions(business.menuPdf)}
+                                </div>
                                 {renderUploadPreview(business.menuPdf)}
                               </div>
                               <div className="rounded-2xl bg-slate-50 p-3">
-                                <p className="text-slate-500 text-xs uppercase tracking-wide">RDB certificate</p>
-                                <p className="mt-1 font-semibold">{uploadName(business.rdbCertificate)}</p>
-                                <div className="mt-2 text-xs">{renderUploadActions(business.rdbCertificate)}</div>
+                                <p className="text-slate-500 text-xs uppercase tracking-wide">
+                                  RDB certificate
+                                </p>
+                                <p className="mt-1 font-semibold">
+                                  {uploadName(business.rdbCertificate)}
+                                </p>
+                                <div className="mt-2 text-xs">
+                                  {renderUploadActions(business.rdbCertificate)}
+                                </div>
                                 {renderUploadPreview(business.rdbCertificate)}
                               </div>
                             </div>
                           </div>
 
                           <div className="flex flex-wrap gap-3 justify-end">
-                            <button onClick={() => setSelectedApplicationId(null)} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:border-blue-300">
+                            <button
+                              onClick={() => setSelectedApplicationId(null)}
+                              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:border-blue-300"
+                            >
                               Close
                             </button>
                             {selectedApplication.status === "pending" && (
                               <button
                                 onClick={() => {
-                                  updateVendorApplicationStatus(selectedApplication.vendorId, {
-                                    status: "approved",
-                                    reviewedAt: new Date().toISOString(),
-                                    reviewerName: user.name,
-                                  });
-                                  setVendorApplications(readVendorApplications());
+                                  void handleReviewApplication(
+                                    selectedApplication.id,
+                                    "approved",
+                                  );
                                   setSelectedApplicationId(null);
                                 }}
                                 disabled={!checklist.isComplete}
                                 className={`rounded-xl px-5 py-3 text-sm font-semibold !text-white ${
-                                  checklist.isComplete ? "bg-green-600 hover:bg-green-700" : "bg-slate-300 cursor-not-allowed"
+                                  checklist.isComplete
+                                    ? "bg-green-600 hover:bg-green-700"
+                                    : "bg-slate-300 cursor-not-allowed"
                                 }`}
-                                title={checklist.isComplete ? "Approve vendor application" : "Complete the checklist first"}
+                                title={
+                                  checklist.isComplete
+                                    ? "Approve vendor application"
+                                    : "Complete the checklist first"
+                                }
                               >
                                 Approve
                               </button>
@@ -595,45 +1140,257 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="font-bold text-slate-900 text-lg">Vendor Approvals (demo)</h2>
-                    <p className="text-sm text-slate-400">{pendingApprovals} pending · {approvedVendors} approved</p>
+                    <h2 className="font-bold text-slate-900 text-lg">
+                      Registered Businesses
+                    </h2>
+                    <p className="text-sm text-slate-400">
+                      {businessProfiles.length} business profile
+                      {businessProfiles.length === 1 ? "" : "s"}
+                    </p>
                   </div>
-                  <span className="bg-yellow-100 text-yellow-700 text-xs font-semibold px-3 py-1 rounded-full">{pendingApprovals} pending review</span>
+                  <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">
+                    {businessProfiles.length} active
+                  </span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-slate-500">
-                        {["Owner", "Business", "Type", "Status", "Actions"].map(h => (
-                          <th key={h} className="pb-3 font-semibold text-xs uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vendors.map(v => (
-                        <tr key={v.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                          <td className="py-3 font-medium text-slate-900">{v.name}</td>
-                          <td className="py-3 text-slate-500">{v.business}</td>
-                          <td className="py-3 text-slate-600">{v.type}</td>
-                          <td className="py-3">
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                              v.status === "approved" ? "bg-green-50 text-green-700" :
-                              v.status === "rejected" ? "bg-red-50 text-red-700" :
-                              "bg-yellow-50 text-yellow-700"
-                            }`}>{v.status}</span>
-                          </td>
-                          <td className="py-3">
-                            {v.status === "pending" ? (
-                              <div className="flex gap-2">
-                                <button onClick={() => setVendors(prev => prev.map(x => x.id === v.id ? { ...x, status: "approved" } : x))} className="bg-green-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-green-600">Approve</button>
-                                <button onClick={() => setVendors(prev => prev.map(x => x.id === v.id ? { ...x, status: "rejected" } : x))} className="bg-red-500 !text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-600">Reject</button>
-                              </div>
-                            ) : <span className="text-xs text-slate-400">Completed</span>}
-                          </td>
+                {businessProfiles.length === 0 ? (
+                  <p className="rounded-2xl bg-slate-50 p-6 text-sm text-slate-600">
+                    No businesses found in the database.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-slate-500">
+                          {[
+                            "Business",
+                            "Owner",
+                            "Type",
+                            "Location",
+                            "Verified",
+                            "Actions",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="pb-3 font-semibold text-xs uppercase tracking-wide"
+                            >
+                              {h}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {businessProfiles.map((business) => (
+                          <tr
+                            key={
+                              business.business_id ??
+                              `${business.user_id}-${business.business_name}`
+                            }
+                            className="border-b border-slate-100 hover:bg-slate-50 transition"
+                          >
+                            <td className="py-3 font-medium text-slate-900">
+                              {business.business_name}
+                            </td>
+                            <td className="py-3 text-slate-600">
+                              <p className="font-medium text-slate-800">
+                                {business.owner_name ?? "-"}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {business.owner_email ?? "-"}
+                              </p>
+                            </td>
+                            <td className="py-3 text-slate-600">
+                              {business.business_type ?? "-"}
+                            </td>
+                            <td className="py-3 text-slate-500">
+                              {business.location ?? "-"}
+                            </td>
+                            <td className="py-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleToggleBusinessVerification(
+                                    business,
+                                  )
+                                }
+                                disabled={
+                                  isTogglingBusinessId ===
+                                    business.business_id ||
+                                  typeof business.business_id !== "number"
+                                }
+                                className={`rounded-full px-3 py-1 text-xs font-semibold !text-white ${
+                                  business.is_verified
+                                    ? "bg-green-600 hover:bg-green-700"
+                                    : "bg-slate-500 hover:bg-slate-600"
+                                } ${
+                                  isTogglingBusinessId === business.business_id
+                                    ? "opacity-70 cursor-wait"
+                                    : ""
+                                }`}
+                              >
+                                {business.is_verified ? "On" : "Off"}
+                              </button>
+                            </td>
+                            <td className="py-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedBusinessId(
+                                    business.business_id ?? null,
+                                  )
+                                }
+                                className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300"
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {selectedBusiness && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+              <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
+                      Business profile
+                    </p>
+                    <h3 className="mt-2 text-xl font-black text-slate-900">
+                      {selectedBusiness.business_name}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      {selectedBusiness.business_type ?? "Type not set"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBusinessId(null)}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h4 className="mb-3 font-bold text-slate-900">Owner</h4>
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <p>
+                        <span className="text-slate-500">Name:</span>{" "}
+                        {selectedBusiness.owner_name ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Email:</span>{" "}
+                        {selectedBusiness.owner_email ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Phone:</span>{" "}
+                        {selectedBusiness.owner_phone ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Verification:</span>{" "}
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            selectedBusiness.is_verified
+                              ? "bg-green-50 text-green-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {selectedBusiness.is_verified
+                            ? "Verified"
+                            : "Not verified"}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h4 className="mb-3 font-bold text-slate-900">Business</h4>
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <p>
+                        <span className="text-slate-500">Location:</span>{" "}
+                        {selectedBusiness.location ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Business email:</span>{" "}
+                        {selectedBusiness.business_email ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Business phone:</span>{" "}
+                        {selectedBusiness.business_phone ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Manager:</span>{" "}
+                        {selectedBusiness.manager_name ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Manager email:</span>{" "}
+                        {selectedBusiness.manager_email ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Opening hours:</span>{" "}
+                        {selectedBusiness.opening_hours ?? "-"}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Opening days:</span>{" "}
+                        {Array.isArray(selectedBusiness.opening_days)
+                          ? selectedBusiness.opening_days.join(", ")
+                          : (selectedBusiness.opening_days ?? "-")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+                  <h4 className="mb-3 font-bold text-slate-900">
+                    Description & files
+                  </h4>
+                  <p className="mb-4 text-sm text-slate-700">
+                    {selectedBusiness.business_description ??
+                      "No description provided."}
+                  </p>
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                        Profile image
+                      </p>
+                      {selectedBusiness.business_profile_image ? (
+                        <a
+                          className="mt-1 block font-semibold text-slate-900 hover:underline"
+                          href={selectedBusiness.business_profile_image}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open file
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-slate-400">Not uploaded</p>
+                      )}
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                        RDB certificate
+                      </p>
+                      {selectedBusiness.rdb_certificate ? (
+                        <a
+                          className="mt-1 block font-semibold text-slate-900 hover:underline"
+                          href={selectedBusiness.rdb_certificate}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open file
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-slate-400">Not uploaded</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -644,34 +1401,82 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                  { title: "Orders This Month", value: "40", detail: "+12% from last month", icon: "📦" },
-                  { title: "Revenue", value: "580,000 RWF", detail: "+8% from last month", icon: "💰" },
-                  { title: "Bookings", value: "18", detail: "+5% from last month", icon: "📅" },
-                  { title: "Complaints", value: "2", detail: "1 resolved, 1 pending", icon: "💬" },
-                ].map(item => (
-                  <div key={item.title} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                  {
+                    title: "Orders This Month",
+                    value: "40",
+                    detail: "+12% from last month",
+                    icon: "📦",
+                  },
+                  {
+                    title: "Revenue",
+                    value: "580,000 RWF",
+                    detail: "+8% from last month",
+                    icon: "💰",
+                  },
+                  {
+                    title: "Bookings",
+                    value: "18",
+                    detail: "+5% from last month",
+                    icon: "📅",
+                  },
+                  {
+                    title: "Complaints",
+                    value: "2",
+                    detail: "1 resolved, 1 pending",
+                    icon: "💬",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xl">{item.icon}</span>
-                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">This month</span>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                        This month
+                      </span>
                     </div>
-                    <p className="text-3xl font-black text-slate-900 mb-1">{item.value}</p>
+                    <p className="text-3xl font-black text-slate-900 mb-1">
+                      {item.value}
+                    </p>
                     <p className="text-xs text-slate-400">{item.detail}</p>
                   </div>
                 ))}
               </div>
 
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-4">Platform Summary</h3>
+                <h3 className="font-bold text-slate-900 mb-4">
+                  Platform Summary
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                   {[
-                    { label: "Total Revenue", value: "2,450,000 RWF", icon: "💰" },
+                    {
+                      label: "Total Revenue",
+                      value: "2,450,000 RWF",
+                      icon: "💰",
+                    },
                     { label: "Total Bookings", value: "86", icon: "📅" },
-                    { label: "Active Vendors", value: approvedVendors.toString(), icon: "🏪" },
-                    { label: "Registered Users", value: mockUsers.length.toString(), icon: "👥" },
-                    { label: "Avg Order Value", value: "14,500 RWF", icon: "🛒" },
+                    {
+                      label: "Active Vendors",
+                      value: approvedVendors.toString(),
+                      icon: "🏪",
+                    },
+                    {
+                      label: "Registered Users",
+                      value: users.length.toString(),
+                      icon: "👥",
+                    },
+                    {
+                      label: "Avg Order Value",
+                      value: "14,500 RWF",
+                      icon: "🛒",
+                    },
                     { label: "Satisfaction Rate", value: "94%", icon: "⭐" },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center gap-3 border border-slate-100 rounded-xl p-4">
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center gap-3 border border-slate-100 rounded-xl p-4"
+                    >
                       <span className="text-2xl">{item.icon}</span>
                       <div>
                         <p className="font-bold text-slate-900">{item.value}</p>
@@ -683,7 +1488,6 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-
         </main>
       </div>
     </div>
