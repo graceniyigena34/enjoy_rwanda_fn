@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import {
+  createBusinessProfile,
+  createMenuItem,
+  getMyBusinessProfile,
+  updateMyBusinessProfile,
+  type BusinessProfileRecord,
+} from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
 type Tab = "overview" | "catalog" | "orders" | "analytics" | "settings";
@@ -97,6 +104,7 @@ type NewItemFormState = {
   description: string;
   imageName: string;
   imagePreviewUrl?: string;
+  imageFile?: File | null;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -119,256 +127,29 @@ const compact = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-const restaurantSeed = (): DashboardSeed => ({
+const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
   profile: {
-    ownerName: "Kigali Grill Team",
-    email: "hello@kigali-grill.rw",
-    phone: "+250 788 000 001",
+    ownerName: "",
+    email: "",
+    phone: "",
   },
   business: {
-    businessName: "Kigali Grill",
-    businessType: "Restaurant",
-    location: "Kigali, Rwanda",
-    openingHours: "08:00",
+    businessName: "",
+    businessType,
+    location: "",
+    openingHours: "",
     openingDays: [],
     businessPhone: "",
     businessEmail: "",
     managerName: "",
     managerEmail: "",
-    description:
-      "Modern restaurant dashboard for table bookings, menu updates, and live sales tracking.",
+    description: "",
   },
-  catalogItems: [
-    {
-      id: 1,
-      name: "Grilled Tilapia",
-      subtitle: "Signature menu item",
-      price: 12000,
-      status: "Trending",
-      metric: "342 orders",
-      accent: "bg-emerald-500",
-    },
-    {
-      id: 2,
-      name: "Volcano Roast (250g)",
-      subtitle: "Local beef special",
-      price: 14500,
-      status: "Active",
-      metric: "215 orders",
-      accent: "bg-sky-500",
-    },
-    {
-      id: 3,
-      name: "Beef Sambusas",
-      subtitle: "Appetizer item",
-      price: 8000,
-      status: "Active",
-      metric: "188 orders",
-      accent: "bg-amber-500",
-    },
-  ],
-  bookings: [
-    {
-      id: 1,
-      guest: "The Great Rift Valley Lunch",
-      slot: "Today, 12:30",
-      table: "T4",
-      amount: 180000,
-      status: "confirmed",
-    },
-    {
-      id: 2,
-      guest: "Kigali City Discovery Tour",
-      slot: "Today, 15:00",
-      table: "T2",
-      amount: 450000,
-      status: "pending",
-    },
-    {
-      id: 3,
-      guest: "Handwoven Imigongo Art",
-      slot: "Tomorrow, 18:00",
-      table: "T7",
-      amount: 85000,
-      status: "confirmed",
-    },
-  ],
-  orders: [
-    {
-      id: "ORD-842",
-      customer: "The Great Rift Valley Lunch",
-      items: ["Grilled Tilapia", "Isombe"],
-      total: 180000,
-      status: "processing",
-      age: "2 mins ago",
-    },
-    {
-      id: "ORD-891",
-      customer: "Kigali City Discovery Tour",
-      items: ["Brochettes", "Passion Juice"],
-      total: 450000,
-      status: "pending",
-      age: "15 mins ago",
-    },
-    {
-      id: "ORD-887",
-      customer: "Handwoven Imigongo Art",
-      items: ["Beef Sambusas"],
-      total: 85000,
-      status: "delivered",
-      age: "1 hour ago",
-    },
-  ],
-  notifications: [
-    {
-      id: 1,
-      title: "Reservation confirmed",
-      detail: "Table T4 booked for 12:30 today.",
-      tone: "emerald",
-      time: "2 min ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Order moved to processing",
-      detail: "ORD-842 is now being prepared.",
-      tone: "sky",
-      time: "15 min ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "Menu item trending",
-      detail: "Grilled Tilapia is still leading this week.",
-      tone: "amber",
-      time: "1 hour ago",
-      unread: false,
-    },
-  ],
+  catalogItems: [],
+  bookings: [],
+  orders: [],
+  notifications: [],
 });
-
-const shopSeed = (): DashboardSeed => ({
-  profile: {
-    ownerName: "Jean-Pierre K.",
-    email: "hello@inzozi-fashion.rw",
-    phone: "+250 788 000 222",
-  },
-  business: {
-    businessName: "Inzozi Fashion",
-    businessType: "Shop",
-    location: "Kigali Heights, Rwanda",
-    openingHours: "09:00",
-    openingDays: [],
-    businessPhone: "",
-    businessEmail: "",
-    managerName: "",
-    managerEmail: "",
-    description:
-      "Retail dashboard for product listings, stock health, and fast order fulfillment.",
-  },
-  catalogItems: [
-    {
-      id: 1,
-      name: "Handwoven Agaseke Basket",
-      subtitle: "Traditional craft",
-      price: 45000,
-      status: "In stock",
-      metric: "142 active listings",
-      accent: "bg-emerald-500",
-    },
-    {
-      id: 2,
-      name: "Kivu Bourbon Coffee",
-      subtitle: "Organic coffee beans",
-      price: 24500,
-      status: "Low stock",
-      metric: "12 left",
-      accent: "bg-rose-500",
-    },
-    {
-      id: 3,
-      name: "Imigongo Wall Art",
-      subtitle: "Premium decor",
-      price: 85000,
-      status: "Trending",
-      metric: "75 sales target",
-      accent: "bg-sky-500",
-    },
-  ],
-  bookings: [
-    {
-      id: 1,
-      guest: "Stock re-check",
-      slot: "Today, 10:00",
-      table: "Main shelf",
-      amount: 0,
-      status: "confirmed",
-    },
-    {
-      id: 2,
-      guest: "Supplier pickup",
-      slot: "Today, 16:00",
-      table: "Warehouse",
-      amount: 0,
-      status: "pending",
-    },
-  ],
-  orders: [
-    {
-      id: "ORD-117",
-      customer: "Central Kigali pickup",
-      items: ["Agaseke Basket"],
-      total: 45000,
-      status: "pending",
-      age: "6 mins ago",
-    },
-    {
-      id: "ORD-122",
-      customer: "Hotel delivery",
-      items: ["Kivu Bourbon Coffee"],
-      total: 73500,
-      status: "processing",
-      age: "18 mins ago",
-    },
-    {
-      id: "ORD-124",
-      customer: "Online marketplace",
-      items: ["Imigongo Wall Art"],
-      total: 85000,
-      status: "delivered",
-      age: "1 hour ago",
-    },
-  ],
-  notifications: [
-    {
-      id: 1,
-      title: "Stock alert",
-      detail: "Kivu Bourbon Coffee is below 15 units.",
-      tone: "amber",
-      time: "4 min ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Listing performing well",
-      detail: "Imigongo Wall Art is now trending.",
-      tone: "emerald",
-      time: "12 min ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "Fulfillment update",
-      detail: "Order ORD-122 moved to processing.",
-      tone: "sky",
-      time: "45 min ago",
-      unread: false,
-    },
-  ],
-});
-
-const demoSeed = (businessType: BusinessType) =>
-  businessType === "Shop" ? shopSeed() : restaurantSeed();
 
 const chartSeries = {
   Restaurant: [18, 22, 25, 42, 38, 19, 41],
@@ -545,7 +326,7 @@ function StatCard({
 }
 
 export default function VendorDashboard() {
-  const { user, logout, darkMode, toggleDark } = useApp();
+  const { user, token, logout, darkMode, toggleDark } = useApp();
   const navigate = useNavigate();
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -564,7 +345,7 @@ export default function VendorDashboard() {
   }, [storageKey]);
 
   const initialSeed = useMemo(
-    () => demoSeed(storedState?.business?.businessType ?? "Restaurant"),
+    () => createBlankSeed(storedState?.business?.businessType ?? "Restaurant"),
     [storedState?.business?.businessType],
   );
 
@@ -578,9 +359,13 @@ export default function VendorDashboard() {
     "next" | "prev"
   >("next");
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [onboardingSubmitting, setOnboardingSubmitting] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean>(() =>
     Boolean(storedState?.onboardingComplete),
   );
+  const [hasRemoteBusinessProfile, setHasRemoteBusinessProfile] =
+    useState(false);
+  const [profileHydrating, setProfileHydrating] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [profile, setProfile] = useState<ProfileInfo>(
     () => storedState?.profile ?? initialSeed.profile,
@@ -612,6 +397,17 @@ export default function VendorDashboard() {
   );
   const [menuFormOpen, setMenuFormOpen] = useState(false);
   const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
+  const [menuFormMessageType, setMenuFormMessageType] = useState<
+    "success" | "error"
+  >("success");
+  const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
+  const [businessFiles, setBusinessFiles] = useState<{
+    businessProfileImage: File | null;
+    rdbCertificate: File | null;
+  }>({
+    businessProfileImage: null,
+    rdbCertificate: null,
+  });
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
@@ -619,12 +415,119 @@ export default function VendorDashboard() {
     description: "",
     imageName: "",
     imagePreviewUrl: undefined,
+    imageFile: null,
   });
 
   const handleSignOut = () => {
     logout();
     navigate("/login");
   };
+
+  const getFileNameFromUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Uploaded file";
+    const segment = trimmed.split("/").pop() ?? trimmed;
+    return segment.split("?")[0] || "Uploaded file";
+  };
+
+  const normalizeOpeningDays = (
+    value: BusinessProfileRecord["opening_days"],
+  ) => {
+    if (Array.isArray(value)) {
+      return value.filter(
+        (day): day is string =>
+          typeof day === "string" && day.trim().length > 0,
+      );
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (day): day is string =>
+              typeof day === "string" && day.trim().length > 0,
+          );
+        }
+      } catch {
+        // Ignore non-JSON payloads and fall through to comma parsing.
+      }
+
+      return trimmed
+        .split(",")
+        .map((day) => day.trim())
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
+  const buildBusinessSeed = (businessType: BusinessType) => {
+    const seed = createBlankSeed(businessType);
+    return {
+      profile: seed.profile,
+      business: {
+        ...seed.business,
+        businessType,
+      },
+      catalogItems: seed.catalogItems,
+      bookings: seed.bookings,
+      orders: seed.orders,
+      notifications: seed.notifications,
+    };
+  };
+
+  const applyBusinessProfile = useCallback((record: BusinessProfileRecord) => {
+    const businessType =
+      record.business_type === "Shop" ? "Shop" : "Restaurant";
+    const seed = buildBusinessSeed(businessType);
+
+    setProfile(seed.profile);
+    setBusiness({
+      ...seed.business,
+      businessName: record.business_name || seed.business.businessName,
+      businessType,
+      location: record.location || seed.business.location,
+      openingHours: record.opening_hours || seed.business.openingHours,
+      openingDays: normalizeOpeningDays(record.opening_days),
+      businessPhone: record.business_phone || "",
+      businessEmail: record.business_email || "",
+      managerName: record.manager_name || "",
+      managerEmail: record.manager_email || "",
+      description: record.business_description || seed.business.description,
+      businessProfileImage: record.business_profile_image
+        ? {
+            name: getFileNameFromUrl(record.business_profile_image),
+            type: "image/*",
+            size: 0,
+            previewUrl: record.business_profile_image,
+          }
+        : undefined,
+      rdbCertificate: record.rdb_certificate
+        ? {
+            name: getFileNameFromUrl(record.rdb_certificate),
+            type: "application/octet-stream",
+            size: 0,
+            previewUrl: record.rdb_certificate,
+          }
+        : undefined,
+    });
+    setCatalogItems(seed.catalogItems);
+    setBookings(seed.bookings);
+    setOrders(seed.orders);
+    setNotifications(seed.notifications);
+    setAvailabilityByItemId(
+      Object.fromEntries(
+        seed.catalogItems.map((item) => [
+          item.id,
+          !item.status.toLowerCase().includes("low"),
+        ]),
+      ),
+    );
+  }, []);
 
   const isShop = business.businessType === "Shop";
   const catalogLabel = isShop ? "Products" : "Menu items";
@@ -765,11 +668,13 @@ export default function VendorDashboard() {
       description: "",
       imageName: "",
       imagePreviewUrl: undefined,
+      imageFile: null,
     });
   };
 
   const handleOpenMenuForm = () => {
     setMenuFormMessage(null);
+    setMenuFormMessageType("success");
     setMenuFormOpen(true);
   };
 
@@ -780,18 +685,77 @@ export default function VendorDashboard() {
         ...current,
         imageName: file.name,
         imagePreviewUrl: String(reader.result),
+        imageFile: file,
       }));
     };
     reader.readAsDataURL(file);
   };
 
-  const handleMenuFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleMenuFormSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
-    setMenuFormMessage(
-      `${isShop ? "Product" : "Menu item"} form submitted for testing. No catalog data was saved.`,
-    );
-    setMenuFormOpen(false);
-    resetMenuForm();
+
+    if (!token) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage("You must be signed in to create a menu item.");
+      return;
+    }
+
+    const parsedPrice = Number(menuForm.price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage("Please enter a valid item price.");
+      return;
+    }
+
+    setMenuFormSubmitting(true);
+    try {
+      const created = await createMenuItem(token, {
+        name: menuForm.itemName.trim(),
+        description: menuForm.description.trim(),
+        price: parsedPrice,
+        available: true,
+        imageFile: menuForm.imageFile ?? null,
+      });
+
+      const prepTimeLabel = menuForm.prepTime.trim();
+      const subtitle = prepTimeLabel
+        ? `Prep ${prepTimeLabel} min`
+        : menuForm.description.trim().slice(0, 44) || "New menu item";
+
+      setCatalogItems((current) => [
+        {
+          id: created.id,
+          name: created.name,
+          subtitle,
+          price: Number(created.price),
+          status: created.available ? "Active" : "Unavailable",
+          metric: "New item",
+          accent: "bg-emerald-500",
+        },
+        ...current,
+      ]);
+      setAvailabilityByItemId((current) => ({
+        ...current,
+        [created.id]: Boolean(created.available),
+      }));
+
+      setMenuFormMessageType("success");
+      setMenuFormMessage(
+        `${isShop ? "Product" : "Menu item"} created successfully.`,
+      );
+      setMenuFormOpen(false);
+      resetMenuForm();
+      window.alert(`${isShop ? "Product" : "Menu item"} saved successfully.`);
+    } catch (error) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage(
+        error instanceof Error ? error.message : "Failed to save item.",
+      );
+    } finally {
+      setMenuFormSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -810,6 +774,10 @@ export default function VendorDashboard() {
     file: File,
   ) => {
     if (field === "businessProfileImage") {
+      setBusinessFiles((current) => ({
+        ...current,
+        businessProfileImage: file,
+      }));
       const reader = new FileReader();
       reader.onload = () => {
         setBusiness((current) => ({
@@ -820,6 +788,11 @@ export default function VendorDashboard() {
       reader.readAsDataURL(file);
       return;
     }
+
+    setBusinessFiles((current) => ({
+      ...current,
+      rdbCertificate: file,
+    }));
 
     setBusiness((current) => ({
       ...current,
@@ -872,17 +845,56 @@ export default function VendorDashboard() {
     setOnboardingStep((current) => Math.max(1, current - 1) as OnboardingStep);
   };
 
-  const submitOnboarding = () => {
+  const submitOnboarding = async () => {
     if (!onboardingReady) {
       setOnboardingError("Please complete all steps before submitting.");
       return;
     }
+
+    if (!token) {
+      setOnboardingError("You must be signed in to save your vendor profile.");
+      return;
+    }
+
     setOnboardingError(null);
-    setOnboardingComplete(true);
+    setOnboardingSubmitting(true);
+
+    try {
+      const payload = {
+        businessName: business.businessName.trim(),
+        businessType: business.businessType,
+        businessDescription: business.description.trim(),
+        location: business.location.trim(),
+        businessPhone: business.businessPhone.trim(),
+        businessEmail: business.businessEmail.trim(),
+        openingHours: business.openingHours.trim(),
+        openingDays: business.openingDays,
+        managerName: business.managerName.trim(),
+        managerEmail: business.managerEmail.trim(),
+        businessProfileImageFile: businessFiles.businessProfileImage,
+        rdbCertificateFile: businessFiles.rdbCertificate,
+      };
+
+      const result = hasRemoteBusinessProfile
+        ? await updateMyBusinessProfile(token, payload)
+        : await createBusinessProfile(token, payload);
+
+      applyBusinessProfile(result);
+      setOnboardingComplete(true);
+      setHasRemoteBusinessProfile(true);
+    } catch (error) {
+      setOnboardingError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save your vendor profile.",
+      );
+    } finally {
+      setOnboardingSubmitting(false);
+    }
   };
 
   const applyBusinessType = (nextType: BusinessType) => {
-    const seed = demoSeed(nextType);
+    const seed = buildBusinessSeed(nextType);
     setBusiness((current) => ({
       ...current,
       businessType: nextType,
@@ -898,6 +910,7 @@ export default function VendorDashboard() {
       rdbCertificate: undefined,
       description: seed.business.description,
     }));
+    setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
     setProfile(seed.profile);
     setCatalogItems(seed.catalogItems);
     setBookings(seed.bookings);
@@ -907,31 +920,47 @@ export default function VendorDashboard() {
   };
 
   useEffect(() => {
-    if (!storageKey || typeof window === "undefined") return;
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        profile,
-        business,
-        catalogItems,
-        bookings,
-        orders,
-        notifications,
-        tab,
-        onboardingComplete,
-      }),
-    );
-  }, [
-    storageKey,
-    profile,
-    business,
-    catalogItems,
-    bookings,
-    orders,
-    notifications,
-    tab,
-    onboardingComplete,
-  ]);
+    if (!user || !token) {
+      setProfileHydrating(false);
+      return;
+    }
+
+    let active = true;
+
+    const loadBusinessProfile = async () => {
+      setProfileHydrating(true);
+      try {
+        const remoteProfile = await getMyBusinessProfile(token);
+        if (!active) return;
+
+        if (remoteProfile) {
+          setHasRemoteBusinessProfile(true);
+          applyBusinessProfile(remoteProfile);
+          setOnboardingComplete(true);
+          setOnboardingStep(4);
+        } else {
+          setHasRemoteBusinessProfile(false);
+          setOnboardingComplete(Boolean(storedState?.onboardingComplete));
+        }
+      } catch (error) {
+        if (!active) return;
+        setHasRemoteBusinessProfile(false);
+        setOnboardingError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load your vendor profile.",
+        );
+      } finally {
+        if (active) setProfileHydrating(false);
+      }
+    };
+
+    void loadBusinessProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [applyBusinessProfile, storedState?.onboardingComplete, token, user]);
 
   useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
@@ -961,70 +990,6 @@ export default function VendorDashboard() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [storageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const feedByRole: Record<
-      BusinessType,
-      Array<{ title: string; detail: string; tone: NotificationTone }>
-    > = {
-      Restaurant: [
-        {
-          title: "New reservation",
-          detail: "A guest booked table T6 for this evening.",
-          tone: "emerald",
-        },
-        {
-          title: "Order moved",
-          detail: "The kitchen just picked up the latest order.",
-          tone: "sky",
-        },
-        {
-          title: "Top seller updated",
-          detail: "Grilled Tilapia is still the most requested dish.",
-          tone: "amber",
-        },
-      ],
-      Shop: [
-        {
-          title: "Stock sync complete",
-          detail: "Your latest inventory refresh finished successfully.",
-          tone: "emerald",
-        },
-        {
-          title: "Low stock warning",
-          detail: "One or more products need restocking today.",
-          tone: "amber",
-        },
-        {
-          title: "New order received",
-          detail: "A marketplace order just entered fulfillment.",
-          tone: "sky",
-        },
-      ],
-    };
-
-    const timer = window.setInterval(() => {
-      const sample =
-        feedByRole[business.businessType][
-          Math.floor(Math.random() * feedByRole[business.businessType].length)
-        ];
-      const id = Date.now();
-      setNotifications((current) => [
-        {
-          id,
-          title: sample.title,
-          detail: sample.detail,
-          tone: sample.tone,
-          time: "Just now",
-          unread: true,
-        },
-        ...current.slice(0, 5),
-      ]);
-    }, 12000);
-
-    return () => window.clearInterval(timer);
-  }, [business.businessType]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1072,6 +1037,24 @@ export default function VendorDashboard() {
           >
             Go to login
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileHydrating) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-6 text-center">
+        <div className="max-w-md rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-slate-900/85">
+          <p className="text-sm uppercase tracking-[0.4em] text-slate-400">
+            Loading vendor profile
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold text-slate-950 dark:text-white">
+            Checking onboarding status
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
+            We are loading your saved business profile from the backend.
+          </p>
         </div>
       </div>
     );
@@ -1330,9 +1313,12 @@ export default function VendorDashboard() {
                 <button
                   type="button"
                   onClick={submitOnboarding}
-                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                  disabled={onboardingSubmitting}
+                  className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Submit & Go to Dashboard
+                  {onboardingSubmitting
+                    ? "Saving profile..."
+                    : "Submit & Go to Dashboard"}
                 </button>
               )}
             </div>
@@ -2076,9 +2062,10 @@ export default function VendorDashboard() {
                         </button>
                         <button
                           type="submit"
-                          className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                          disabled={menuFormSubmitting}
+                          className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Create Item
+                          {menuFormSubmitting ? "Saving..." : "Create Item"}
                         </button>
                       </div>
                     </form>
@@ -2086,7 +2073,9 @@ export default function VendorDashboard() {
                 )}
 
                 {menuFormMessage && (
-                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm font-medium ${menuFormMessageType === "success" ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                  >
                     {menuFormMessage}
                   </div>
                 )}
@@ -2102,20 +2091,22 @@ export default function VendorDashboard() {
                           {business.businessName}
                         </h3>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                          📍 {business.location} • ⭐ 4.9 (2.1k reviews)
+                          📍{" "}
+                          {business.location ||
+                            "Complete onboarding to set your business location."}
                         </p>
                       </div>
-                      <img
-                        src="/pexels-aksinfo7-36749693.jpg"
-                        alt="Restaurant outlet"
-                        className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-emerald-500/25"
-                        onError={(e) => {
-                          (
-                            e.currentTarget as HTMLImageElement
-                          ).style.background =
-                            "linear-gradient(135deg, #10b981 0%, #047857 100%)";
-                        }}
-                      />
+                      {business.businessProfileImage?.previewUrl ? (
+                        <img
+                          src={business.businessProfileImage.previewUrl}
+                          alt="Business profile"
+                          className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-emerald-500/25"
+                        />
+                      ) : (
+                        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-sky-500 text-3xl text-white shadow-lg shadow-emerald-500/25">
+                          {business.businessType === "Shop" ? "🛍️" : "🍽️"}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -2132,7 +2123,9 @@ export default function VendorDashboard() {
                           Today's Sales
                         </p>
                         <p className="mt-1 text-3xl font-semibold text-emerald-600 dark:text-emerald-300">
-                          {money.format(1200000)}
+                          {money.format(
+                            orders.reduce((sum, order) => sum + order.total, 0),
+                          )}
                         </p>
                       </div>
                     </div>
@@ -2140,31 +2133,42 @@ export default function VendorDashboard() {
 
                   <article className="rounded-[2rem] bg-emerald-700 p-6 text-white shadow-[0_20px_50px_rgba(5,150,105,0.35)]">
                     <h3 className="text-3xl font-semibold tracking-tight">
-                      Branch Status
+                      Setup Status
                     </h3>
+                    <p className="mt-3 text-sm text-emerald-50/90">
+                      Your business data now comes from the backend. Add a menu
+                      item or complete onboarding to populate this dashboard.
+                    </p>
                     <div className="mt-5 space-y-3">
                       {[
-                        { label: "Gisenyi Beachfront", status: "OPEN" },
-                        { label: "Musanze Highlands", status: "CLOSED" },
-                      ].map((branch) => (
+                        {
+                          label: "Business profile",
+                          status: onboardingComplete ? "READY" : "PENDING",
+                        },
+                        {
+                          label: "Menu inventory",
+                          status: catalogItems.length > 0 ? "READY" : "EMPTY",
+                        },
+                      ].map((item) => (
                         <div
-                          key={branch.label}
+                          key={item.label}
                           className="flex items-center justify-between rounded-2xl bg-emerald-600/70 px-4 py-3 text-sm"
                         >
-                          <span>{branch.label}</span>
+                          <span>{item.label}</span>
                           <span
-                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${branch.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === "READY" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
                           >
-                            {branch.status}
+                            {item.status}
                           </span>
                         </div>
                       ))}
                     </div>
                     <button
                       type="button"
+                      onClick={() => setTab("catalog")}
                       className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-white"
                     >
-                      Manage All Branches
+                      Add Menu Item
                     </button>
                   </article>
                 </div>
