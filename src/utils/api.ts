@@ -303,6 +303,20 @@ export async function getMenuItems(params?: { businessId?: number | string }) {
   return requestJson<MenuItemRecord[]>(`${BASE_URL}/menu${suffix}`);
 }
 
+export async function getVendorBookings(token: string) {
+  return requestJson<BookingRecord[]>(`${BASE_URL}/bookings/vendor`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function updateBookingStatus(token: string, id: number, status: string) {
+  return requestJson<BookingRecord>(`${BASE_URL}/bookings/${id}/status`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
 export async function createBooking(input: BookingCreateInput) {
   const payload = {
     // Preferred payload expected by current backend validators
