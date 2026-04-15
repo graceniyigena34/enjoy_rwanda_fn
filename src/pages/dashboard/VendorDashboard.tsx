@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useApp, hasRole } from "../../context/AppContext";
-import type { VendorApprovalStatus } from "../../utils/vendorApprovalStorage";
-import { getVendorApplication, upsertVendorApplication } from "../../utils/vendorApprovalStorage";
-import { buildVendorShopId, removeVendorShopByVendorId, upsertVendorShop } from "../../utils/vendorShopStorage";
+import { useApp } from "../../context/AppContext";
 
 type BusinessType = "Restaurant" | "Shop";
 type Tab = "overview" | "catalog" | "orders" | "analytics" | "settings";
@@ -91,6 +88,15 @@ type DashboardSeed = {
 type DashboardPersisted = Partial<DashboardSeed> & {
   tab?: Tab;
   onboardingComplete?: boolean;
+};
+
+type NewItemFormState = {
+  itemName: string;
+  price: string;
+  prepTime: string;
+  description: string;
+  imageName: string;
+  imagePreviewUrl?: string;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -594,6 +600,26 @@ export default function VendorDashboard() {
   const [notifications, setNotifications] = useState<NotificationItem[]>(
     () => storedState?.notifications ?? initialSeed.notifications,
   );
+  const [availabilityByItemId, setAvailabilityByItemId] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      (storedState?.catalogItems ?? initialSeed.catalogItems).map((item) => [
+        item.id,
+        !item.status.toLowerCase().includes("low"),
+      ]),
+    ),
+  );
+  const [menuFormOpen, setMenuFormOpen] = useState(false);
+  const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
+  const [menuForm, setMenuForm] = useState<NewItemFormState>({
+    itemName: "",
+    price: "",
+    prepTime: "",
+    description: "",
+    imageName: "",
+    imagePreviewUrl: undefined,
+  });
 
   const handleSignOut = () => {
     logout();
@@ -730,6 +756,54 @@ export default function VendorDashboard() {
     size: file.size,
     previewUrl,
   });
+
+  const resetMenuForm = () => {
+    setMenuForm({
+      itemName: "",
+      price: "",
+      prepTime: "",
+      description: "",
+      imageName: "",
+      imagePreviewUrl: undefined,
+    });
+  };
+
+  const handleOpenMenuForm = () => {
+    setMenuFormMessage(null);
+    setMenuFormOpen(true);
+  };
+
+  const handleMenuImageChange = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMenuForm((current) => ({
+        ...current,
+        imageName: file.name,
+        imagePreviewUrl: String(reader.result),
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleMenuFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMenuFormMessage(
+      `${isShop ? "Product" : "Menu item"} form submitted for testing. No catalog data was saved.`,
+    );
+    setMenuFormOpen(false);
+    resetMenuForm();
+  };
+
+  useEffect(() => {
+    setAvailabilityByItemId((current) => {
+      const next = { ...current };
+      catalogItems.forEach((item) => {
+        if (typeof next[item.id] === "boolean") return;
+        next[item.id] = !item.status.toLowerCase().includes("low");
+      });
+      return next;
+    });
+  }, [catalogItems]);
 
   const updateUploadField = (
     field: "businessProfileImage" | "rdbCertificate",
@@ -1350,6 +1424,10 @@ export default function VendorDashboard() {
                 type="button"
                 onClick={() => {
                   setTab(item.value);
+                  if (item.value === "catalog") {
+                    setMenuFormOpen(false);
+                    setMenuFormMessage(null);
+                  }
                   setSidebarOpen(false);
                 }}
                 title={item.label}
@@ -1525,92 +1603,94 @@ export default function VendorDashboard() {
           </header>
 
           <div className="mt-6 space-y-6">
-            <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
-              <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                      Dashboard overview
-                    </p>
-                    <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      {isShop ? "Product Catalog" : "Sales Overview"}
-                    </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-                      {isShop
-                        ? "Track inventory, watch category performance, and react to stock changes before they slow sales."
-                        : "Monitor revenue streams, table bookings, and item performance in one live view."}
-                    </p>
+            {tab !== "catalog" && (
+              <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+                <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Dashboard overview
+                      </p>
+                      <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                        {isShop ? "Product Catalog" : "Sales Overview"}
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
+                        {isShop
+                          ? "Track inventory, watch category performance, and react to stock changes before they slow sales."
+                          : "Monitor revenue streams, table bookings, and item performance in one live view."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {navItems.slice(0, 3).map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setTab(item.value)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === item.value ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {navItems.slice(0, 3).map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => setTab(item.value)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === item.value ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"}`}
-                      >
-                        {item.label}
-                      </button>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {stats.map((stat) => (
+                      <StatCard key={stat.label} {...stat} />
                     ))}
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  {stats.map((stat) => (
-                    <StatCard key={stat.label} {...stat} />
-                  ))}
-                </div>
-              </div>
-
-              <SectionCard
-                title="Notifications"
-                subtitle="Real-time updates from bookings, orders, and inventory syncs"
-                action={
-                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                    {liveLabel}
-                  </span>
-                }
-              >
-                <div className="space-y-3">
-                  {notifications.slice(0, 4).map((notification) => (
-                    <button
-                      key={notification.id}
-                      type="button"
-                      onClick={() =>
-                        setNotifications((current) =>
-                          current.map((entry) =>
-                            entry.id === notification.id
-                              ? { ...entry, unread: false }
-                              : entry,
-                          ),
-                        )
-                      }
-                      className="flex w-full items-start gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                    >
-                      <span
-                        className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.unread ? "bg-emerald-500" : "bg-slate-300"}`}
-                      />
-                      <span
-                        className={`rounded-full px-2 py-1 text-[11px] font-semibold ${toneClasses[notification.tone]}`}
+                <SectionCard
+                  title="Notifications"
+                  subtitle="Real-time updates from bookings, orders, and inventory syncs"
+                  action={
+                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      {liveLabel}
+                    </span>
+                  }
+                >
+                  <div className="space-y-3">
+                    {notifications.slice(0, 4).map((notification) => (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        onClick={() =>
+                          setNotifications((current) =>
+                            current.map((entry) =>
+                              entry.id === notification.id
+                                ? { ...entry, unread: false }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className="flex w-full items-start gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                       >
-                        {notification.time}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-slate-950 dark:text-white">
-                          {notification.title}
+                        <span
+                          className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.unread ? "bg-emerald-500" : "bg-slate-300"}`}
+                        />
+                        <span
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold ${toneClasses[notification.tone]}`}
+                        >
+                          {notification.time}
                         </span>
-                        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
-                          {notification.detail}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+                            {notification.title}
+                          </span>
+                          <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
+                            {notification.detail}
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  ))}
-                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-                    New events appear here automatically every few seconds.
+                      </button>
+                    ))}
+                    <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                      New events appear here automatically every few seconds.
+                    </div>
                   </div>
-                </div>
-              </SectionCard>
-            </section>
+                </SectionCard>
+              </section>
+            )}
 
             {tab === "overview" && (
               <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
@@ -1830,134 +1910,377 @@ export default function VendorDashboard() {
             )}
 
             {tab === "catalog" && (
-              <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-                <SectionCard
-                  title={catalogLabel}
-                  subtitle={
-                    isShop
-                      ? "Inventory cards with stock and pricing at a glance"
-                      : "Menu cards that stay readable on mobile and tablet"
-                  }
-                  action={
-                    <button
-                      type="button"
-                      className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-emerald-600"
+              <section className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Dashboard &gt; Menus &gt; Add New Item
+                    </p>
+                    <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                      {isShop ? "Catalog Management" : "Menu Management"}
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Manage your {catalogLabel.toLowerCase()} and availability
+                      in real-time.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenMenuForm}
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                  >
+                    <span className="text-lg leading-none">+</span>
+                    {isShop ? "Add New Product" : "Add New Item"}
+                  </button>
+                </div>
+
+                {menuFormOpen && (
+                  <SectionCard
+                    title={isShop ? "Product Details" : "Item Details"}
+                    subtitle={`Fill in the information below to add a new ${isShop ? "product" : "menu item"}.`}
+                  >
+                    <form
+                      onSubmit={handleMenuFormSubmit}
+                      className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]"
                     >
-                      {primaryActionLabel}
-                    </button>
-                  }
-                >
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {filteredCatalog.map((item) => (
-                      <article
-                        key={item.id}
-                        className="group rounded-[1.6rem] border border-slate-200/70 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/5"
-                      >
-                        <div
-                          className={`h-40 rounded-[1.4rem] ${item.accent} bg-gradient-to-br from-white/20 to-white/5`}
-                        />
-                        <div className="mt-4 flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
-                              {item.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                              {item.subtitle}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                            {item.status}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Item name
                           </span>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-                          <span>{item.metric}</span>
-                          <span className="font-semibold text-slate-950 dark:text-white">
-                            {money.format(item.price)}
+                          <input
+                            required
+                            value={menuForm.itemName}
+                            onChange={(event) =>
+                              setMenuForm((current) => ({
+                                ...current,
+                                itemName: event.target.value,
+                              }))
+                            }
+                            placeholder={
+                              isShop
+                                ? "e.g. Handwoven Basket"
+                                : "e.g. Traditional Akabenz"
+                            }
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Price (RWF)
                           </span>
+                          <input
+                            required
+                            type="number"
+                            min={0}
+                            value={menuForm.price}
+                            onChange={(event) =>
+                              setMenuForm((current) => ({
+                                ...current,
+                                price: event.target.value,
+                              }))
+                            }
+                            placeholder="5500"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Prep time (min)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={menuForm.prepTime}
+                            onChange={(event) =>
+                              setMenuForm((current) => ({
+                                ...current,
+                                prepTime: event.target.value,
+                              }))
+                            }
+                            placeholder="25"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Description
+                          </span>
+                          <textarea
+                            required
+                            rows={4}
+                            value={menuForm.description}
+                            onChange={(event) =>
+                              setMenuForm((current) => ({
+                                ...current,
+                                description: event.target.value,
+                              }))
+                            }
+                            placeholder="Tell your customers about this item, its ingredients, and what makes it special."
+                            className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-white/20 dark:bg-white/5">
+                          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-2xl text-emerald-600 dark:text-emerald-300">
+                            📷
+                          </span>
+                          <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
+                            Images in public directory
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            Click to choose an image from the public directory.
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              handleMenuImageChange(file);
+                            }}
+                          />
+                        </label>
+
+                        {menuForm.imagePreviewUrl && (
+                          <img
+                            src={menuForm.imagePreviewUrl}
+                            alt="Item preview"
+                            className="h-36 w-full rounded-[1.5rem] object-cover"
+                          />
+                        )}
+
+                        <div className="rounded-[1.5rem] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+                          Items with high-quality photos receive more orders.
+                          {menuForm.imageName && (
+                            <span className="mt-1 block text-xs">
+                              Selected: {menuForm.imageName}
+                            </span>
+                          )}
                         </div>
+                      </div>
+
+                      <div className="lg:col-span-2 flex justify-end gap-3 border-t border-slate-200/70 pt-4 dark:border-white/10">
                         <button
                           type="button"
-                          className="mt-4 w-full rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                          onClick={() => {
+                            resetMenuForm();
+                            setMenuFormOpen(false);
+                          }}
+                          className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                         >
-                          Edit listing
+                          Cancel
                         </button>
-                      </article>
-                    ))}
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  title={isShop ? "Popular categories" : "Kitchen pace"}
-                  subtitle={
-                    isShop
-                      ? "Sales share by category"
-                      : "Orders vs. bookings this week"
-                  }
-                >
-                  {isShop ? (
-                    <div className="space-y-6">
-                      <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-full bg-[conic-gradient(from_0deg,#10b981_0_42%,#86efac_42%_77%,#fed7aa_77%_100%)]">
-                        <div className="flex h-36 w-36 items-center justify-center rounded-full bg-white text-center shadow-lg dark:bg-slate-950">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                              Top
-                            </p>
-                            <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
-                              Touring
-                            </p>
-                          </div>
-                        </div>
+                        <button
+                          type="submit"
+                          className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                        >
+                          Create Item
+                        </button>
                       </div>
-                      <div className="space-y-3">
-                        {[
-                          { label: "Fine Dining", value: "45%" },
-                          { label: "Local Tours", value: "35%" },
-                          { label: "Souvenirs", value: "20%" },
-                        ].map((entry) => (
-                          <div
-                            key={entry.label}
-                            className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/5"
-                          >
-                            <span>{entry.label}</span>
-                            <span className="font-semibold">{entry.value}</span>
-                          </div>
-                        ))}
+                    </form>
+                  </SectionCard>
+                )}
+
+                {menuFormMessage && (
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    {menuFormMessage}
+                  </div>
+                )}
+
+                <div className="grid gap-6 xl:grid-cols-[1.45fr_0.65fr]">
+                  <article className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
+                    <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/5">
+                      <div>
+                        <p className="inline-flex rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                          Primary outlet
+                        </p>
+                        <h3 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
+                          {business.businessName}
+                        </h3>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                          📍 {business.location} • ⭐ 4.9 (2.1k reviews)
+                        </p>
+                      </div>
+                      <img
+                        src="/pexels-aksinfo7-36749693.jpg"
+                        alt="Restaurant outlet"
+                        className="h-24 w-24 rounded-3xl object-cover shadow-lg shadow-emerald-500/25"
+                        onError={(e) => {
+                          (
+                            e.currentTarget as HTMLImageElement
+                          ).style.background =
+                            "linear-gradient(135deg, #10b981 0%, #047857 100%)";
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[1.4rem] bg-slate-100 px-5 py-4 dark:bg-white/10">
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                          Active Items
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold text-slate-950 dark:text-white">
+                          {filteredCatalog.length}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.4rem] bg-slate-100 px-5 py-4 dark:bg-white/10">
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                          Today's Sales
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold text-emerald-600 dark:text-emerald-300">
+                          {money.format(1200000)}
+                        </p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {inventoryBars.map((value, index) => (
+                  </article>
+
+                  <article className="rounded-[2rem] bg-emerald-700 p-6 text-white shadow-[0_20px_50px_rgba(5,150,105,0.35)]">
+                    <h3 className="text-3xl font-semibold tracking-tight">
+                      Branch Status
+                    </h3>
+                    <div className="mt-5 space-y-3">
+                      {[
+                        { label: "Gisenyi Beachfront", status: "OPEN" },
+                        { label: "Musanze Highlands", status: "CLOSED" },
+                      ].map((branch) => (
                         <div
-                          key={index}
-                          className="space-y-2 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                          key={branch.label}
+                          className="flex items-center justify-between rounded-2xl bg-emerald-600/70 px-4 py-3 text-sm"
                         >
-                          <div className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-300">
-                            <span>
-                              {
-                                [
-                                  "Orders",
-                                  "Bookings",
-                                  "Prep",
-                                  "Traffic",
-                                  "Revenue",
-                                  "Return",
-                                  "Happy hour",
-                                ][index]
-                              }
-                            </span>
-                            <span>{value}%</span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-white/80 dark:bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-500"
-                              style={{ width: `${value}%` }}
-                            />
-                          </div>
+                          <span>{branch.label}</span>
+                          <span
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${branch.status === "OPEN" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
+                          >
+                            {branch.status}
+                          </span>
                         </div>
                       ))}
                     </div>
-                  )}
-                </SectionCard>
+                    <button
+                      type="button"
+                      className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-white"
+                    >
+                      Manage All Branches
+                    </button>
+                  </article>
+                </div>
+
+                <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-white/10">
+                    <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">
+                      {isShop ? "Inventory" : "Menu Inventory"}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200"
+                        aria-label="Filter menu"
+                      >
+                        ≡
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left">
+                      <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                        <tr>
+                          <th className="px-6 py-3">Item Details</th>
+
+                          <th className="px-6 py-3">Price (RWF)</th>
+                          <th className="px-6 py-3">Availability</th>
+                          <th className="px-6 py-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCatalog.slice(0, 4).map((item) => {
+                          return (
+                            <tr
+                              key={item.id}
+                              className="border-t border-slate-200/70 dark:border-white/10"
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={
+                                      item.id === 1
+                                        ? "/pexels-tahaasamett-7627418.jpg"
+                                        : item.id === 2
+                                          ? "/pexels-aksinfo7-36749693.jpg"
+                                          : "/pexels-tahaasamett-7627418.jpg"
+                                    }
+                                    alt={item.name}
+                                    className="h-12 w-12 rounded-full object-cover"
+                                    onError={(e) => {
+                                      (
+                                        e.currentTarget as HTMLImageElement
+                                      ).src =
+                                        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E`;
+                                    }}
+                                  />
+                                  <div>
+                                    <p className="font-semibold text-slate-950 dark:text-white">
+                                      {item.name}
+                                    </p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                      {item.subtitle}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4 text-2xl font-semibold text-slate-950 dark:text-white">
+                                {item.price.toLocaleString("en-RW")}
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={
+                                    availabilityByItemId[item.id] ?? true
+                                  }
+                                  aria-label={`Toggle availability for ${item.name}`}
+                                  onClick={() =>
+                                    setAvailabilityByItemId((current) => ({
+                                      ...current,
+                                      [item.id]: !(current[item.id] ?? true),
+                                    }))
+                                  }
+                                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-emerald-600" : "bg-slate-300 dark:bg-slate-600"}`}
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${(availabilityByItemId[item.id] ?? true) ? "translate-x-6" : "translate-x-1"}`}
+                                  />
+                                </button>
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  type="button"
+                                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-white/10 dark:text-slate-300"
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="border-t border-slate-200/70 px-6 py-5 text-center dark:border-white/10">
+                    <button
+                      type="button"
+                      className="rounded-full border border-emerald-200 px-10 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-500 hover:text-emerald-600 dark:border-emerald-500/30 dark:text-slate-200"
+                    >
+                      Load More Items
+                    </button>
+                  </div>
+                </section>
               </section>
             )}
 
