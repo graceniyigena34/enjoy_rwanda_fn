@@ -2624,7 +2624,7 @@ export default function VendorDashboard() {
                       { label: "Date", value: selectedBooking.date },
                       { label: "Time", value: selectedBooking.time },
                       { label: "Number of People", value: String(selectedBooking.number_of_people) },
-                      { label: "Menu ID", value: String(selectedBooking.menu_id) },
+                      { label: "Menu Item", value: catalogItems.find((m) => m.id === selectedBooking.menu_id)?.name ?? `Menu #${selectedBooking.menu_id}` },
                       { label: "Status", value: selectedBooking.status },
                       { label: "Special Request", value: selectedBooking.special_request || "None", full: true },
                       { label: "Booked On", value: new Date(selectedBooking.created_at).toLocaleString(), full: true },
