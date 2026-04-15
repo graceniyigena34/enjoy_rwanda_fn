@@ -92,7 +92,9 @@ export default function Home() {
         const data = await getBusinessProfiles();
         const mapped = data
           .filter(
-            (item) => (item.business_type ?? "").toLowerCase() === "restaurant",
+            (item) =>
+              item.is_verified === true &&
+              (item.business_type ?? "").toLowerCase() === "restaurant",
           )
           .map((item, index) => toHomeRestaurant(item, index));
 

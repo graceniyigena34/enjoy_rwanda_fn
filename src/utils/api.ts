@@ -17,6 +17,9 @@ export interface AuthUser {
 export interface BusinessProfileRecord {
   business_id?: number;
   user_id?: number;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  owner_phone?: string | null;
   business_name: string;
   business_type: string | null;
   business_description: string | null;
@@ -29,6 +32,7 @@ export interface BusinessProfileRecord {
   manager_email: string | null;
   business_profile_image: string | null;
   rdb_certificate: string | null;
+  is_verified?: boolean | null;
 }
 
 export type BusinessProfileFormInput = {
@@ -95,6 +99,27 @@ export interface BookingRecord {
   created_at: string;
   business_id: number;
   emailSent?: boolean;
+}
+
+export interface AdminUserRecord {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  created_at?: string;
+}
+
+export interface VendorApplicationRecord {
+  id: number;
+  vendor_id: number;
+  vendor_name: string;
+  vendor_email: string;
+  status: "pending" | "approved" | "rejected" | string;
+  payload: unknown;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewer_name: string | null;
+  created_at?: string;
 }
 
 function toErrorMessage(data: unknown, fallback: string) {
@@ -217,6 +242,24 @@ export async function getBusinessProfiles() {
   return [];
 }
 
+export async function setBusinessVerification(
+  token: string,
+  businessId: number,
+  isVerified: boolean,
+) {
+  return requestJson<BusinessProfileRecord>(
+    `${BASE_URL}/business-profile/${businessId}/verification`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ is_verified: isVerified }),
+    },
+  );
+}
+
 export async function updateMyBusinessProfile(token: string, input: BusinessProfileFormInput) {
   const res = await fetch(`${BASE_URL}/business-profile/me`, {
     method: "PUT",
@@ -287,5 +330,36 @@ export async function createBooking(input: BookingCreateInput) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getAdminUsers(token: string) {
+  return requestJson<AdminUserRecord[]>(`${BASE_URL}/vendor/users`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getVendorApplications(token: string) {
+  return requestJson<VendorApplicationRecord[]>(`${BASE_URL}/vendor/applications`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function reviewVendorApplication(
+  token: string,
+  id: number,
+  status: "approved" | "rejected",
+) {
+  return requestJson<VendorApplicationRecord>(`${BASE_URL}/vendor/applications/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status }),
   });
 }
