@@ -19,11 +19,11 @@ export async function apiLogin(email: string, password: string) {
   return data as { token: string; user: AuthUser };
 }
 
-export async function apiRegister(name: string, email: string, password: string, role: string = "vendor") {
+export async function apiRegister(name: string, email: string, password: string, phone?: string, role: string = "vendor") {
   const res = await fetch(`${BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password, phone, role }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Registration failed");
