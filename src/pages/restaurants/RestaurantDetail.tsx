@@ -347,7 +347,7 @@ export default function RestaurantDetail() {
                         <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#1a1a2e] text-xs font-black">✓</span>
                       )}
                       <span className="text-3xl">{table.seats <= 2 ? "&#128107;" : table.seats <= 4 ? "&#128106;" : table.seats <= 6 ? "&#127881;" : table.seats <= 8 ? "&#129395;" : table.seats <= 10 ? "&#127882;" : "&#127942;"}</span>
-                      <span className="text-xl font-black">{table.seats} seats</span>
+                      <span className="text-xl font-black">Table of {table.seats}</span>
                       <span className={`text-xs font-semibold ${isSelected ? "text-white/70" : "text-gray-400"}`}>{table.label}</span>
                       <span className={`text-sm font-bold mt-1 ${isSelected ? "text-white" : "text-[#1a1a2e]"}` }>
                         {table.price.toLocaleString()} RWF
@@ -360,7 +360,7 @@ export default function RestaurantDetail() {
                 <div className="rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-4 mb-5 flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-widest text-gray-400 mb-0.5">Your selection</p>
-                    <p className="font-bold text-gray-900">{selectedTable.seats} seats &mdash; {selectedTable.label}</p>
+                    <p className="font-bold text-gray-900">Table of {selectedTable.seats} &mdash; {selectedTable.label}</p>
                     <p className="text-sm text-[#1a1a2e] font-semibold">{selectedTable.price.toLocaleString()} RWF reservation fee</p>
                   </div>
                   <button type="button" onClick={() => setSelectedTable(null)} className="text-xs text-gray-400 hover:text-gray-700 underline">Clear</button>
@@ -382,7 +382,7 @@ export default function RestaurantDetail() {
               <div className="mb-5 flex items-center justify-between rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-3">
                 <div>
                   <p className="text-xs uppercase tracking-widest text-gray-400">Reserved Table</p>
-                  <p className="font-bold text-gray-900 text-sm">{selectedTable?.seats} seats &mdash; {selectedTable?.price.toLocaleString()} RWF</p>
+                  <p className="font-bold text-gray-900 text-sm">Table of {selectedTable?.seats} &mdash; {selectedTable?.price.toLocaleString()} RWF</p>
                 </div>
                 <button type="button" onClick={() => setTableStep(false)} className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2">Change table</button>
               </div>
