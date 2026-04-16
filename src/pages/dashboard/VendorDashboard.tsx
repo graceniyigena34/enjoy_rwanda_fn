@@ -5,12 +5,17 @@ import { useApp } from "../../context/AppContext";
 import {
   BASE_URL,
   createBusinessProfile,
+  createManager,
   createMenuItem,
+  deleteManager,
   getMenuItems,
+  getMyManagers,
   getMyBusinessProfile,
   getVendorBookings,
   updateBookingStatus,
+  updateManager,
   updateMyBusinessProfile,
+  type BusinessManagerRecord,
   type BookingRecord,
   type BusinessProfileRecord,
   type MenuItemRecord,
@@ -458,7 +463,21 @@ export default function VendorDashboard() {
     imagePreviewUrl: undefined,
     imageFile: null,
   });
-
+  const [managerActionMessage, setManagerActionMessage] = useState<
+    string | null
+  >(null);
+  const [managerActionMessageType, setManagerActionMessageType] = useState<
+    "success" | "error"
+  >("success");
+  const [managers, setManagers] = useState<BusinessManagerRecord[]>([]);
+  const [managersLoading, setManagersLoading] = useState(false);
+  const [managerSubmitting, setManagerSubmitting] = useState(false);
+  const [editingManagerId, setEditingManagerId] = useState<number | null>(null);
+  const [managerForm, setManagerForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
   const loadVendorBookings = useCallback(async () => {
     if (!token) return;
     setBookingsLoading(true);
@@ -494,6 +513,135 @@ export default function VendorDashboard() {
   const handleSignOut = () => {
     logout();
     navigate("/login");
+  };
+
+  const resetManagerForm = () => {
+    setEditingManagerId(null);
+    setManagerForm({ name: "", email: "", phone: "" });
+  };
+
+  const loadManagers = useCallback(async () => {
+    if (!token || !hasRemoteBusinessProfile) return;
+    setManagersLoading(true);
+    try {
+      const rows = await getMyManagers(token);
+      setManagers(rows);
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Failed to load managers.",
+      );
+    } finally {
+      setManagersLoading(false);
+    }
+  }, [hasRemoteBusinessProfile, token]);
+
+  useEffect(() => {
+    if (tab !== "settings") return;
+    void loadManagers();
+  }, [loadManagers, tab]);
+
+  const handleSaveManager = async () => {
+    if (!token) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("You must be signed in to manage managers.");
+      return;
+    }
+
+    if (!hasRemoteBusinessProfile) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Complete onboarding before managing managers.");
+      return;
+    }
+
+    if (
+      managerForm.name.trim().length === 0 ||
+      managerForm.email.trim().length === 0 ||
+      managerForm.phone.trim().length === 0
+    ) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Name, email, and phone are required.");
+      return;
+    }
+
+    setManagerSubmitting(true);
+    setManagerActionMessage(null);
+
+    try {
+      if (editingManagerId) {
+        const updated = await updateManager(token, editingManagerId, {
+          name: managerForm.name.trim(),
+          email: managerForm.email.trim(),
+          phone: managerForm.phone.trim(),
+        });
+        setManagers((current) =>
+          current.map((row) =>
+            row.manager_id === updated.manager_id ? updated : row,
+          ),
+        );
+        setManagerActionMessageType("success");
+        setManagerActionMessage("Manager updated successfully.");
+      } else {
+        const created = await createManager(token, {
+          name: managerForm.name.trim(),
+          email: managerForm.email.trim(),
+          phone: managerForm.phone.trim(),
+        });
+        setManagers((current) => [created, ...current]);
+        setManagerActionMessageType("success");
+        setManagerActionMessage("Manager added successfully.");
+      }
+
+      resetManagerForm();
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Unable to save manager.",
+      );
+    } finally {
+      setManagerSubmitting(false);
+    }
+  };
+
+  const handleEditManager = (manager: BusinessManagerRecord) => {
+    setEditingManagerId(manager.manager_id);
+    setManagerForm({
+      name: manager.name,
+      email: manager.email,
+      phone: manager.phone,
+    });
+  };
+
+  const handleDeleteManager = async (managerId: number) => {
+    if (!token) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("You must be signed in to manage managers.");
+      return;
+    }
+
+    const approved = window.confirm("Delete this manager account permanently?");
+    if (!approved) return;
+
+    setManagerSubmitting(true);
+    setManagerActionMessage(null);
+    try {
+      await deleteManager(token, managerId);
+      setManagers((current) =>
+        current.filter((row) => row.manager_id !== managerId),
+      );
+      if (editingManagerId === managerId) {
+        resetManagerForm();
+      }
+      setManagerActionMessageType("success");
+      setManagerActionMessage("Manager deleted successfully.");
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Unable to delete manager.",
+      );
+    } finally {
+      setManagerSubmitting(false);
+    }
   };
 
   const getFileNameFromUrl = (value: string) => {
@@ -3103,6 +3251,164 @@ export default function VendorDashboard() {
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                         {searchQuery || "Nothing filtered"}
                       </p>
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Manage Managers"
+                  subtitle="Add, update, and delete managers in a table view"
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <input
+                        value={managerForm.name}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Manager name"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <input
+                        type="email"
+                        value={managerForm.email}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                        placeholder="manager@email.com"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <input
+                        value={managerForm.phone}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            phone: event.target.value,
+                          }))
+                        }
+                        placeholder="Phone"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveManager()}
+                        disabled={managerSubmitting}
+                        className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {managerSubmitting
+                          ? "Saving..."
+                          : editingManagerId
+                            ? "Update manager"
+                            : "Add manager"}
+                      </button>
+                      {editingManagerId && (
+                        <button
+                          type="button"
+                          onClick={resetManagerForm}
+                          disabled={managerSubmitting}
+                          className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                          Cancel edit
+                        </button>
+                      )}
+                    </div>
+
+                    {managerActionMessage && (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-medium ${managerActionMessageType === "success" ? "bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]" : "bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                      >
+                        {managerActionMessage}
+                      </p>
+                    )}
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200/70 dark:border-white/10">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                          <tr>
+                            <th className="px-4 py-3">Name</th>
+                            <th className="px-4 py-3">Email</th>
+                            <th className="px-4 py-3">Phone</th>
+                            <th className="px-4 py-3">Created</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {managersLoading ? (
+                            <tr>
+                              <td
+                                className="px-4 py-4 text-slate-500"
+                                colSpan={5}
+                              >
+                                Loading managers...
+                              </td>
+                            </tr>
+                          ) : managers.length === 0 ? (
+                            <tr>
+                              <td
+                                className="px-4 py-4 text-slate-500"
+                                colSpan={5}
+                              >
+                                No managers added yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            managers.map((manager) => (
+                              <tr
+                                key={manager.manager_id}
+                                className="border-t border-slate-200/70 dark:border-white/10"
+                              >
+                                <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                                  {manager.name}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                  {manager.email}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                  {manager.phone}
+                                </td>
+                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                                  {new Date(
+                                    manager.created_at,
+                                  ).toLocaleDateString()}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditManager(manager)}
+                                      disabled={managerSubmitting}
+                                      className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:text-slate-300 dark:hover:bg-white/5"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleDeleteManager(
+                                          manager.manager_id,
+                                        )
+                                      }
+                                      disabled={managerSubmitting}
+                                      className="rounded-full border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </SectionCard>
