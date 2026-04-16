@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp, hasRole } from "../../context/AppContext";
 import {
+  createRestaurantType,
   getAdminUsers,
   getBusinessProfiles,
+  getRestaurantTypes,
   getVendorApplications,
   setBusinessVerification,
   reviewVendorApplication,
   type AdminUserRecord,
   type BusinessProfileRecord,
+  type RestaurantTypeRecord,
   type VendorApplicationRecord,
 } from "../../utils/api";
 
@@ -44,6 +47,11 @@ export default function AdminDashboard() {
   >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [restaurantTypes, setRestaurantTypes] = useState<
+    RestaurantTypeRecord[]
+  >([]);
+  const [newRestaurantType, setNewRestaurantType] = useState("");
+  const [isAddingRestaurantType, setIsAddingRestaurantType] = useState(false);
 
   const handleSignOut = () => {
     logout();
@@ -167,18 +175,23 @@ export default function AdminDashboard() {
           setLoadError(null);
         }
 
-        const [usersData, businessesData, applicationsData] = await Promise.all(
-          [
-            getAdminUsers(token),
-            getBusinessProfiles(),
-            getVendorApplications(token),
-          ],
-        );
+        const [
+          usersData,
+          businessesData,
+          applicationsData,
+          restaurantTypesData,
+        ] = await Promise.all([
+          getAdminUsers(token),
+          getBusinessProfiles(),
+          getVendorApplications(token),
+          getRestaurantTypes(token),
+        ]);
 
         if (!mounted) return;
         setUsers(usersData);
         setBusinessProfiles(businessesData);
         setVendorApplications(applicationsData);
+        setRestaurantTypes(restaurantTypesData);
       } catch (error) {
         if (!mounted) return;
         setLoadError(
@@ -269,6 +282,40 @@ export default function AdminDashboard() {
       );
     } finally {
       setIsTogglingBusinessId(null);
+    }
+  };
+
+  const handleAddRestaurantType = async () => {
+    if (!token) return;
+
+    const value = newRestaurantType.trim();
+    if (!value) {
+      setLoadError("Restaurant type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      setIsAddingRestaurantType(true);
+      const created = await createRestaurantType(token, value);
+      setRestaurantTypes((current) => {
+        const next = [created, ...current];
+        next.sort((a, b) =>
+          a.restaurant_type.localeCompare(b.restaurant_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setNewRestaurantType("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to add restaurant type.",
+      );
+    } finally {
+      setIsAddingRestaurantType(false);
     }
   };
 
@@ -568,6 +615,60 @@ export default function AdminDashboard() {
                     </ul>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900">
+                      Restaurant Types
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Add options used in vendor onboarding business
+                      description.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {restaurantTypes.length} type
+                    {restaurantTypes.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <input
+                    value={newRestaurantType}
+                    onChange={(event) =>
+                      setNewRestaurantType(event.target.value)
+                    }
+                    placeholder="e.g. Fast Food"
+                    className="min-w-[240px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddRestaurantType()}
+                    disabled={isAddingRestaurantType}
+                    className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAddingRestaurantType ? "Adding..." : "Add Type"}
+                  </button>
+                </div>
+
+                {restaurantTypes.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No restaurant types found yet.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {restaurantTypes.map((item) => (
+                      <span
+                        key={item.id}
+                        className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                      >
+                        {item.restaurant_type}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

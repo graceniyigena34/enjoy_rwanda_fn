@@ -122,6 +122,11 @@ export interface VendorApplicationRecord {
   created_at?: string;
 }
 
+export interface RestaurantTypeRecord {
+  id: number;
+  restaurant_type: string;
+}
+
 export interface BusinessManagerRecord {
   manager_id: number;
   business_id: number;
@@ -444,5 +449,24 @@ export async function reviewVendorApplication(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function getRestaurantTypes(token: string) {
+  return requestJson<RestaurantTypeRecord[]>(`${BASE_URL}/vendor/restaurant-types`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createRestaurantType(token: string, restaurantType: string) {
+  return requestJson<RestaurantTypeRecord>(`${BASE_URL}/vendor/restaurant-types`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ restaurant_type: restaurantType }),
   });
 }

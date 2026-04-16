@@ -11,6 +11,7 @@ import {
   getMenuItems,
   getMyManagers,
   getMyBusinessProfile,
+  getRestaurantTypes,
   getVendorBookings,
   updateBookingStatus,
   updateManager,
@@ -19,6 +20,7 @@ import {
   type BookingRecord,
   type BusinessProfileRecord,
   type MenuItemRecord,
+  type RestaurantTypeRecord,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
@@ -469,6 +471,13 @@ export default function VendorDashboard() {
   const [managerActionMessageType, setManagerActionMessageType] = useState<
     "success" | "error"
   >("success");
+  const [restaurantTypes, setRestaurantTypes] = useState<
+    RestaurantTypeRecord[]
+  >([]);
+  const [restaurantTypesLoading, setRestaurantTypesLoading] = useState(false);
+  const [restaurantTypesError, setRestaurantTypesError] = useState<
+    string | null
+  >(null);
   const [managers, setManagers] = useState<BusinessManagerRecord[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
   const [managerSubmitting, setManagerSubmitting] = useState(false);
@@ -957,7 +966,39 @@ export default function VendorDashboard() {
     );
   }, [orders, searchQuery]);
 
+  const selectedRestaurantTypes = useMemo(
+    () =>
+      business.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [business.description],
+  );
+
   const notificationCount = notifications.filter((item) => item.unread).length;
+
+  const toggleRestaurantType = (typeName: string) => {
+    setBusiness((current) => {
+      const selected = current.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const exists = selected.some(
+        (entry) => entry.toLowerCase() === typeName.toLowerCase(),
+      );
+
+      const next = exists
+        ? selected.filter(
+            (entry) => entry.toLowerCase() !== typeName.toLowerCase(),
+          )
+        : [...selected, typeName];
+
+      return {
+        ...current,
+        description: next.join(", "),
+      };
+    });
+  };
 
   const onboardingReady = useMemo(
     () =>
@@ -1303,6 +1344,37 @@ export default function VendorDashboard() {
   }, [applyBusinessProfile, storedState?.onboardingComplete, token, user]);
 
   useEffect(() => {
+    if (!token) return;
+
+    let active = true;
+
+    const loadRestaurantTypes = async () => {
+      setRestaurantTypesLoading(true);
+      setRestaurantTypesError(null);
+      try {
+        const rows = await getRestaurantTypes(token);
+        if (!active) return;
+        setRestaurantTypes(rows);
+      } catch (error) {
+        if (!active) return;
+        setRestaurantTypesError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load restaurant types.",
+        );
+      } finally {
+        if (active) setRestaurantTypesLoading(false);
+      }
+    };
+
+    void loadRestaurantTypes();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== storageKey) return;
@@ -1479,23 +1551,46 @@ export default function VendorDashboard() {
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                       <span>business_description</span>
 
-                      <select
-                        value={business.description}
-                        onChange={(event) =>
-                          setBusiness((current) => ({
-                            ...current,
-                            description: event.target.value,
-                          }))
-                        }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                      >
-                        <option value="">Select category</option>
-                        <option value="asia">Asia</option>
-                        <option value="african">African</option>
-                        <option value="european">European</option>
-                        <option value="rwanda">Rwanda</option>
-                        <option value="international">International</option>
-                      </select>
+                      {restaurantTypesLoading ? (
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                          Loading categories...
+                        </div>
+                      ) : restaurantTypes.length === 0 ? (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                          No categories available yet. Ask admin to add
+                          restaurant types.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {restaurantTypes.map((item) => {
+                            const checked = selectedRestaurantTypes.some(
+                              (entry) =>
+                                entry.toLowerCase() ===
+                                item.restaurant_type.toLowerCase(),
+                            );
+                            return (
+                              <label
+                                key={item.id}
+                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() =>
+                                    toggleRestaurantType(item.restaurant_type)
+                                  }
+                                />
+                                <span>{item.restaurant_type}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {restaurantTypesError && (
+                        <p className="text-xs text-rose-600 dark:text-rose-300">
+                          {restaurantTypesError}
+                        </p>
+                      )}
                     </label>
                   </div>
                 )}
