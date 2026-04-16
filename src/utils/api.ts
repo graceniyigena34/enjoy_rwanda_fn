@@ -323,7 +323,7 @@ export async function createManager(
 export async function updateManager(
   token: string,
   managerId: number,
-  input: { name: string; email: string; phone: string },
+  input: { name: string; email: string; phone: string; password?: string },
 ) {
   return requestJson<BusinessManagerRecord>(`${BASE_URL}/business-profile/me/managers/${managerId}`, {
     method: "PUT",

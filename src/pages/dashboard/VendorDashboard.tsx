@@ -477,6 +477,7 @@ export default function VendorDashboard() {
     name: "",
     email: "",
     phone: "",
+    password: "",
   });
   const loadVendorBookings = useCallback(async () => {
     if (!token) return;
@@ -517,7 +518,7 @@ export default function VendorDashboard() {
 
   const resetManagerForm = () => {
     setEditingManagerId(null);
-    setManagerForm({ name: "", email: "", phone: "" });
+    setManagerForm({ name: "", email: "", phone: "", password: "" });
   };
 
   const loadManagers = useCallback(async () => {
@@ -564,16 +565,39 @@ export default function VendorDashboard() {
       return;
     }
 
+    if (
+      editingManagerId &&
+      managerForm.password &&
+      managerForm.password.trim().length < 8
+    ) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Password must be at least 8 characters long.");
+      return;
+    }
+
     setManagerSubmitting(true);
     setManagerActionMessage(null);
 
     try {
       if (editingManagerId) {
-        const updated = await updateManager(token, editingManagerId, {
+        const updatePayload: {
+          name: string;
+          email: string;
+          phone: string;
+          password?: string;
+        } = {
           name: managerForm.name.trim(),
           email: managerForm.email.trim(),
           phone: managerForm.phone.trim(),
-        });
+        };
+        if (managerForm.password.trim()) {
+          updatePayload.password = managerForm.password.trim();
+        }
+        const updated = await updateManager(
+          token,
+          editingManagerId,
+          updatePayload,
+        );
         setManagers((current) =>
           current.map((row) =>
             row.manager_id === updated.manager_id ? updated : row,
@@ -609,6 +633,7 @@ export default function VendorDashboard() {
       name: manager.name,
       email: manager.email,
       phone: manager.phone,
+      password: "",
     });
   };
 
@@ -843,7 +868,9 @@ export default function VendorDashboard() {
     { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
     { value: "bookings", label: "Bookings" },
     { value: "analytics", label: "Analytics" },
-    { value: "settings", label: "Settings" },
+    ...(user?.role !== "manager"
+      ? [{ value: "settings" as const, label: "Settings" }]
+      : []),
   ];
 
   const stats = useMemo(() => {
@@ -1248,17 +1275,21 @@ export default function VendorDashboard() {
         } else {
           setHasRemoteBusinessProfile(false);
           setBusinessId(null);
-          setOnboardingComplete(Boolean(storedState?.onboardingComplete));
+          if (user.role !== "manager") {
+            setOnboardingComplete(Boolean(storedState?.onboardingComplete));
+          }
         }
       } catch (error) {
         if (!active) return;
         setHasRemoteBusinessProfile(false);
         setBusinessId(null);
-        setOnboardingError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load your vendor profile.",
-        );
+        if (user.role !== "manager") {
+          setOnboardingError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your vendor profile.",
+          );
+        }
       } finally {
         if (active) setProfileHydrating(false);
       }
@@ -1369,7 +1400,7 @@ export default function VendorDashboard() {
     );
   }
 
-  if (!onboardingComplete) {
+  if (!onboardingComplete && user?.role !== "manager") {
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-10 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] sm:px-6">
         <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.4fr_0.8fr]">
@@ -1816,34 +1847,36 @@ export default function VendorDashboard() {
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTab("settings")}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                  aria-label="Open notifications"
-                  title="Notifications"
-                >
-                  <span className="relative inline-flex">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
-                      <path d="M9 17a3 3 0 0 0 6 0" />
-                    </svg>
-                    {notificationCount > 0 && (
-                      <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a1a2e] px-1 text-[10px] font-bold text-white">
-                        {notificationCount > 9 ? "9+" : notificationCount}
-                      </span>
-                    )}
-                  </span>
-                </button>
+                {user?.role !== "manager" && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("settings")}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                    aria-label="Open notifications"
+                    title="Notifications"
+                  >
+                    <span className="relative inline-flex">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                        <path d="M9 17a3 3 0 0 0 6 0" />
+                      </svg>
+                      {notificationCount > 0 && (
+                        <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a1a2e] px-1 text-[10px] font-bold text-white">
+                          {notificationCount > 9 ? "9+" : notificationCount}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={toggleDark}
@@ -3083,7 +3116,7 @@ export default function VendorDashboard() {
               </section>
             )}
 
-            {tab === "settings" && (
+            {tab === "settings" && user?.role !== "manager" && (
               <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                 <SectionCard
                   title="Business settings"
@@ -3296,6 +3329,20 @@ export default function VendorDashboard() {
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </div>
+                    {editingManagerId && (
+                      <input
+                        type="password"
+                        value={managerForm.password}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            password: event.target.value,
+                          }))
+                        }
+                        placeholder="New password (leave blank to keep existing)"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    )}
 
                     <div className="flex flex-wrap gap-3">
                       <button
@@ -3410,6 +3457,29 @@ export default function VendorDashboard() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </SectionCard>
+              </section>
+            )}
+            {tab === "settings" && user?.role === "manager" && (
+              <section>
+                <SectionCard
+                  title="Manager Access Restricted"
+                  subtitle="Managers do not have access to business settings"
+                >
+                  <div className="text-center py-12">
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">
+                      Business settings are only available to business owners.
+                      As a manager, you can view all business details but cannot
+                      modify settings.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTab("overview")}
+                      className="rounded-full bg-[#1a1a2e] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]/90"
+                    >
+                      Back to Overview
+                    </button>
                   </div>
                 </SectionCard>
               </section>
