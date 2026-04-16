@@ -17,6 +17,9 @@ export interface AuthUser {
 export interface BusinessProfileRecord {
   business_id?: number;
   user_id?: number;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  owner_phone?: string | null;
   business_name: string;
   business_type: string | null;
   business_description: string | null;
@@ -29,6 +32,7 @@ export interface BusinessProfileRecord {
   manager_email: string | null;
   business_profile_image: string | null;
   rdb_certificate: string | null;
+  is_verified?: boolean | null;
 }
 
 export type BusinessProfileFormInput = {
@@ -97,6 +101,42 @@ export interface BookingRecord {
   emailSent?: boolean;
 }
 
+export interface AdminUserRecord {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  created_at?: string;
+}
+
+export interface VendorApplicationRecord {
+  id: number;
+  vendor_id: number;
+  vendor_name: string;
+  vendor_email: string;
+  status: "pending" | "approved" | "rejected" | string;
+  payload: unknown;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewer_name: string | null;
+  created_at?: string;
+}
+
+export interface RestaurantTypeRecord {
+  id: number;
+  restaurant_type: string;
+}
+
+export interface BusinessManagerRecord {
+  manager_id: number;
+  business_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
 function toErrorMessage(data: unknown, fallback: string) {
   if (data && typeof data === "object" && "error" in data) {
     const error = (data as { error?: unknown }).error;
@@ -158,11 +198,18 @@ export async function apiLogin(email: string, password: string) {
   });
 }
 
-export async function apiRegister(name: string, email: string, password: string, phone?: string, role: string = "vendor") {
+export async function apiRegister(
+  name: string,
+  email: string,
+  password: string,
+  phone?: string,
+  countryCode?: string,
+  role: string = "vendor",
+) {
   return requestJson<{ token: string; user: AuthUser }>(`${BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, phone, role }),
+    body: JSON.stringify({ name, email, password, phone, countryCode, role }),
   });
 }
 
@@ -217,6 +264,24 @@ export async function getBusinessProfiles() {
   return [];
 }
 
+export async function setBusinessVerification(
+  token: string,
+  businessId: number,
+  isVerified: boolean,
+) {
+  return requestJson<BusinessProfileRecord>(
+    `${BASE_URL}/business-profile/${businessId}/verification`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ is_verified: isVerified }),
+    },
+  );
+}
+
 export async function updateMyBusinessProfile(token: string, input: BusinessProfileFormInput) {
   const res = await fetch(`${BASE_URL}/business-profile/me`, {
     method: "PUT",
@@ -234,6 +299,65 @@ export async function updateMyBusinessProfile(token: string, input: BusinessProf
   }
   if (!res.ok) throw new Error(toErrorMessage(data, "Failed to update business profile"));
   return data as BusinessProfileRecord;
+}
+
+export async function deleteMyManager(token: string) {
+  return requestJson<BusinessProfileRecord>(`${BASE_URL}/business-profile/me/manager`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getMyManagers(token: string) {
+  return requestJson<BusinessManagerRecord[]>(`${BASE_URL}/business-profile/me/managers`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createManager(
+  token: string,
+  input: { name: string; email: string; phone: string },
+) {
+  return requestJson<BusinessManagerRecord>(`${BASE_URL}/business-profile/me/managers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateManager(
+  token: string,
+  managerId: number,
+  input: { name: string; email: string; phone: string; password?: string },
+) {
+  return requestJson<BusinessManagerRecord>(`${BASE_URL}/business-profile/me/managers/${managerId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteManager(token: string, managerId: number) {
+  const res = await fetch(`${BASE_URL}/business-profile/me/managers/${managerId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(toErrorMessage(data, "Failed to delete manager"));
+  }
 }
 
 export async function createMenuItem(token: string, input: MenuItemCreateInput) {
@@ -301,5 +425,55 @@ export async function createBooking(input: BookingCreateInput) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getAdminUsers(token: string) {
+  return requestJson<AdminUserRecord[]>(`${BASE_URL}/vendor/users`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getVendorApplications(token: string) {
+  return requestJson<VendorApplicationRecord[]>(`${BASE_URL}/vendor/applications`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function reviewVendorApplication(
+  token: string,
+  id: number,
+  status: "approved" | "rejected",
+) {
+  return requestJson<VendorApplicationRecord>(`${BASE_URL}/vendor/applications/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getRestaurantTypes(token: string) {
+  return requestJson<RestaurantTypeRecord[]>(`${BASE_URL}/vendor/restaurant-types`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createRestaurantType(token: string, restaurantType: string) {
+  return requestJson<RestaurantTypeRecord>(`${BASE_URL}/vendor/restaurant-types`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ restaurant_type: restaurantType }),
   });
 }
