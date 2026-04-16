@@ -38,7 +38,7 @@ export default function Login() {
           id: u.id,
           name: u.name,
           email: u.email,
-          role: u.role as "visitor" | "vendor" | "admin",
+          role: u.role as "visitor" | "vendor" | "manager" | "admin",
           roles: [u.role],
         },
         token
@@ -46,7 +46,7 @@ export default function Login() {
 
       if (u.role === "admin") {
         navigate("/admin");
-      } else if (u.role === "vendor") {
+      } else if (u.role === "vendor" || u.role === "manager") {
         navigate("/vendor");
       } else {
         navigate("/");

@@ -34,7 +34,7 @@ export default function Navbar() {
             </Link>
           </li>
         ))}
-        {user?.role === "vendor" && <li><Link to="/vendor" onClick={() => setMenuOpen(false)} className="block px-8 md:px-0 py-3 md:py-0 text-[0.95rem] font-medium text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</Link></li>}
+        {(user?.role === "vendor" || user?.role === "manager") && <li><Link to="/vendor" onClick={() => setMenuOpen(false)} className="block px-8 md:px-0 py-3 md:py-0 text-[0.95rem] font-medium text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</Link></li>}
         {user?.role === "admin"  && <li><Link to="/admin"  onClick={() => setMenuOpen(false)} className="block px-8 md:px-0 py-3 md:py-0 text-[0.95rem] font-medium text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Admin</Link></li>}
         {/* Mobile-only actions */}
         <li className="md:hidden flex items-center gap-3 px-8 py-3 border-t border-gray-100 dark:border-gray-700">

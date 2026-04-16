@@ -32,7 +32,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: "visitor" | "vendor" | "admin";
+  role: "visitor" | "vendor" | "manager" | "admin";
   roles?: string[];
 }
 
