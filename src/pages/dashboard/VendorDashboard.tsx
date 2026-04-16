@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
   createBusinessProfile,
@@ -1599,15 +1600,17 @@ export default function VendorDashboard() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                       <span>business_phone</span>
-                      <input
+                      <PhoneNumberInput
                         value={business.businessPhone}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setBusiness((current) => ({
                             ...current,
-                            businessPhone: event.target.value,
+                            businessPhone: value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -3252,15 +3255,17 @@ export default function VendorDashboard() {
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
                         Phone
                       </span>
-                      <input
+                      <PhoneNumberInput
                         value={profile.phone}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setProfile((current) => ({
                             ...current,
-                            phone: event.target.value,
+                            phone: value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -3412,16 +3417,17 @@ export default function VendorDashboard() {
                         placeholder="manager@email.com"
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
-                      <input
+                      <PhoneNumberInput
                         value={managerForm.phone}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setManagerForm((current) => ({
                             ...current,
-                            phone: event.target.value,
+                            phone: value,
                           }))
                         }
-                        placeholder="Phone"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
                       />
                     </div>
                     {editingManagerId && (
