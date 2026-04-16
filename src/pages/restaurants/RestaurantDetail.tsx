@@ -4,7 +4,9 @@ import { restaurants } from "../../data/mockData";
 import {
   createBooking,
   getMenuItems,
+  getTableConfigurations,
   type MenuItemRecord,
+  type TableConfigRecord,
 } from "../../utils/api";
 import PhoneNumberInput, {
   splitInternationalPhone,
@@ -28,7 +30,8 @@ export default function RestaurantDetail() {
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [tableStep, setTableStep] = useState(false);
-  const [selectedTable, setSelectedTable] = useState<{ seats: number; price: number; label: string } | null>(null);
+  const [selectedTable, setSelectedTable] = useState<TableConfigRecord | null>(null);
+  const [tableConfigs, setTableConfigs] = useState<TableConfigRecord[]>([]);
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -48,6 +51,19 @@ export default function RestaurantDetail() {
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
+
+  useEffect(() => {
+    void getTableConfigurations(businessId).then(setTableConfigs).catch(() => {
+      setTableConfigs([
+        { id: 1, business_id: businessId, table_of_people: "2", price: 2000 },
+        { id: 2, business_id: businessId, table_of_people: "4", price: 3500 },
+        { id: 3, business_id: businessId, table_of_people: "6", price: 5000 },
+        { id: 4, business_id: businessId, table_of_people: "8", price: 7000 },
+        { id: 5, business_id: businessId, table_of_people: "10", price: 9000 },
+        { id: 6, business_id: businessId, table_of_people: "15", price: 12000 },
+      ]);
+    });
+  }, [businessId]);
 
   if (!restaurant)
     return (
@@ -330,18 +346,11 @@ export default function RestaurantDetail() {
                 <p className="text-sm text-gray-500 mt-1">Choose your table size — each option includes a reserved seat price.</p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-                {([
-                  { seats: 2,  price: 2000,  label: "Couple" },
-                  { seats: 4,  price: 3500,  label: "Small Group" },
-                  { seats: 6,  price: 5000,  label: "Group" },
-                  { seats: 8,  price: 7000,  label: "Large Group" },
-                  { seats: 10, price: 9000,  label: "Party" },
-                  { seats: 15, price: 12000, label: "Event" },
-                ] as { seats: number; price: number; label: string }[]).map((table) => {
-                  const isSelected = selectedTable?.seats === table.seats;
+                {tableConfigs.map((table) => {
+                  const isSelected = selectedTable?.id === table.id;
                   return (
                     <button
-                      key={table.seats}
+                      key={table.id}
                       type="button"
                       onClick={() => setSelectedTable(table)}
                       className={`relative flex flex-col items-center gap-1.5 rounded-2xl border-2 p-4 transition-all ${
@@ -353,11 +362,9 @@ export default function RestaurantDetail() {
                       {isSelected && (
                         <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#1a1a2e] text-xs font-black">✓</span>
                       )}
-                      <span className="text-3xl">{table.seats <= 2 ? "&#128107;" : table.seats <= 4 ? "&#128106;" : table.seats <= 6 ? "&#127881;" : table.seats <= 8 ? "&#129395;" : table.seats <= 10 ? "&#127882;" : "&#127942;"}</span>
-                      <span className="text-xl font-black">Table of {table.seats}</span>
-                      <span className={`text-xs font-semibold ${isSelected ? "text-white/70" : "text-gray-400"}`}>{table.label}</span>
-                      <span className={`text-sm font-bold mt-1 ${isSelected ? "text-white" : "text-[#1a1a2e]"}` }>
-                        {table.price.toLocaleString()} RWF
+                      <span className="text-xl font-black">Table of {table.table_of_people}</span>
+                      <span className={`text-sm font-bold mt-1 ${isSelected ? "text-white" : "text-[#1a1a2e]"}`}>
+                        {Number(table.price).toLocaleString()} RWF
                       </span>
                     </button>
                   );
@@ -367,8 +374,8 @@ export default function RestaurantDetail() {
                 <div className="rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-4 mb-5 flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-widest text-gray-400 mb-0.5">Your selection</p>
-                    <p className="font-bold text-gray-900">Table of {selectedTable.seats} &mdash; {selectedTable.label}</p>
-                    <p className="text-sm text-[#1a1a2e] font-semibold">{selectedTable.price.toLocaleString()} RWF reservation fee</p>
+                    <p className="font-bold text-gray-900">Table of {selectedTable.table_of_people}</p>
+                    <p className="text-sm text-[#1a1a2e] font-semibold">{Number(selectedTable.price).toLocaleString()} RWF reservation fee</p>
                   </div>
                   <button type="button" onClick={() => setSelectedTable(null)} className="text-xs text-gray-400 hover:text-gray-700 underline">Clear</button>
                 </div>
@@ -389,7 +396,7 @@ export default function RestaurantDetail() {
               <div className="mb-5 flex items-center justify-between rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-3">
                 <div>
                   <p className="text-xs uppercase tracking-widest text-gray-400">Reserved Table</p>
-                  <p className="font-bold text-gray-900 text-sm">Table of {selectedTable?.seats} &mdash; {selectedTable?.price.toLocaleString()} RWF</p>
+                  <p className="font-bold text-gray-900 text-sm">Table of {selectedTable?.table_of_people} &mdash; {Number(selectedTable?.price).toLocaleString()} RWF</p>
                 </div>
                 <button type="button" onClick={() => setTableStep(false)} className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2">Change table</button>
               </div>
