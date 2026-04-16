@@ -6,6 +6,9 @@ import {
   getMenuItems,
   type MenuItemRecord,
 } from "../../utils/api";
+import PhoneNumberInput, {
+  splitInternationalPhone,
+} from "../../components/forms/PhoneNumberInput";
 
 type MenuItem = {
   id: number;
@@ -134,7 +137,11 @@ export default function RestaurantDetail() {
 
     const normalizedName = guestName.trim();
     const normalizedEmail = email.trim();
-    const normalizedPhone = telephone.trim();
+    const parsedPhone = splitInternationalPhone(telephone);
+    const normalizedPhone = parsedPhone.localNumber;
+    const normalizedPhoneWithCode = normalizedPhone
+      ? `${parsedPhone.countryCode}${normalizedPhone}`
+      : "";
     const firstMenuItemId = orderList[0]?.id;
 
     if (
@@ -160,7 +167,7 @@ export default function RestaurantDetail() {
         visitorName: null,
         fullnames: normalizedName,
         email: normalizedEmail,
-        telephone: normalizedPhone,
+        telephone: normalizedPhoneWithCode,
         numberOfPeople: people,
         specialRequest: specialRequests.trim(),
         menuId: firstMenuItemId,
@@ -174,7 +181,7 @@ export default function RestaurantDetail() {
         restaurant: restaurant.name,
         guestName,
         email,
-        telephone,
+        telephone: normalizedPhoneWithCode,
         people,
         date: bookingDate,
         time: bookingTime,
@@ -365,13 +372,13 @@ export default function RestaurantDetail() {
                   <label className="text-sm font-medium text-gray-700 block mb-1">
                     Telephone
                   </label>
-                  <input
-                    type="tel"
+                  <PhoneNumberInput
                     value={telephone}
-                    onChange={(e) => setTelephone(e.target.value)}
-                    placeholder="+250 7XX XXX XXX"
+                    onChange={setTelephone}
                     required
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                    defaultCountryIso2="RW"
+                    placeholder="7XXXXXXXX"
+                    className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2"
                   />
                 </div>
                 <div>

@@ -122,6 +122,21 @@ export interface VendorApplicationRecord {
   created_at?: string;
 }
 
+export interface RestaurantTypeRecord {
+  id: number;
+  restaurant_type: string;
+}
+
+export interface BusinessManagerRecord {
+  manager_id: number;
+  business_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
 function toErrorMessage(data: unknown, fallback: string) {
   if (data && typeof data === "object" && "error" in data) {
     const error = (data as { error?: unknown }).error;
@@ -183,11 +198,18 @@ export async function apiLogin(email: string, password: string) {
   });
 }
 
-export async function apiRegister(name: string, email: string, password: string, phone?: string, role: string = "vendor") {
+export async function apiRegister(
+  name: string,
+  email: string,
+  password: string,
+  phone?: string,
+  countryCode?: string,
+  role: string = "vendor",
+) {
   return requestJson<{ token: string; user: AuthUser }>(`${BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, phone, role }),
+    body: JSON.stringify({ name, email, password, phone, countryCode, role }),
   });
 }
 
@@ -277,6 +299,65 @@ export async function updateMyBusinessProfile(token: string, input: BusinessProf
   }
   if (!res.ok) throw new Error(toErrorMessage(data, "Failed to update business profile"));
   return data as BusinessProfileRecord;
+}
+
+export async function deleteMyManager(token: string) {
+  return requestJson<BusinessProfileRecord>(`${BASE_URL}/business-profile/me/manager`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getMyManagers(token: string) {
+  return requestJson<BusinessManagerRecord[]>(`${BASE_URL}/business-profile/me/managers`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createManager(
+  token: string,
+  input: { name: string; email: string; phone: string },
+) {
+  return requestJson<BusinessManagerRecord>(`${BASE_URL}/business-profile/me/managers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateManager(
+  token: string,
+  managerId: number,
+  input: { name: string; email: string; phone: string; password?: string },
+) {
+  return requestJson<BusinessManagerRecord>(`${BASE_URL}/business-profile/me/managers/${managerId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteManager(token: string, managerId: number) {
+  const res = await fetch(`${BASE_URL}/business-profile/me/managers/${managerId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(toErrorMessage(data, "Failed to delete manager"));
+  }
 }
 
 export async function createMenuItem(token: string, input: MenuItemCreateInput) {
@@ -375,5 +456,24 @@ export async function reviewVendorApplication(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function getRestaurantTypes(token: string) {
+  return requestJson<RestaurantTypeRecord[]>(`${BASE_URL}/vendor/restaurant-types`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createRestaurantType(token: string, restaurantType: string) {
+  return requestJson<RestaurantTypeRecord>(`${BASE_URL}/vendor/restaurant-types`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ restaurant_type: restaurantType }),
   });
 }

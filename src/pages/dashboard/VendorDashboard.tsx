@@ -2,22 +2,36 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
   createBusinessProfile,
+  createManager,
   createMenuItem,
+  deleteManager,
   getMenuItems,
+  getMyManagers,
   getMyBusinessProfile,
+  getRestaurantTypes,
   getVendorBookings,
   updateBookingStatus,
+  updateManager,
   updateMyBusinessProfile,
+  type BusinessManagerRecord,
   type BookingRecord,
   type BusinessProfileRecord,
   type MenuItemRecord,
+  type RestaurantTypeRecord,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
-type Tab = "overview" | "catalog" | "orders" | "bookings" | "analytics" | "settings";
+type Tab =
+  | "overview"
+  | "catalog"
+  | "orders"
+  | "bookings"
+  | "analytics"
+  | "settings";
 type Timeframe = "Weekly" | "Monthly" | "Quarterly";
 type BookingStatus = "confirmed" | "pending" | "cancelled";
 type OrderStatus = "pending" | "processing" | "delivered";
@@ -240,7 +254,17 @@ function NavIcon({ tab }: { tab: Tab }) {
   }
   if (tab === "bookings") {
     return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <rect x="3" y="4" width="18" height="18" rx="2" />
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
@@ -416,7 +440,9 @@ export default function VendorDashboard() {
   const [vendorBookings, setVendorBookings] = useState<BookingRecord[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
-  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(
+    null,
+  );
   const [menuFormOpen, setMenuFormOpen] = useState(false);
   const [menuFormMessage, setMenuFormMessage] = useState<string | null>(null);
   const [menuFormMessageType, setMenuFormMessageType] = useState<
@@ -440,7 +466,29 @@ export default function VendorDashboard() {
     imagePreviewUrl: undefined,
     imageFile: null,
   });
-
+  const [managerActionMessage, setManagerActionMessage] = useState<
+    string | null
+  >(null);
+  const [managerActionMessageType, setManagerActionMessageType] = useState<
+    "success" | "error"
+  >("success");
+  const [restaurantTypes, setRestaurantTypes] = useState<
+    RestaurantTypeRecord[]
+  >([]);
+  const [restaurantTypesLoading, setRestaurantTypesLoading] = useState(false);
+  const [restaurantTypesError, setRestaurantTypesError] = useState<
+    string | null
+  >(null);
+  const [managers, setManagers] = useState<BusinessManagerRecord[]>([]);
+  const [managersLoading, setManagersLoading] = useState(false);
+  const [managerSubmitting, setManagerSubmitting] = useState(false);
+  const [editingManagerId, setEditingManagerId] = useState<number | null>(null);
+  const [managerForm, setManagerForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+  });
   const loadVendorBookings = useCallback(async () => {
     if (!token) return;
     setBookingsLoading(true);
@@ -449,7 +497,9 @@ export default function VendorDashboard() {
       const data = await getVendorBookings(token);
       setVendorBookings(data);
     } catch (err) {
-      setBookingsError(err instanceof Error ? err.message : "Failed to load bookings.");
+      setBookingsError(
+        err instanceof Error ? err.message : "Failed to load bookings.",
+      );
     } finally {
       setBookingsLoading(false);
     }
@@ -463,7 +513,9 @@ export default function VendorDashboard() {
     if (!token) return;
     try {
       const updated = await updateBookingStatus(token, id, status);
-      setVendorBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+      setVendorBookings((prev) =>
+        prev.map((b) => (b.id === updated.id ? updated : b)),
+      );
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update status.");
     }
@@ -472,6 +524,159 @@ export default function VendorDashboard() {
   const handleSignOut = () => {
     logout();
     navigate("/login");
+  };
+
+  const resetManagerForm = () => {
+    setEditingManagerId(null);
+    setManagerForm({ name: "", email: "", phone: "", password: "" });
+  };
+
+  const loadManagers = useCallback(async () => {
+    if (!token || !hasRemoteBusinessProfile) return;
+    setManagersLoading(true);
+    try {
+      const rows = await getMyManagers(token);
+      setManagers(rows);
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Failed to load managers.",
+      );
+    } finally {
+      setManagersLoading(false);
+    }
+  }, [hasRemoteBusinessProfile, token]);
+
+  useEffect(() => {
+    if (tab !== "settings") return;
+    void loadManagers();
+  }, [loadManagers, tab]);
+
+  const handleSaveManager = async () => {
+    if (!token) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("You must be signed in to manage managers.");
+      return;
+    }
+
+    if (!hasRemoteBusinessProfile) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Complete onboarding before managing managers.");
+      return;
+    }
+
+    if (
+      managerForm.name.trim().length === 0 ||
+      managerForm.email.trim().length === 0 ||
+      managerForm.phone.trim().length === 0
+    ) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Name, email, and phone are required.");
+      return;
+    }
+
+    if (
+      editingManagerId &&
+      managerForm.password &&
+      managerForm.password.trim().length < 8
+    ) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("Password must be at least 8 characters long.");
+      return;
+    }
+
+    setManagerSubmitting(true);
+    setManagerActionMessage(null);
+
+    try {
+      if (editingManagerId) {
+        const updatePayload: {
+          name: string;
+          email: string;
+          phone: string;
+          password?: string;
+        } = {
+          name: managerForm.name.trim(),
+          email: managerForm.email.trim(),
+          phone: managerForm.phone.trim(),
+        };
+        if (managerForm.password.trim()) {
+          updatePayload.password = managerForm.password.trim();
+        }
+        const updated = await updateManager(
+          token,
+          editingManagerId,
+          updatePayload,
+        );
+        setManagers((current) =>
+          current.map((row) =>
+            row.manager_id === updated.manager_id ? updated : row,
+          ),
+        );
+        setManagerActionMessageType("success");
+        setManagerActionMessage("Manager updated successfully.");
+      } else {
+        const created = await createManager(token, {
+          name: managerForm.name.trim(),
+          email: managerForm.email.trim(),
+          phone: managerForm.phone.trim(),
+        });
+        setManagers((current) => [created, ...current]);
+        setManagerActionMessageType("success");
+        setManagerActionMessage("Manager added successfully.");
+      }
+
+      resetManagerForm();
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Unable to save manager.",
+      );
+    } finally {
+      setManagerSubmitting(false);
+    }
+  };
+
+  const handleEditManager = (manager: BusinessManagerRecord) => {
+    setEditingManagerId(manager.manager_id);
+    setManagerForm({
+      name: manager.name,
+      email: manager.email,
+      phone: manager.phone,
+      password: "",
+    });
+  };
+
+  const handleDeleteManager = async (managerId: number) => {
+    if (!token) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage("You must be signed in to manage managers.");
+      return;
+    }
+
+    const approved = window.confirm("Delete this manager account permanently?");
+    if (!approved) return;
+
+    setManagerSubmitting(true);
+    setManagerActionMessage(null);
+    try {
+      await deleteManager(token, managerId);
+      setManagers((current) =>
+        current.filter((row) => row.manager_id !== managerId),
+      );
+      if (editingManagerId === managerId) {
+        resetManagerForm();
+      }
+      setManagerActionMessageType("success");
+      setManagerActionMessage("Manager deleted successfully.");
+    } catch (error) {
+      setManagerActionMessageType("error");
+      setManagerActionMessage(
+        error instanceof Error ? error.message : "Unable to delete manager.",
+      );
+    } finally {
+      setManagerSubmitting(false);
+    }
   };
 
   const getFileNameFromUrl = (value: string) => {
@@ -673,7 +878,9 @@ export default function VendorDashboard() {
     { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
     { value: "bookings", label: "Bookings" },
     { value: "analytics", label: "Analytics" },
-    { value: "settings", label: "Settings" },
+    ...(user?.role !== "manager"
+      ? [{ value: "settings" as const, label: "Settings" }]
+      : []),
   ];
 
   const stats = useMemo(() => {
@@ -760,7 +967,39 @@ export default function VendorDashboard() {
     );
   }, [orders, searchQuery]);
 
+  const selectedRestaurantTypes = useMemo(
+    () =>
+      business.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [business.description],
+  );
+
   const notificationCount = notifications.filter((item) => item.unread).length;
+
+  const toggleRestaurantType = (typeName: string) => {
+    setBusiness((current) => {
+      const selected = current.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const exists = selected.some(
+        (entry) => entry.toLowerCase() === typeName.toLowerCase(),
+      );
+
+      const next = exists
+        ? selected.filter(
+            (entry) => entry.toLowerCase() !== typeName.toLowerCase(),
+          )
+        : [...selected, typeName];
+
+      return {
+        ...current,
+        description: next.join(", "),
+      };
+    });
+  };
 
   const onboardingReady = useMemo(
     () =>
@@ -1078,17 +1317,21 @@ export default function VendorDashboard() {
         } else {
           setHasRemoteBusinessProfile(false);
           setBusinessId(null);
-          setOnboardingComplete(Boolean(storedState?.onboardingComplete));
+          if (user.role !== "manager") {
+            setOnboardingComplete(Boolean(storedState?.onboardingComplete));
+          }
         }
       } catch (error) {
         if (!active) return;
         setHasRemoteBusinessProfile(false);
         setBusinessId(null);
-        setOnboardingError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load your vendor profile.",
-        );
+        if (user.role !== "manager") {
+          setOnboardingError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your vendor profile.",
+          );
+        }
       } finally {
         if (active) setProfileHydrating(false);
       }
@@ -1100,6 +1343,37 @@ export default function VendorDashboard() {
       active = false;
     };
   }, [applyBusinessProfile, storedState?.onboardingComplete, token, user]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let active = true;
+
+    const loadRestaurantTypes = async () => {
+      setRestaurantTypesLoading(true);
+      setRestaurantTypesError(null);
+      try {
+        const rows = await getRestaurantTypes(token);
+        if (!active) return;
+        setRestaurantTypes(rows);
+      } catch (error) {
+        if (!active) return;
+        setRestaurantTypesError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load restaurant types.",
+        );
+      } finally {
+        if (active) setRestaurantTypesLoading(false);
+      }
+    };
+
+    void loadRestaurantTypes();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
@@ -1157,7 +1431,7 @@ export default function VendorDashboard() {
     : [32, 35, 40, 51, 58, 36, 54];
   const orderBars = isShop ? [26, 41, 33, 62] : [33, 47, 38, 66];
 
-  if (!user || user.role !== "vendor") {
+  if (!user || (user.role !== "vendor" && user.role !== "manager")) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-6 text-center">
         <div className="max-w-md rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-slate-900/85">
@@ -1199,7 +1473,7 @@ export default function VendorDashboard() {
     );
   }
 
-  if (!onboardingComplete) {
+  if (!onboardingComplete && user?.role !== "manager") {
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-10 dark:bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] sm:px-6">
         <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.4fr_0.8fr]">
@@ -1215,6 +1489,15 @@ export default function VendorDashboard() {
                 Fill the required steps below before the dashboard becomes
                 available.
               </p>
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100">
+                <p className="font-semibold">Account notice</p>
+                <p className="mt-1 leading-6">
+                  The manager name, manager email, and phone number you enter
+                  will be saved to the user table. Your initial password will be
+                  based on the business name using the format
+                  <span className="font-semibold"> business_name@2026#</span>.
+                </p>
+              </div>
             </div>
 
             <div className="mt-8 overflow-hidden">
@@ -1268,17 +1551,47 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                       <span>business_description</span>
-                      <textarea
-                        rows={4}
-                        value={business.description}
-                        onChange={(event) =>
-                          setBusiness((current) => ({
-                            ...current,
-                            description: event.target.value,
-                          }))
-                        }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                      />
+
+                      {restaurantTypesLoading ? (
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                          Loading categories...
+                        </div>
+                      ) : restaurantTypes.length === 0 ? (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                          No categories available yet. Ask admin to add
+                          restaurant types.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {restaurantTypes.map((item) => {
+                            const checked = selectedRestaurantTypes.some(
+                              (entry) =>
+                                entry.toLowerCase() ===
+                                item.restaurant_type.toLowerCase(),
+                            );
+                            return (
+                              <label
+                                key={item.id}
+                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() =>
+                                    toggleRestaurantType(item.restaurant_type)
+                                  }
+                                />
+                                <span>{item.restaurant_type}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {restaurantTypesError && (
+                        <p className="text-xs text-rose-600 dark:text-rose-300">
+                          {restaurantTypesError}
+                        </p>
+                      )}
                     </label>
                   </div>
                 )}
@@ -1287,15 +1600,17 @@ export default function VendorDashboard() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                       <span>business_phone</span>
-                      <input
+                      <PhoneNumberInput
                         value={business.businessPhone}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setBusiness((current) => ({
                             ...current,
-                            businessPhone: event.target.value,
+                            businessPhone: value,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1630,34 +1945,36 @@ export default function VendorDashboard() {
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTab("settings")}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                  aria-label="Open notifications"
-                  title="Notifications"
-                >
-                  <span className="relative inline-flex">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
-                      <path d="M9 17a3 3 0 0 0 6 0" />
-                    </svg>
-                    {notificationCount > 0 && (
-                      <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a1a2e] px-1 text-[10px] font-bold text-white">
-                        {notificationCount > 9 ? "9+" : notificationCount}
-                      </span>
-                    )}
-                  </span>
-                </button>
+                {user?.role !== "manager" && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("settings")}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                    aria-label="Open notifications"
+                    title="Notifications"
+                  >
+                    <span className="relative inline-flex">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                        <path d="M9 17a3 3 0 0 0 6 0" />
+                      </svg>
+                      {notificationCount > 0 && (
+                        <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1a1a2e] px-1 text-[10px] font-bold text-white">
+                          {notificationCount > 9 ? "9+" : notificationCount}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={toggleDark}
@@ -2522,28 +2839,46 @@ export default function VendorDashboard() {
               <section className="space-y-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Dashboard &gt; Bookings</p>
-                    <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">Reservations</h2>
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Manage and confirm customer bookings for your restaurant.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Dashboard &gt; Bookings
+                    </p>
+                    <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                      Reservations
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Manage and confirm customer bookings for your restaurant.
+                    </p>
                   </div>
-                  <button type="button" onClick={() => void loadVendorBookings()} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] dark:border-white/10 dark:text-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => void loadVendorBookings()}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] dark:border-white/10 dark:text-slate-200"
+                  >
                     &#8635; Refresh
                   </button>
                 </div>
 
                 {bookingsError && (
-                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-300">{bookingsError}</div>
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-300">
+                    {bookingsError}
+                  </div>
                 )}
 
                 {bookingsLoading ? (
-                  <div className="rounded-[2rem] border border-white/70 bg-white/85 p-10 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-slate-900/80">Loading bookings...</div>
+                  <div className="rounded-[2rem] border border-white/70 bg-white/85 p-10 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-slate-900/80">
+                    Loading bookings...
+                  </div>
                 ) : (
                   <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                     <div className="border-b border-slate-200/70 px-6 py-5 dark:border-white/10">
-                      <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">All Bookings</h3>
+                      <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">
+                        All Bookings
+                      </h3>
                     </div>
                     {vendorBookings.length === 0 ? (
-                      <div className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">No bookings found.</div>
+                      <div className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                        No bookings found.
+                      </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="min-w-full text-left">
@@ -2561,33 +2896,72 @@ export default function VendorDashboard() {
                           </thead>
                           <tbody>
                             {vendorBookings.map((booking) => (
-                              <tr key={booking.id} className="border-t border-slate-200/70 transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5">
-                                <td className="px-6 py-4 font-semibold text-slate-950 dark:text-white">{booking.fullnames}</td>
-                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.email}</td>
-                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.telephone}</td>
+                              <tr
+                                key={booking.id}
+                                className="border-t border-slate-200/70 transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                              >
+                                <td className="px-6 py-4 font-semibold text-slate-950 dark:text-white">
+                                  {booking.fullnames}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                  {booking.email}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                  {booking.telephone}
+                                </td>
                                 <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                                   <p>{booking.date}</p>
                                   <p>{booking.time}</p>
                                 </td>
-                                <td className="px-6 py-4 text-center font-semibold text-slate-950 dark:text-white">{booking.number_of_people}</td>
-                                <td className="max-w-[160px] truncate px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{booking.special_request || "—"}</td>
+                                <td className="px-6 py-4 text-center font-semibold text-slate-950 dark:text-white">
+                                  {booking.number_of_people}
+                                </td>
+                                <td className="max-w-[160px] truncate px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                  {booking.special_request || "—"}
+                                </td>
                                 <td className="px-6 py-4">
-                                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[booking.status] ?? "bg-slate-500/15 text-slate-600"}` }>
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[booking.status] ?? "bg-slate-500/15 text-slate-600"}`}
+                                  >
                                     {booking.status}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
                                   <div className="flex gap-2">
-                                    <button type="button" onClick={() => setSelectedBooking(booking)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-white/10 dark:text-slate-300">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedBooking(booking)
+                                      }
+                                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-white/10 dark:text-slate-300"
+                                    >
                                       View
                                     </button>
                                     {booking.status !== "confirmed" && (
-                                      <button type="button" onClick={() => void handleBookingStatusChange(booking.id, "confirmed")} className="rounded-full bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-80">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void handleBookingStatusChange(
+                                            booking.id,
+                                            "confirmed",
+                                          )
+                                        }
+                                        className="rounded-full bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-80"
+                                      >
                                         Confirm
                                       </button>
                                     )}
                                     {booking.status !== "cancelled" && (
-                                      <button type="button" onClick={() => void handleBookingStatusChange(booking.id, "cancelled")} className="rounded-full border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void handleBookingStatusChange(
+                                            booking.id,
+                                            "cancelled",
+                                          )
+                                        }
+                                        className="rounded-full border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10"
+                                      >
                                         Cancel
                                       </button>
                                     )}
@@ -2605,48 +2979,120 @@ export default function VendorDashboard() {
             )}
 
             {selectedBooking && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur-sm" onClick={() => setSelectedBooking(null)}>
-                <div className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur-sm"
+                onClick={() => setSelectedBooking(null)}
+              >
+                <div
+                  className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-slate-900"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="mb-5 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Booking details</p>
-                      <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">{selectedBooking.fullnames}</h3>
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Booking details
+                      </p>
+                      <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
+                        {selectedBooking.fullnames}
+                      </h3>
                     </div>
-                    <button type="button" onClick={() => setSelectedBooking(null)} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBooking(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:text-slate-400"
+                    >
                       &times;
                     </button>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {([
-                      { label: "Full Name", value: selectedBooking.fullnames },
-                      { label: "Email", value: selectedBooking.email },
-                      { label: "Telephone", value: selectedBooking.telephone },
-                      { label: "Date", value: selectedBooking.date },
-                      { label: "Time", value: selectedBooking.time },
-                      { label: "Number of People", value: String(selectedBooking.number_of_people) },
-                      { label: "Menu Item", value: catalogItems.find((m) => m.id === selectedBooking.menu_id)?.name ?? `Menu #${selectedBooking.menu_id}` },
-                      { label: "Status", value: selectedBooking.status },
-                      { label: "Special Request", value: selectedBooking.special_request || "None", full: true },
-                      { label: "Booked On", value: new Date(selectedBooking.created_at).toLocaleString(), full: true },
-                    ] as { label: string; value: string; full?: boolean }[]).map(({ label, value, full }) => (
-                      <div key={label} className={`rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5${full ? " sm:col-span-2" : ""}`}>
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">{label}</p>
-                        <p className="mt-1 break-words text-sm font-semibold text-slate-950 dark:text-white">{value}</p>
+                    {(
+                      [
+                        {
+                          label: "Full Name",
+                          value: selectedBooking.fullnames,
+                        },
+                        { label: "Email", value: selectedBooking.email },
+                        {
+                          label: "Telephone",
+                          value: selectedBooking.telephone,
+                        },
+                        { label: "Date", value: selectedBooking.date },
+                        { label: "Time", value: selectedBooking.time },
+                        {
+                          label: "Number of People",
+                          value: String(selectedBooking.number_of_people),
+                        },
+                        {
+                          label: "Menu Item",
+                          value:
+                            catalogItems.find(
+                              (m) => m.id === selectedBooking.menu_id,
+                            )?.name ?? `Menu #${selectedBooking.menu_id}`,
+                        },
+                        { label: "Status", value: selectedBooking.status },
+                        {
+                          label: "Special Request",
+                          value: selectedBooking.special_request || "None",
+                          full: true,
+                        },
+                        {
+                          label: "Booked On",
+                          value: new Date(
+                            selectedBooking.created_at,
+                          ).toLocaleString(),
+                          full: true,
+                        },
+                      ] as { label: string; value: string; full?: boolean }[]
+                    ).map(({ label, value, full }) => (
+                      <div
+                        key={label}
+                        className={`rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5${full ? " sm:col-span-2" : ""}`}
+                      >
+                        <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                          {label}
+                        </p>
+                        <p className="mt-1 break-words text-sm font-semibold text-slate-950 dark:text-white">
+                          {value}
+                        </p>
                       </div>
                     ))}
                   </div>
                   <div className="mt-5 flex justify-end gap-2">
                     {selectedBooking.status !== "confirmed" && (
-                      <button type="button" onClick={() => { void handleBookingStatusChange(selectedBooking.id, "confirmed"); setSelectedBooking(null); }} className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-80">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleBookingStatusChange(
+                            selectedBooking.id,
+                            "confirmed",
+                          );
+                          setSelectedBooking(null);
+                        }}
+                        className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-80"
+                      >
                         Confirm
                       </button>
                     )}
                     {selectedBooking.status !== "cancelled" && (
-                      <button type="button" onClick={() => { void handleBookingStatusChange(selectedBooking.id, "cancelled"); setSelectedBooking(null); }} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleBookingStatusChange(
+                            selectedBooking.id,
+                            "cancelled",
+                          );
+                          setSelectedBooking(null);
+                        }}
+                        className="rounded-full border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:hover:bg-rose-500/10"
+                      >
                         Cancel
                       </button>
                     )}
-                    <button type="button" onClick={() => setSelectedBooking(null)} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 dark:border-white/10 dark:text-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBooking(null)}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 dark:border-white/10 dark:text-slate-300"
+                    >
                       Close
                     </button>
                   </div>
@@ -2768,7 +3214,7 @@ export default function VendorDashboard() {
               </section>
             )}
 
-            {tab === "settings" && (
+            {tab === "settings" && user?.role !== "manager" && (
               <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                 <SectionCard
                   title="Business settings"
@@ -2809,15 +3255,17 @@ export default function VendorDashboard() {
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
                         Phone
                       </span>
-                      <input
+                      <PhoneNumberInput
                         value={profile.phone}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setProfile((current) => ({
                             ...current,
-                            phone: event.target.value,
+                            phone: value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -2937,6 +3385,202 @@ export default function VendorDashboard() {
                         {searchQuery || "Nothing filtered"}
                       </p>
                     </div>
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Manage Managers"
+                  subtitle="Add, update, and delete managers in a table view"
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <input
+                        value={managerForm.name}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Manager name"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <input
+                        type="email"
+                        value={managerForm.email}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                        placeholder="manager@email.com"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <PhoneNumberInput
+                        value={managerForm.phone}
+                        onChange={(value) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            phone: value,
+                          }))
+                        }
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
+                      />
+                    </div>
+                    {editingManagerId && (
+                      <input
+                        type="password"
+                        value={managerForm.password}
+                        onChange={(event) =>
+                          setManagerForm((current) => ({
+                            ...current,
+                            password: event.target.value,
+                          }))
+                        }
+                        placeholder="New password (leave blank to keep existing)"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveManager()}
+                        disabled={managerSubmitting}
+                        className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {managerSubmitting
+                          ? "Saving..."
+                          : editingManagerId
+                            ? "Update manager"
+                            : "Add manager"}
+                      </button>
+                      {editingManagerId && (
+                        <button
+                          type="button"
+                          onClick={resetManagerForm}
+                          disabled={managerSubmitting}
+                          className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                          Cancel edit
+                        </button>
+                      )}
+                    </div>
+
+                    {managerActionMessage && (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-medium ${managerActionMessageType === "success" ? "bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]" : "bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                      >
+                        {managerActionMessage}
+                      </p>
+                    )}
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200/70 dark:border-white/10">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                          <tr>
+                            <th className="px-4 py-3">Name</th>
+                            <th className="px-4 py-3">Email</th>
+                            <th className="px-4 py-3">Phone</th>
+                            <th className="px-4 py-3">Created</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {managersLoading ? (
+                            <tr>
+                              <td
+                                className="px-4 py-4 text-slate-500"
+                                colSpan={5}
+                              >
+                                Loading managers...
+                              </td>
+                            </tr>
+                          ) : managers.length === 0 ? (
+                            <tr>
+                              <td
+                                className="px-4 py-4 text-slate-500"
+                                colSpan={5}
+                              >
+                                No managers added yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            managers.map((manager) => (
+                              <tr
+                                key={manager.manager_id}
+                                className="border-t border-slate-200/70 dark:border-white/10"
+                              >
+                                <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                                  {manager.name}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                  {manager.email}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                  {manager.phone}
+                                </td>
+                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                                  {new Date(
+                                    manager.created_at,
+                                  ).toLocaleDateString()}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditManager(manager)}
+                                      disabled={managerSubmitting}
+                                      className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:text-slate-300 dark:hover:bg-white/5"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleDeleteManager(
+                                          manager.manager_id,
+                                        )
+                                      }
+                                      disabled={managerSubmitting}
+                                      className="rounded-full border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </SectionCard>
+              </section>
+            )}
+            {tab === "settings" && user?.role === "manager" && (
+              <section>
+                <SectionCard
+                  title="Manager Access Restricted"
+                  subtitle="Managers do not have access to business settings"
+                >
+                  <div className="text-center py-12">
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">
+                      Business settings are only available to business owners.
+                      As a manager, you can view all business details but cannot
+                      modify settings.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTab("overview")}
+                      className="rounded-full bg-[#1a1a2e] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]/90"
+                    >
+                      Back to Overview
+                    </button>
                   </div>
                 </SectionCard>
               </section>
