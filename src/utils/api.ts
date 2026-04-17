@@ -662,6 +662,8 @@ export async function deleteShopType(token: string, id: number) {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
 // ── Table Config ──────────────────────────────────────────────
 export interface TableConfigRecord {
   id: number;
