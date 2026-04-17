@@ -483,6 +483,26 @@ export async function createRestaurantType(token: string, restaurantType: string
   });
 }
 
+export async function updateRestaurantType(token: string, id: number, restaurantType: string) {
+  return requestJson<RestaurantTypeRecord>(`${BASE_URL}/vendor/restaurant-types/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ restaurant_type: restaurantType }),
+  });
+}
+
+export async function deleteRestaurantType(token: string, id: number) {
+  return requestJson<{ message: string }>(`${BASE_URL}/vendor/restaurant-types/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function getShopTypes(token: string) {
   return requestJson<ShopTypeRecord[]>(`${BASE_URL}/vendor/shop-types`, {
     headers: {
