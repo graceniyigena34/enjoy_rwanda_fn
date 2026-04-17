@@ -13,6 +13,7 @@ import {
   getMyManagers,
   getMyBusinessProfile,
   getRestaurantTypes,
+  getShopTypes,
   getVendorBookings,
   updateBookingStatus,
   updateManager,
@@ -22,6 +23,7 @@ import {
   type BusinessProfileRecord,
   type MenuItemRecord,
   type RestaurantTypeRecord,
+  type ShopTypeRecord,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
@@ -479,6 +481,9 @@ export default function VendorDashboard() {
   const [restaurantTypesError, setRestaurantTypesError] = useState<
     string | null
   >(null);
+  const [shopTypes, setShopTypes] = useState<ShopTypeRecord[]>([]);
+  const [shopTypesLoading, setShopTypesLoading] = useState(false);
+  const [shopTypesError, setShopTypesError] = useState<string | null>(null);
   const [managers, setManagers] = useState<BusinessManagerRecord[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
   const [managerSubmitting, setManagerSubmitting] = useState(false);
@@ -1001,6 +1006,38 @@ export default function VendorDashboard() {
     });
   };
 
+  const selectedShopTypes = useMemo(
+    () =>
+      business.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [business.description],
+  );
+
+  const toggleShopType = (typeName: string) => {
+    setBusiness((current) => {
+      const selected = current.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const exists = selected.some(
+        (entry) => entry.toLowerCase() === typeName.toLowerCase(),
+      );
+
+      const next = exists
+        ? selected.filter(
+            (entry) => entry.toLowerCase() !== typeName.toLowerCase(),
+          )
+        : [...selected, typeName];
+
+      return {
+        ...current,
+        description: next.join(", "),
+      };
+    });
+  };
+
   const onboardingReady = useMemo(
     () =>
       business.businessName.trim().length > 0 &&
@@ -1376,6 +1413,35 @@ export default function VendorDashboard() {
   }, [token]);
 
   useEffect(() => {
+    if (!token) return;
+
+    let active = true;
+
+    const loadShopTypes = async () => {
+      setShopTypesLoading(true);
+      setShopTypesError(null);
+      try {
+        const rows = await getShopTypes(token);
+        if (!active) return;
+        setShopTypes(rows);
+      } catch (error) {
+        if (!active) return;
+        setShopTypesError(
+          error instanceof Error ? error.message : "Failed to load shop types.",
+        );
+      } finally {
+        if (active) setShopTypesLoading(false);
+      }
+    };
+
+    void loadShopTypes();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== storageKey) return;
@@ -1555,45 +1621,94 @@ export default function VendorDashboard() {
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                       <span>Business Description</span>
 
-                      {restaurantTypesLoading ? (
-                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                          Loading categories...
-                        </div>
-                      ) : restaurantTypes.length === 0 ? (
-                        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
-                          No categories available yet. Ask admin to add
-                          restaurant types.
-                        </div>
+                      {business.businessType === "Restaurant" ? (
+                        <>
+                          {restaurantTypesLoading ? (
+                            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                              Loading restaurant types...
+                            </div>
+                          ) : restaurantTypes.length === 0 ? (
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                              No restaurant types available yet. Ask admin to
+                              add restaurant types.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              {restaurantTypes.map((item) => {
+                                const checked = selectedRestaurantTypes.some(
+                                  (entry) =>
+                                    entry.toLowerCase() ===
+                                    item.restaurant_type.toLowerCase(),
+                                );
+                                return (
+                                  <label
+                                    key={item.id}
+                                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        toggleRestaurantType(
+                                          item.restaurant_type,
+                                        )
+                                      }
+                                    />
+                                    <span>{item.restaurant_type}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {restaurantTypesError && (
+                            <p className="text-xs text-rose-600 dark:text-rose-300">
+                              {restaurantTypesError}
+                            </p>
+                          )}
+                        </>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {restaurantTypes.map((item) => {
-                            const checked = selectedRestaurantTypes.some(
-                              (entry) =>
-                                entry.toLowerCase() ===
-                                item.restaurant_type.toLowerCase(),
-                            );
-                            return (
-                              <label
-                                key={item.id}
-                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() =>
-                                    toggleRestaurantType(item.restaurant_type)
-                                  }
-                                />
-                                <span>{item.restaurant_type}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {restaurantTypesError && (
-                        <p className="text-xs text-rose-600 dark:text-rose-300">
-                          {restaurantTypesError}
-                        </p>
+                        <>
+                          {shopTypesLoading ? (
+                            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                              Loading shop types...
+                            </div>
+                          ) : shopTypes.length === 0 ? (
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                              No shop types available yet. Ask admin to add shop
+                              types.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              {shopTypes.map((item) => {
+                                const checked = selectedShopTypes.some(
+                                  (entry) =>
+                                    entry.toLowerCase() ===
+                                    item.shop_type.toLowerCase(),
+                                );
+                                return (
+                                  <label
+                                    key={item.id}
+                                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        toggleShopType(item.shop_type)
+                                      }
+                                    />
+                                    <span>{item.shop_type}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {shopTypesError && (
+                            <p className="text-xs text-rose-600 dark:text-rose-300">
+                              {shopTypesError}
+                            </p>
+                          )}
+                        </>
                       )}
                     </label>
                   </div>
