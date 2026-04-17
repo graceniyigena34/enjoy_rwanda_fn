@@ -662,4 +662,50 @@ export async function deleteShopType(token: string, id: number) {
       Authorization: `Bearer ${token}`,
     },
   });
+// ── Table Config ──────────────────────────────────────────────
+export interface TableConfigRecord {
+  id: number;
+  business_id: number;
+  table_of_people: string;
+  price: number;
+}
+
+export async function getTableConfigurations(businessId: number, token?: string) {
+  return requestJson<TableConfigRecord[]>(
+    `${BASE_URL}/table-config/business/${businessId}`,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+  );
+}
+
+export async function getMyTableConfigurations(token: string) {
+  return requestJson<TableConfigRecord[]>(`${BASE_URL}/table-config/my`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function saveTableConfigurations(token: string, configs: { table_of_people: string; price: number }[]) {
+  return requestJson<TableConfigRecord[]>(`${BASE_URL}/table-config/bulk`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ configs }),
+  });
+}
+
+export async function updateTableConfiguration(token: string, id: number, data: { table_of_people?: string; price?: number }) {
+  return requestJson<TableConfigRecord>(`${BASE_URL}/table-config/${id}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTableConfiguration(token: string, id: number) {
+  const res = await fetch(`${BASE_URL}/table-config/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => null);
+    throw new Error(toErrorMessage(data, "Failed to delete"));
+  }
 }
