@@ -5,6 +5,7 @@ import {
   createBooking,
   getMenuItems,
   getTableConfigurations,
+  getBusinessProfiles,
   type MenuItemRecord,
   type TableConfigRecord,
 } from "../../utils/api";
@@ -32,6 +33,7 @@ export default function RestaurantDetail() {
   const [tableStep, setTableStep] = useState(false);
   const [selectedTable, setSelectedTable] = useState<TableConfigRecord | null>(null);
   const [tableConfigs, setTableConfigs] = useState<TableConfigRecord[]>([]);
+  const [realBusinessId, setRealBusinessId] = useState<number | null>(null);
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -63,22 +65,48 @@ export default function RestaurantDetail() {
     [tableConfigs, tableSearch]
   );
 
+  // Step 1: find the real business_id from DB by matching restaurant name
   useEffect(() => {
+    void getBusinessProfiles().then((profiles) => {
+      const match = profiles.find(
+        (p) => p.business_name?.toLowerCase() === restaurant?.name?.toLowerCase()
+      );
+      if (match?.business_id) {
+        setRealBusinessId(Number(match.business_id));
+      } else {
+        // fallback: use mock id
+        setRealBusinessId(businessId);
+      }
+    }).catch(() => setRealBusinessId(businessId));
+  }, [businessId, restaurant?.name]);
+
+  // Step 2: fetch table configs using real business_id
+  useEffect(() => {
+    if (realBusinessId === null) return;
     setTableLoading(true);
-    void getTableConfigurations(businessId)
-      .then(setTableConfigs)
+    void getTableConfigurations(realBusinessId)
+      .then((data) => {
+        setTableConfigs(data.length > 0 ? data : [
+          { id: 1, business_id: realBusinessId, table_of_people: "2", price: 2000 },
+          { id: 2, business_id: realBusinessId, table_of_people: "4", price: 3500 },
+          { id: 3, business_id: realBusinessId, table_of_people: "6", price: 5000 },
+          { id: 4, business_id: realBusinessId, table_of_people: "8", price: 7000 },
+          { id: 5, business_id: realBusinessId, table_of_people: "10", price: 9000 },
+          { id: 6, business_id: realBusinessId, table_of_people: "15", price: 12000 },
+        ]);
+      })
       .catch(() => {
         setTableConfigs([
-          { id: 1, business_id: businessId, table_of_people: "2", price: 2000 },
-          { id: 2, business_id: businessId, table_of_people: "4", price: 3500 },
-          { id: 3, business_id: businessId, table_of_people: "6", price: 5000 },
-          { id: 4, business_id: businessId, table_of_people: "8", price: 7000 },
-          { id: 5, business_id: businessId, table_of_people: "10", price: 9000 },
-          { id: 6, business_id: businessId, table_of_people: "15", price: 12000 },
+          { id: 1, business_id: realBusinessId, table_of_people: "2", price: 2000 },
+          { id: 2, business_id: realBusinessId, table_of_people: "4", price: 3500 },
+          { id: 3, business_id: realBusinessId, table_of_people: "6", price: 5000 },
+          { id: 4, business_id: realBusinessId, table_of_people: "8", price: 7000 },
+          { id: 5, business_id: realBusinessId, table_of_people: "10", price: 9000 },
+          { id: 6, business_id: realBusinessId, table_of_people: "15", price: 12000 },
         ]);
       })
       .finally(() => setTableLoading(false));
-  }, [businessId]);
+  }, [realBusinessId]);
 
   if (!restaurant)
     return (
