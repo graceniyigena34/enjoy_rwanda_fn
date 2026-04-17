@@ -54,28 +54,35 @@ export default function RestaurantDetail() {
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
 
-  // Fetch table configs from DB
+  // Fetch ALL table configs from ALL businesses in DB
+  // Visitor types a number → matches against real DB data
   useEffect(() => {
     void getBusinessProfiles()
-      .then((profiles) => {
-        const match = profiles.find(
-          (p) => p.business_name?.toLowerCase() === restaurant?.name?.toLowerCase()
-        );
-        const realId = match?.business_id ? Number(match.business_id) : businessId;
-        return getTableConfigurations(realId);
+      .then(async (profiles) => {
+        // Fetch table configs for all businesses and merge
+        const all: TableConfigRecord[] = [];
+        for (const p of profiles) {
+          if (!p.business_id) continue;
+          try {
+            const data = await getTableConfigurations(Number(p.business_id));
+            all.push(...data);
+          } catch {
+            // skip failed fetches
+          }
+        }
+        if (all.length > 0) setTableConfigs(all);
       })
-      .then(setTableConfigs)
       .catch(() => {});
-  }, [businessId, restaurant?.name]);
+  }, []);
 
-  // Auto-match price when visitor types
+  // Auto-match price when visitor types - exact match first, then starts-with
   useEffect(() => {
     if (!tableSearch.trim()) { setMatchedTable(null); return; }
     const val = tableSearch.trim().toLowerCase();
-    const found = tableConfigs.find((t) =>
-      t.table_of_people.toLowerCase() === val ||
-      t.table_of_people.toLowerCase().includes(val)
-    );
+    // 1. Exact match
+    let found = tableConfigs.find((t) => t.table_of_people.toLowerCase() === val);
+    // 2. Starts with
+    if (!found) found = tableConfigs.find((t) => t.table_of_people.toLowerCase().startsWith(val));
     setMatchedTable(found ?? null);
   }, [tableSearch, tableConfigs]);
 
