@@ -352,6 +352,21 @@ export async function deleteMyManager(token: string) {
   });
 }
 
+export async function deleteBusinessSupportingDocument(
+  token: string,
+  documentId: number,
+) {
+  return requestJson<{ message: string }>(
+    `${BASE_URL}/business-profile/me/documents/${documentId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+}
+
 export async function getMyManagers(token: string) {
   return requestJson<BusinessManagerRecord[]>(`${BASE_URL}/business-profile/me/managers`, {
     headers: {

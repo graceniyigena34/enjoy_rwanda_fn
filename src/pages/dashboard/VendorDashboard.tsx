@@ -9,6 +9,7 @@ import {
   createBusinessProfile,
   createManager,
   createMenuItem,
+  deleteBusinessSupportingDocument,
   deleteManager,
   getMenuItems,
   getMyManagers,
@@ -474,6 +475,9 @@ export default function VendorDashboard() {
   const [savedSupportingDocuments, setSavedSupportingDocuments] = useState<
     BusinessDocumentRecord[]
   >([]);
+  const [deletingSavedDocumentId, setDeletingSavedDocumentId] = useState<
+    number | null
+  >(null);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
@@ -1262,6 +1266,32 @@ export default function VendorDashboard() {
     setSupportingDocuments((current) => current.filter((doc) => doc.id !== id));
   };
 
+  const removeSavedSupportingDocument = async (documentId: number) => {
+    if (!token) {
+      setOnboardingError(
+        "You must be signed in to manage supporting documents.",
+      );
+      return;
+    }
+
+    setOnboardingError(null);
+    setDeletingSavedDocumentId(documentId);
+    try {
+      await deleteBusinessSupportingDocument(token, documentId);
+      setSavedSupportingDocuments((current) =>
+        current.filter((doc) => doc.id !== documentId),
+      );
+    } catch (error) {
+      setOnboardingError(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete supporting document.",
+      );
+    } finally {
+      setDeletingSavedDocumentId(null);
+    }
+  };
+
   const validateCurrentStep = (step: OnboardingStep) => {
     if (step === 1) {
       return (
@@ -2000,14 +2030,30 @@ export default function VendorDashboard() {
                                       </p>
                                     )}
                                   </div>
-                                  <a
-                                    href={href}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
-                                  >
-                                    View file
-                                  </a>
+                                  <div className="flex items-center gap-3">
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
+                                    >
+                                      View file
+                                    </a>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeSavedSupportingDocument(doc.id)
+                                      }
+                                      disabled={
+                                        deletingSavedDocumentId === doc.id
+                                      }
+                                      className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                      {deletingSavedDocumentId === doc.id
+                                        ? "Removing..."
+                                        : "Remove"}
+                                    </button>
+                                  </div>
                                 </li>
                               );
                             })}
