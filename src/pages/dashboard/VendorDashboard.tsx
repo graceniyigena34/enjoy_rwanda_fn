@@ -1492,10 +1492,13 @@ export default function VendorDashboard() {
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100">
                 <p className="font-semibold">Account notice</p>
                 <p className="mt-1 leading-6">
-                  The manager name, manager email, and phone number you enter
-                  will be saved to the user table. Your initial password will be
-                  based on the business name using the format
-                  <span className="font-semibold"> business_name@2026#</span>.
+                  The manager account will automatically Created. Your initial
+                  password will be based on the business name using the format
+                  <span className="font-semibold">
+                    {" "}
+                    business_name@2026#
+                  </span>{" "}
+                  and he will login using that email.
                 </p>
               </div>
             </div>
@@ -1508,7 +1511,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>business_name</span>
+                      <span>Business Name</span>
                       <input
                         value={business.businessName}
                         onChange={(event) =>
@@ -1521,7 +1524,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_type</span>
+                      <span>Business Type</span>
                       <select
                         value={business.businessType}
                         onChange={(event) =>
@@ -1537,7 +1540,7 @@ export default function VendorDashboard() {
                       </select>
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>location</span>
+                      <span>Location</span>
                       <input
                         value={business.location}
                         onChange={(event) =>
@@ -1550,7 +1553,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>business_description</span>
+                      <span>Business Description</span>
 
                       {restaurantTypesLoading ? (
                         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
@@ -1599,7 +1602,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 2 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_phone</span>
+                      <span>Business Phone Number</span>
                       <PhoneNumberInput
                         value={business.businessPhone}
                         onChange={(value) =>
@@ -1614,7 +1617,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_email</span>
+                      <span>Business Email</span>
                       <input
                         type="email"
                         value={business.businessEmail}
@@ -1628,7 +1631,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>manager_name</span>
+                      <span>Manager Name</span>
                       <input
                         value={business.managerName}
                         onChange={(event) =>
@@ -1641,7 +1644,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>manager_email</span>
+                      <span>Manager Email</span>
                       <input
                         type="email"
                         value={business.managerEmail}
@@ -1660,7 +1663,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 3 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>opening_hours</span>
+                      <span>Opening Hours</span>
                       <input
                         type="time"
                         value={business.openingHours}
@@ -1674,7 +1677,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>opening_days</span>
+                      <span>Opening Days</span>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {WEEK_DAYS.map((day) => (
                           <label
@@ -1697,7 +1700,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 4 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_profile_image</span>
+                      <span>Business Profile Image</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1717,7 +1720,7 @@ export default function VendorDashboard() {
                       )}
                     </div>
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>rdb_certificate</span>
+                      <span>RDB Certificate</span>
                       <input
                         type="file"
                         accept="application/pdf,image/*"
