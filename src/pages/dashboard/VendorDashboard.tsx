@@ -535,6 +535,27 @@ export default function VendorDashboard() {
     try {
       const data = await getVendorBookings(token);
       setVendorBookings(data);
+      const pendingCount = data.filter(
+        (booking) => booking.status === "pending",
+      ).length;
+      setNotifications((prev) => {
+        const withoutPendingSummary = prev.filter((item) => item.id !== 900001);
+        if (pendingCount <= 0) return withoutPendingSummary;
+        return [
+          {
+            id: 900001,
+            title: "New booking requests",
+            detail:
+              pendingCount === 1
+                ? "1 pending booking needs your response"
+                : `${pendingCount} pending bookings need your response`,
+            tone: "amber",
+            time: "Live",
+            unread: true,
+          },
+          ...withoutPendingSummary,
+        ];
+      });
     } catch (err) {
       setBookingsError(
         err instanceof Error ? err.message : "Failed to load bookings.",
@@ -547,6 +568,15 @@ export default function VendorDashboard() {
   useEffect(() => {
     if (tab === "bookings") void loadVendorBookings();
   }, [tab, loadVendorBookings]);
+
+  useEffect(() => {
+    if (!token) return;
+    void loadVendorBookings();
+    const interval = window.setInterval(() => {
+      void loadVendorBookings();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [loadVendorBookings, token]);
 
   const handleBookingStatusChange = async (id: number, status: string) => {
     if (!token) return;
