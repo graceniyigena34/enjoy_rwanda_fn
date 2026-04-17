@@ -4,7 +4,9 @@ import { restaurants } from "../../data/mockData";
 import {
   createBooking,
   getMenuItems,
+  getTableConfigurations,
   type MenuItemRecord,
+  type TableConfigRecord,
 } from "../../utils/api";
 import PhoneNumberInput, {
   splitInternationalPhone,
@@ -27,6 +29,9 @@ export default function RestaurantDetail() {
   const restaurant = restaurants.find((r) => r.id === businessId);
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
+  const [tableStep, setTableStep] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<TableConfigRecord | null>(null);
+  const [tableConfigs, setTableConfigs] = useState<TableConfigRecord[]>([]);
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -46,6 +51,34 @@ export default function RestaurantDetail() {
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
+
+  const [tableSearch, setTableSearch] = useState("");
+  const [tableLoading, setTableLoading] = useState(true);
+
+  const filteredTables = useMemo(
+    () => tableConfigs.filter((t) =>
+      t.table_of_people.toLowerCase().includes(tableSearch.toLowerCase()) ||
+      String(t.price).includes(tableSearch)
+    ),
+    [tableConfigs, tableSearch]
+  );
+
+  useEffect(() => {
+    setTableLoading(true);
+    void getTableConfigurations(businessId)
+      .then(setTableConfigs)
+      .catch(() => {
+        setTableConfigs([
+          { id: 1, business_id: businessId, table_of_people: "2", price: 2000 },
+          { id: 2, business_id: businessId, table_of_people: "4", price: 3500 },
+          { id: 3, business_id: businessId, table_of_people: "6", price: 5000 },
+          { id: 4, business_id: businessId, table_of_people: "8", price: 7000 },
+          { id: 5, business_id: businessId, table_of_people: "10", price: 9000 },
+          { id: 6, business_id: businessId, table_of_people: "15", price: 12000 },
+        ]);
+      })
+      .finally(() => setTableLoading(false));
+  }, [businessId]);
 
   if (!restaurant)
     return (
@@ -320,6 +353,105 @@ export default function RestaurantDetail() {
       {/* BOOKING */}
       {activeTab === "book" && (
         <div>
+          {!tableStep ? (
+            /* ── Step 1: Pick a table ── */
+            <div className="max-w-xl mx-auto">
+              <div className="mb-5">
+                <h2 className="text-2xl font-black text-gray-900">Reserve a Table</h2>
+                <p className="text-sm text-gray-500 mt-1">Choose your table size — each option includes a reserved seat price.</p>
+              </div>
+
+              {/* Search */}
+              <div className="relative mb-5">
+                <input
+                  type="text"
+                  placeholder="Search by table size or price..."
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pl-10 text-sm outline-none focus:border-[#1a1a2e]"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                {tableSearch && (
+                  <button onClick={() => setTableSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                )}
+              </div>
+
+              {/* Loading */}
+              {tableLoading && (
+                <p className="text-center text-sm text-gray-400 py-6">Loading tables...</p>
+              )}
+
+              {/* No results */}
+              {!tableLoading && filteredTables.length === 0 && (
+                <p className="text-center text-sm text-gray-400 py-6">
+                  {tableSearch ? `No tables matching "${tableSearch}"` : "No tables configured for this restaurant."}
+                </p>
+              )}
+
+              {/* Table cards */}
+              {!tableLoading && filteredTables.length > 0 && (
+                <>
+                  <p className="text-xs text-gray-400 mb-3">{filteredTables.length} table{filteredTables.length !== 1 ? "s" : ""} available</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                    {filteredTables.map((table) => {
+                      const isSelected = selectedTable?.id === table.id;
+                      return (
+                        <button
+                          key={table.id}
+                          type="button"
+                          onClick={() => setSelectedTable(table)}
+                          className={`relative flex flex-col items-center gap-1.5 rounded-2xl border-2 p-4 transition-all ${
+                            isSelected
+                              ? "border-[#1a1a2e] bg-[#1a1a2e] text-white shadow-lg scale-[1.03]"
+                              : "border-gray-200 bg-white text-gray-700 hover:border-[#1a1a2e]/50 hover:shadow-sm"
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#1a1a2e] text-xs font-black">✓</span>
+                          )}
+                          <span className="text-xs uppercase tracking-widest font-semibold opacity-60">Table of</span>
+                          <span className="text-2xl font-black">{table.table_of_people}</span>
+                          <span className={`text-sm font-bold mt-1 ${isSelected ? "text-white" : "text-[#1a1a2e]"}`}>
+                            {Number(table.price).toLocaleString()} RWF
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Selection summary */}
+              {selectedTable && (
+                <div className="rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-4 mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-gray-400 mb-0.5">Your selection</p>
+                    <p className="font-bold text-gray-900">Table of {selectedTable.table_of_people}</p>
+                    <p className="text-sm text-[#1a1a2e] font-semibold">{Number(selectedTable.price).toLocaleString()} RWF reservation fee</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedTable(null)} className="text-xs text-gray-400 hover:text-gray-700 underline">Clear</button>
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={!selectedTable}
+                onClick={() => setTableStep(true)}
+                className="w-full bg-[#1a1a2e] !text-white py-3.5 rounded-xl font-bold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continue to Booking &rarr;
+              </button>
+            </div>
+          ) : (
+            /* ── Step 2: Booking form ── */
+            <div>
+              {/* Selected table banner */}
+              <div className="mb-5 flex items-center justify-between rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-3">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-400">Reserved Table</p>
+                  <p className="font-bold text-gray-900 text-sm">Table of {selectedTable?.table_of_people} &mdash; {Number(selectedTable?.price).toLocaleString()} RWF</p>
+                </div>
+                <button type="button" onClick={() => setTableStep(false)} className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2">Change table</button>
+              </div>
           {bookingSaved ? (
             <div className="text-center py-12">
               <div className="text-5xl mb-4">📋</div>
@@ -452,6 +584,8 @@ export default function RestaurantDetail() {
                 Save & Continue
               </button>
             </form>
+          )}
+            </div>
           )}
         </div>
       )}

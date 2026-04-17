@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import ReservationPage from "./ReservationPage";
 import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
@@ -30,6 +31,7 @@ type Tab =
   | "catalog"
   | "orders"
   | "bookings"
+  | "reservation"
   | "analytics"
   | "settings";
 type Timeframe = "Weekly" | "Monthly" | "Quarterly";
@@ -877,6 +879,7 @@ export default function VendorDashboard() {
     { value: "catalog", label: catalogLabel },
     { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
     { value: "bookings", label: "Bookings" },
+    { value: "reservation", label: "Reservation" },
     { value: "analytics", label: "Analytics" },
     ...(user?.role !== "manager"
       ? [{ value: "settings" as const, label: "Settings" }]
@@ -2834,6 +2837,8 @@ export default function VendorDashboard() {
                 </SectionCard>
               </section>
             )}
+
+            {tab === "reservation" && <ReservationPage />}
 
             {tab === "bookings" && (
               <section className="space-y-6">
