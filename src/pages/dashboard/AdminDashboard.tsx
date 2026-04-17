@@ -4,14 +4,17 @@ import { useApp, hasRole } from "../../context/AppContext";
 import {
   createRestaurantType,
   deleteRestaurantType,
+  deleteBusinessSupportingDocumentByBusinessId,
   updateRestaurantType,
   createShopType,
   deleteShopType,
   getAdminUsers,
+  getBusinessProfileById,
   getBusinessProfiles,
   getRestaurantTypes,
   getShopTypes,
   getVendorApplications,
+  uploadBusinessSupportingDocumentsByBusinessId,
   setBusinessVerification,
   reviewVendorApplication,
   updateShopType,
@@ -19,8 +22,16 @@ import {
   type BusinessProfileRecord,
   type RestaurantTypeRecord,
   type ShopTypeRecord,
+  type SupportingDocumentInput,
   type VendorApplicationRecord,
 } from "../../utils/api";
+
+type SupportingDocumentDraft = {
+  id: string;
+  file: File;
+  documentType: string;
+  description: string;
+};
 
 type Tab = "overview" | "users" | "vendors" | "reports";
 
@@ -49,6 +60,15 @@ export default function AdminDashboard() {
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
     null,
   );
+  const [selectedBusinessDetails, setSelectedBusinessDetails] =
+    useState<BusinessProfileRecord | null>(null);
+  const [adminSupportingDocuments, setAdminSupportingDocuments] = useState<
+    SupportingDocumentDraft[]
+  >([]);
+  const [isUploadingBusinessDocs, setIsUploadingBusinessDocs] = useState(false);
+  const [isDeletingBusinessDocId, setIsDeletingBusinessDocId] = useState<
+    number | null
+  >(null);
   const [isTogglingBusinessId, setIsTogglingBusinessId] = useState<
     number | null
   >(null);
@@ -105,6 +125,8 @@ export default function AdminDashboard() {
           ) ?? null),
     [selectedBusinessId, businessProfiles],
   );
+
+  const selectedBusinessForModal = selectedBusinessDetails ?? selectedBusiness;
 
   const getApplicationChecklist = (application: VendorApplicationRecord) => {
     const payloadInput = application.payload;
@@ -236,6 +258,39 @@ export default function AdminDashboard() {
       mounted = false;
     };
   }, [token]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSelectedBusiness = async () => {
+      if (!token || selectedBusinessId === null) {
+        if (active) {
+          setSelectedBusinessDetails(null);
+          setAdminSupportingDocuments([]);
+        }
+        return;
+      }
+
+      try {
+        const details = await getBusinessProfileById(token, selectedBusinessId);
+        if (!active) return;
+        setSelectedBusinessDetails(details);
+      } catch (error) {
+        if (!active) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load business profile details.",
+        );
+      }
+    };
+
+    void loadSelectedBusiness();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedBusinessId, token]);
 
   const pendingApprovals = pendingApplications;
   const approvedVendors = businessProfiles.filter(
@@ -500,6 +555,109 @@ export default function AdminDashboard() {
   const startEditingShopType = (shopType: ShopTypeRecord) => {
     setEditingShopTypeId(shopType.id);
     setEditingShopName(shopType.shop_type);
+  };
+
+  const addAdminSupportingDocuments = (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const nextDocs = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      documentType: "OTHER",
+      description: "",
+    }));
+
+    setAdminSupportingDocuments((current) => [...current, ...nextDocs]);
+  };
+
+  const updateAdminSupportingDocument = (
+    id: string,
+    updates: Partial<
+      Pick<SupportingDocumentDraft, "documentType" | "description">
+    >,
+  ) => {
+    setAdminSupportingDocuments((current) =>
+      current.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc)),
+    );
+  };
+
+  const removeAdminSupportingDocument = (id: string) => {
+    setAdminSupportingDocuments((current) =>
+      current.filter((doc) => doc.id !== id),
+    );
+  };
+
+  const handleUploadBusinessDocuments = async () => {
+    if (
+      !token ||
+      selectedBusinessId === null ||
+      adminSupportingDocuments.length === 0
+    )
+      return;
+
+    try {
+      setLoadError(null);
+      setIsUploadingBusinessDocs(true);
+      const docs = adminSupportingDocuments.map(
+        (doc): SupportingDocumentInput => ({
+          file: doc.file,
+          documentType: doc.documentType,
+          description: doc.description,
+        }),
+      );
+      const uploaded = await uploadBusinessSupportingDocumentsByBusinessId(
+        token,
+        selectedBusinessId,
+        docs,
+      );
+      setSelectedBusinessDetails((current) =>
+        current
+          ? {
+              ...current,
+              supporting_documents: uploaded,
+            }
+          : current,
+      );
+      setAdminSupportingDocuments([]);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to upload supporting documents.",
+      );
+    } finally {
+      setIsUploadingBusinessDocs(false);
+    }
+  };
+
+  const handleDeleteBusinessDocument = async (documentId: number) => {
+    if (!token || selectedBusinessId === null) return;
+
+    try {
+      setLoadError(null);
+      setIsDeletingBusinessDocId(documentId);
+      const documents = await deleteBusinessSupportingDocumentByBusinessId(
+        token,
+        selectedBusinessId,
+        documentId,
+      );
+      setSelectedBusinessDetails((current) =>
+        current
+          ? {
+              ...current,
+              supporting_documents: documents,
+            }
+          : current,
+      );
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete supporting document.",
+      );
+    } finally {
+      setIsDeletingBusinessDocId(null);
+    }
   };
 
   if (!user || (!hasRole(user, "admin") && user.role !== "admin"))
@@ -1691,7 +1849,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {selectedBusiness && (
+          {selectedBusinessForModal && (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
               <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
                 <div className="flex items-start justify-between gap-4">
@@ -1700,10 +1858,10 @@ export default function AdminDashboard() {
                       Business profile
                     </p>
                     <h3 className="mt-2 text-xl font-black text-slate-900">
-                      {selectedBusiness.business_name}
+                      {selectedBusinessForModal.business_name}
                     </h3>
                     <p className="text-sm text-slate-500">
-                      {selectedBusiness.business_type ?? "Type not set"}
+                      {selectedBusinessForModal.business_type ?? "Type not set"}
                     </p>
                   </div>
                   <button
@@ -1721,26 +1879,26 @@ export default function AdminDashboard() {
                     <div className="space-y-2 text-sm text-slate-700">
                       <p>
                         <span className="text-slate-500">Name:</span>{" "}
-                        {selectedBusiness.owner_name ?? "-"}
+                        {selectedBusinessForModal.owner_name ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Email:</span>{" "}
-                        {selectedBusiness.owner_email ?? "-"}
+                        {selectedBusinessForModal.owner_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Phone:</span>{" "}
-                        {selectedBusiness.owner_phone ?? "-"}
+                        {selectedBusinessForModal.owner_phone ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Verification:</span>{" "}
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            selectedBusiness.is_verified
+                            selectedBusinessForModal.is_verified
                               ? "bg-green-50 text-green-700"
                               : "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {selectedBusiness.is_verified
+                          {selectedBusinessForModal.is_verified
                             ? "Verified"
                             : "Not verified"}
                         </span>
@@ -1753,33 +1911,33 @@ export default function AdminDashboard() {
                     <div className="space-y-2 text-sm text-slate-700">
                       <p>
                         <span className="text-slate-500">Location:</span>{" "}
-                        {selectedBusiness.location ?? "-"}
+                        {selectedBusinessForModal.location ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Business email:</span>{" "}
-                        {selectedBusiness.business_email ?? "-"}
+                        {selectedBusinessForModal.business_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Business phone:</span>{" "}
-                        {selectedBusiness.business_phone ?? "-"}
+                        {selectedBusinessForModal.business_phone ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Manager:</span>{" "}
-                        {selectedBusiness.manager_name ?? "-"}
+                        {selectedBusinessForModal.manager_name ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Manager email:</span>{" "}
-                        {selectedBusiness.manager_email ?? "-"}
+                        {selectedBusinessForModal.manager_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Opening hours:</span>{" "}
-                        {selectedBusiness.opening_hours ?? "-"}
+                        {selectedBusinessForModal.opening_hours ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Opening days:</span>{" "}
-                        {Array.isArray(selectedBusiness.opening_days)
-                          ? selectedBusiness.opening_days.join(", ")
-                          : (selectedBusiness.opening_days ?? "-")}
+                        {Array.isArray(selectedBusinessForModal.opening_days)
+                          ? selectedBusinessForModal.opening_days.join(", ")
+                          : (selectedBusinessForModal.opening_days ?? "-")}
                       </p>
                     </div>
                   </div>
@@ -1790,7 +1948,7 @@ export default function AdminDashboard() {
                     Description & files
                   </h4>
                   <p className="mb-4 text-sm text-slate-700">
-                    {selectedBusiness.business_description ??
+                    {selectedBusinessForModal.business_description ??
                       "No description provided."}
                   </p>
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -1798,10 +1956,10 @@ export default function AdminDashboard() {
                       <p className="text-xs uppercase tracking-wide text-slate-500">
                         Profile image
                       </p>
-                      {selectedBusiness.business_profile_image ? (
+                      {selectedBusinessForModal.business_profile_image ? (
                         <a
                           className="mt-1 block font-semibold text-slate-900 hover:underline"
-                          href={selectedBusiness.business_profile_image}
+                          href={selectedBusinessForModal.business_profile_image}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1815,10 +1973,10 @@ export default function AdminDashboard() {
                       <p className="text-xs uppercase tracking-wide text-slate-500">
                         RDB certificate
                       </p>
-                      {selectedBusiness.rdb_certificate ? (
+                      {selectedBusinessForModal.rdb_certificate ? (
                         <a
                           className="mt-1 block font-semibold text-slate-900 hover:underline"
-                          href={selectedBusiness.rdb_certificate}
+                          href={selectedBusinessForModal.rdb_certificate}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1828,6 +1986,145 @@ export default function AdminDashboard() {
                         <p className="mt-1 text-slate-400">Not uploaded</p>
                       )}
                     </div>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="font-bold text-slate-900">
+                        Supporting documents
+                      </h4>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                        {
+                          (selectedBusinessForModal.supporting_documents ?? [])
+                            .length
+                        }
+                      </span>
+                    </div>
+
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*,.doc,.docx"
+                      onChange={(event) => {
+                        addAdminSupportingDocuments(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                      className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+
+                    {adminSupportingDocuments.length > 0 && (
+                      <div className="mb-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        {adminSupportingDocuments.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[2fr_1fr_auto]"
+                          >
+                            <div className="space-y-1">
+                              <p className="truncate text-sm font-medium text-slate-800">
+                                {doc.file.name}
+                              </p>
+                              <input
+                                value={doc.description}
+                                onChange={(event) =>
+                                  updateAdminSupportingDocument(doc.id, {
+                                    description: event.target.value,
+                                  })
+                                }
+                                placeholder="Description (optional)"
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                              />
+                            </div>
+                            <select
+                              value={doc.documentType}
+                              onChange={(event) =>
+                                updateAdminSupportingDocument(doc.id, {
+                                  documentType: event.target.value,
+                                })
+                              }
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                            >
+                              <option value="OTHER">OTHER</option>
+                              <option value="NID">NID</option>
+                              <option value="LICENSE">LICENSE</option>
+                              <option value="TAX_CERTIFICATE">
+                                TAX_CERTIFICATE
+                              </option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeAdminSupportingDocument(doc.id)
+                              }
+                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => void handleUploadBusinessDocuments()}
+                          disabled={isUploadingBusinessDocs}
+                          className="rounded-lg bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isUploadingBusinessDocs
+                            ? "Uploading..."
+                            : "Upload new documents"}
+                        </button>
+                      </div>
+                    )}
+
+                    {(selectedBusinessForModal.supporting_documents ?? [])
+                      .length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        No supporting documents uploaded yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {(
+                          selectedBusinessForModal.supporting_documents ?? []
+                        ).map((doc) => (
+                          <li
+                            key={doc.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-800">
+                                {doc.document_type || "OTHER"}
+                              </p>
+                              {doc.description && (
+                                <p className="text-slate-500">
+                                  {doc.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <a
+                                className="font-semibold text-slate-900 underline"
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleDeleteBusinessDocument(doc.id)
+                                }
+                                disabled={isDeletingBusinessDocId === doc.id}
+                                className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isDeletingBusinessDocId === doc.id
+                                  ? "Removing..."
+                                  : "Delete"}
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>

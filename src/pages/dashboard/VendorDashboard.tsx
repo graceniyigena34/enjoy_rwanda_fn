@@ -478,6 +478,12 @@ export default function VendorDashboard() {
   const [deletingSavedDocumentId, setDeletingSavedDocumentId] = useState<
     number | null
   >(null);
+  const [supportingDocsSubmitting, setSupportingDocsSubmitting] =
+    useState(false);
+  const [supportingDocsMessage, setSupportingDocsMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
@@ -1281,14 +1287,87 @@ export default function VendorDashboard() {
       setSavedSupportingDocuments((current) =>
         current.filter((doc) => doc.id !== documentId),
       );
+      setSupportingDocsMessage({
+        type: "success",
+        text: "Supporting document deleted.",
+      });
     } catch (error) {
       setOnboardingError(
         error instanceof Error
           ? error.message
           : "Unable to delete supporting document.",
       );
+      setSupportingDocsMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Unable to delete supporting document.",
+      });
     } finally {
       setDeletingSavedDocumentId(null);
+    }
+  };
+
+  const uploadSupportingDocumentsFromSettings = async () => {
+    if (!token) {
+      setSupportingDocsMessage({
+        type: "error",
+        text: "You must be signed in to upload documents.",
+      });
+      return;
+    }
+
+    if (supportingDocuments.length === 0) {
+      setSupportingDocsMessage({
+        type: "error",
+        text: "Select at least one document to upload.",
+      });
+      return;
+    }
+
+    setSupportingDocsSubmitting(true);
+    setSupportingDocsMessage(null);
+
+    try {
+      const payload = {
+        businessName: business.businessName.trim(),
+        businessType: business.businessType,
+        businessDescription: business.description.trim(),
+        location: business.location.trim(),
+        businessPhone: business.businessPhone.trim(),
+        businessEmail: business.businessEmail.trim(),
+        openingHours: business.openingHours.trim(),
+        openingDays: business.openingDays,
+        managerName: business.managerName.trim(),
+        managerEmail: business.managerEmail.trim(),
+        businessProfileImageFile: null,
+        rdbCertificateFile: null,
+        additionalDocuments: supportingDocuments.map(
+          (doc): SupportingDocumentInput => ({
+            file: doc.file,
+            documentType: doc.documentType,
+            description: doc.description,
+          }),
+        ),
+      };
+
+      const result = await updateMyBusinessProfile(token, payload);
+      applyBusinessProfile(result);
+      setSupportingDocsMessage({
+        type: "success",
+        text: "Supporting documents uploaded successfully.",
+      });
+    } catch (error) {
+      setSupportingDocsMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to upload supporting documents.",
+      });
+    } finally {
+      setSupportingDocsSubmitting(false);
     }
   };
 
@@ -3719,6 +3798,157 @@ export default function VendorDashboard() {
                   title="Manage Managers"
                   subtitle="Add, update, and delete managers in a table view"
                 >
+                  <div className="mb-6 space-y-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Supporting documents
+                      </p>
+                      <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                        Upload, view, and delete files
+                      </h4>
+                    </div>
+
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*,.doc,.docx"
+                      onChange={(event) => {
+                        addSupportingDocuments(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-white/5"
+                    />
+
+                    {supportingDocuments.length > 0 && (
+                      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                        {supportingDocuments.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="grid gap-2 rounded-lg border border-slate-200 p-2 dark:border-white/10 sm:grid-cols-[2fr_1fr_auto]"
+                          >
+                            <div className="space-y-1">
+                              <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                                {doc.file.name}
+                              </p>
+                              <input
+                                value={doc.description}
+                                onChange={(event) =>
+                                  updateSupportingDocument(doc.id, {
+                                    description: event.target.value,
+                                  })
+                                }
+                                placeholder="Description (optional)"
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-white/5"
+                              />
+                            </div>
+
+                            <select
+                              value={doc.documentType}
+                              onChange={(event) =>
+                                updateSupportingDocument(doc.id, {
+                                  documentType: event.target.value,
+                                })
+                              }
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-white/5"
+                            >
+                              <option value="OTHER">OTHER</option>
+                              <option value="NID">NID</option>
+                              <option value="LICENSE">LICENSE</option>
+                              <option value="TAX_CERTIFICATE">
+                                TAX_CERTIFICATE
+                              </option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => removeSupportingDocument(doc.id)}
+                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 dark:border-rose-400/40 dark:text-rose-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void uploadSupportingDocumentsFromSettings()
+                          }
+                          disabled={supportingDocsSubmitting}
+                          className="rounded-lg bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {supportingDocsSubmitting
+                            ? "Uploading..."
+                            : "Upload supporting documents"}
+                        </button>
+                      </div>
+                    )}
+
+                    {savedSupportingDocuments.length === 0 ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No supporting documents uploaded yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {savedSupportingDocuments.map((doc) => {
+                          const href =
+                            resolveMediaUrl(doc.file_url) || doc.file_url;
+                          return (
+                            <li
+                              key={doc.id}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-white/10 dark:bg-white/5"
+                            >
+                              <div>
+                                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {doc.document_type || "OTHER"}
+                                </p>
+                                {doc.description && (
+                                  <p className="text-slate-500 dark:text-slate-400">
+                                    {doc.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void removeSavedSupportingDocument(doc.id)
+                                  }
+                                  disabled={deletingSavedDocumentId === doc.id}
+                                  className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/40 dark:text-rose-300"
+                                >
+                                  {deletingSavedDocumentId === doc.id
+                                    ? "Removing..."
+                                    : "Delete"}
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    {supportingDocsMessage && (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-medium ${
+                          supportingDocsMessage.type === "success"
+                            ? "bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]"
+                            : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                        }`}
+                      >
+                        {supportingDocsMessage.text}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <input

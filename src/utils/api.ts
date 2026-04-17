@@ -306,6 +306,14 @@ export async function getBusinessProfiles() {
   return [];
 }
 
+export async function getBusinessProfileById(token: string, businessId: number) {
+  return requestJson<BusinessProfileRecord>(`${BASE_URL}/business-profile/${businessId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function setBusinessVerification(
   token: string,
   businessId: number,
@@ -358,6 +366,59 @@ export async function deleteBusinessSupportingDocument(
 ) {
   return requestJson<{ message: string }>(
     `${BASE_URL}/business-profile/me/documents/${documentId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+}
+
+function buildSupportingDocumentsFormData(input: SupportingDocumentInput[]) {
+  const formData = new FormData();
+
+  const types = input.map((doc) => doc.documentType?.trim() || "OTHER");
+  const descriptions = input.map((doc) => doc.description?.trim() || "");
+
+  input.forEach((doc) => {
+    formData.append("additional_documents", doc.file);
+  });
+
+  formData.append("additional_document_types", JSON.stringify(types));
+  formData.append(
+    "additional_document_descriptions",
+    JSON.stringify(descriptions),
+  );
+
+  return formData;
+}
+
+export async function uploadBusinessSupportingDocumentsByBusinessId(
+  token: string,
+  businessId: number,
+  documents: SupportingDocumentInput[],
+) {
+  const res = await fetch(`${BASE_URL}/business-profile/${businessId}/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildSupportingDocumentsFormData(documents),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to upload supporting documents"));
+  return data as BusinessDocumentRecord[];
+}
+
+export async function deleteBusinessSupportingDocumentByBusinessId(
+  token: string,
+  businessId: number,
+  documentId: number,
+) {
+  return requestJson<BusinessDocumentRecord[]>(
+    `${BASE_URL}/business-profile/${businessId}/documents/${documentId}`,
     {
       method: "DELETE",
       headers: {
