@@ -332,14 +332,6 @@ export default function RestaurantDetail() {
                       <label className="text-sm font-medium text-gray-700 block mb-1">Telephone</label>
                       <PhoneNumberInput value={telephone} onChange={setTelephone} required defaultCountryIso2="RW" placeholder="7XXXXXXXX" className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2" />
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 block mb-1">Number of People</label>
-                      <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                        <button type="button" onClick={() => setPeople((p) => Math.max(1, p - 1))} className="px-4 py-2.5 text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
-                        <span className="flex-1 text-center text-sm font-semibold text-gray-900">{people}</span>
-                        <button type="button" onClick={() => setPeople((p) => Math.min(20, p + 1))} className="px-4 py-2.5 text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
-                      </div>
-                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
