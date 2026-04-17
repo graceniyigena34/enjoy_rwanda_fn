@@ -3,15 +3,20 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApp, hasRole } from "../../context/AppContext";
 import {
   createRestaurantType,
+  createShopType,
+  deleteShopType,
   getAdminUsers,
   getBusinessProfiles,
   getRestaurantTypes,
+  getShopTypes,
   getVendorApplications,
   setBusinessVerification,
   reviewVendorApplication,
+  updateShopType,
   type AdminUserRecord,
   type BusinessProfileRecord,
   type RestaurantTypeRecord,
+  type ShopTypeRecord,
   type VendorApplicationRecord,
 } from "../../utils/api";
 
@@ -52,6 +57,16 @@ export default function AdminDashboard() {
   >([]);
   const [newRestaurantType, setNewRestaurantType] = useState("");
   const [isAddingRestaurantType, setIsAddingRestaurantType] = useState(false);
+  const [shopTypes, setShopTypes] = useState<ShopTypeRecord[]>([]);
+  const [newShopType, setNewShopType] = useState("");
+  const [isAddingShopType, setIsAddingShopType] = useState(false);
+  const [editingShopTypeId, setEditingShopTypeId] = useState<number | null>(
+    null,
+  );
+  const [editingShopName, setEditingShopName] = useState("");
+  const [isDeletingShopTypeId, setIsDeletingShopTypeId] = useState<
+    number | null
+  >(null);
 
   const handleSignOut = () => {
     logout();
@@ -180,11 +195,13 @@ export default function AdminDashboard() {
           businessesData,
           applicationsData,
           restaurantTypesData,
+          shopTypesData,
         ] = await Promise.all([
           getAdminUsers(token),
           getBusinessProfiles(),
           getVendorApplications(token),
           getRestaurantTypes(token),
+          getShopTypes(token),
         ]);
 
         if (!mounted) return;
@@ -192,6 +209,7 @@ export default function AdminDashboard() {
         setBusinessProfiles(businessesData);
         setVendorApplications(applicationsData);
         setRestaurantTypes(restaurantTypesData);
+        setShopTypes(shopTypesData);
       } catch (error) {
         if (!mounted) return;
         setLoadError(
@@ -317,6 +335,96 @@ export default function AdminDashboard() {
     } finally {
       setIsAddingRestaurantType(false);
     }
+  };
+
+  const handleAddShopType = async () => {
+    if (!token) return;
+
+    const value = newShopType.trim();
+    if (!value) {
+      setLoadError("Shop type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      setIsAddingShopType(true);
+      const created = await createShopType(token, value);
+      setShopTypes((current) => {
+        const next = [created, ...current];
+        next.sort((a, b) =>
+          a.shop_type.localeCompare(b.shop_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setNewShopType("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to add shop type.",
+      );
+    } finally {
+      setIsAddingShopType(false);
+    }
+  };
+
+  const handleEditShopType = async () => {
+    if (!token || editingShopTypeId === null) return;
+
+    const value = editingShopName.trim();
+    if (!value) {
+      setLoadError("Shop type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      const updated = await updateShopType(token, editingShopTypeId, value);
+      setShopTypes((current) => {
+        const next = current.map((item) =>
+          item.id === editingShopTypeId ? updated : item,
+        );
+        next.sort((a, b) =>
+          a.shop_type.localeCompare(b.shop_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setEditingShopTypeId(null);
+      setEditingShopName("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to update shop type.",
+      );
+    }
+  };
+
+  const handleDeleteShopType = async (id: number) => {
+    if (
+      !token ||
+      !window.confirm("Are you sure you want to delete this shop type?")
+    )
+      return;
+
+    try {
+      setLoadError(null);
+      setIsDeletingShopTypeId(id);
+      await deleteShopType(token, id);
+      setShopTypes((current) => current.filter((item) => item.id !== id));
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to delete shop type.",
+      );
+    } finally {
+      setIsDeletingShopTypeId(null);
+    }
+  };
+
+  const startEditingShopType = (shopType: ShopTypeRecord) => {
+    setEditingShopTypeId(shopType.id);
+    setEditingShopName(shopType.shop_type);
   };
 
   if (!user || (!hasRole(user, "admin") && user.role !== "admin"))
@@ -667,6 +775,106 @@ export default function AdminDashboard() {
                         {item.restaurant_type}
                       </span>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900">Shop Types</h3>
+                    <p className="text-sm text-slate-500">
+                      Add options used in vendor onboarding for shop
+                      categorization.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {shopTypes.length} type
+                    {shopTypes.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <input
+                    value={newShopType}
+                    onChange={(event) => setNewShopType(event.target.value)}
+                    placeholder="e.g. Electronics"
+                    className="min-w-[240px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddShopType()}
+                    disabled={isAddingShopType}
+                    className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAddingShopType ? "Adding..." : "Add Type"}
+                  </button>
+                </div>
+
+                {shopTypes.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No shop types found yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {shopTypes.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200"
+                      >
+                        <span className="text-sm font-medium text-slate-900">
+                          {item.shop_type}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEditingShopType(item)}
+                            className="text-xs px-3 py-1 rounded-lg border border-slate-300 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteShopType(item.id)}
+                            disabled={isDeletingShopTypeId === item.id}
+                            className="text-xs px-3 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 font-medium disabled:opacity-50"
+                          >
+                            {isDeletingShopTypeId === item.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {editingShopTypeId !== null && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-200">
+                    <p className="text-sm text-blue-900 mb-3 font-semibold">
+                      Edit Shop Type
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        value={editingShopName}
+                        onChange={(e) => setEditingShopName(e.target.value)}
+                        placeholder="Enter shop type name"
+                        className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => void handleEditShopType()}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingShopTypeId(null);
+                          setEditingShopName("");
+                        }}
+                        className="bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

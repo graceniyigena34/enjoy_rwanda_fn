@@ -127,6 +127,11 @@ export interface RestaurantTypeRecord {
   restaurant_type: string;
 }
 
+export interface ShopTypeRecord {
+  id: number;
+  shop_type: string;
+}
+
 export interface BusinessManagerRecord {
   manager_id: number;
   business_id: number;
@@ -475,5 +480,44 @@ export async function createRestaurantType(token: string, restaurantType: string
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ restaurant_type: restaurantType }),
+  });
+}
+
+export async function getShopTypes(token: string) {
+  return requestJson<ShopTypeRecord[]>(`${BASE_URL}/vendor/shop-types`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createShopType(token: string, shopType: string) {
+  return requestJson<ShopTypeRecord>(`${BASE_URL}/vendor/shop-types`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ shop_type: shopType }),
+  });
+}
+
+export async function updateShopType(token: string, id: number, shopType: string) {
+  return requestJson<ShopTypeRecord>(`${BASE_URL}/vendor/shop-types/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ shop_type: shopType }),
+  });
+}
+
+export async function deleteShopType(token: string, id: number) {
+  return requestJson<{ message: string }>(`${BASE_URL}/vendor/shop-types/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 }
