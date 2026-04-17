@@ -62,6 +62,9 @@ type BusinessInfo = {
   businessType: BusinessType;
   location: string;
   openingHours: string;
+  closingHours: string;
+  weekendOpeningHours: string;
+  weekendClosingHours: string;
   openingDays: string[];
   businessPhone: string;
   businessEmail: string;
@@ -171,6 +174,9 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     businessType,
     location: "",
     openingHours: "",
+    closingHours: "",
+    weekendOpeningHours: "",
+    weekendClosingHours: "",
     openingDays: [],
     businessPhone: "",
     businessEmail: "",
@@ -424,9 +430,10 @@ export default function VendorDashboard() {
   const [profile, setProfile] = useState<ProfileInfo>(
     () => storedState?.profile ?? initialSeed.profile,
   );
-  const [business, setBusiness] = useState<BusinessInfo>(
-    () => storedState?.business ?? initialSeed.business,
-  );
+  const [business, setBusiness] = useState<BusinessInfo>(() => ({
+    ...initialSeed.business,
+    ...(storedState?.business ?? {}),
+  }));
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>(
     () => storedState?.catalogItems ?? initialSeed.catalogItems,
   );
@@ -803,6 +810,11 @@ export default function VendorDashboard() {
       businessType,
       location: record.location || seed.business.location,
       openingHours: record.opening_hours || seed.business.openingHours,
+      closingHours: record.closing_hours || seed.business.closingHours,
+      weekendOpeningHours:
+        record.weekend_opening_hours || seed.business.weekendOpeningHours,
+      weekendClosingHours:
+        record.weekend_closing_hours || seed.business.weekendClosingHours,
       openingDays: normalizeOpeningDays(record.opening_days),
       businessPhone: record.business_phone || "",
       businessEmail: record.business_email || "",
@@ -1081,6 +1093,7 @@ export default function VendorDashboard() {
       business.managerName.trim().length > 0 &&
       business.managerEmail.trim().length > 0 &&
       business.openingHours.trim().length > 0 &&
+      business.closingHours.trim().length > 0 &&
       business.openingDays.length > 0 &&
       Boolean(business.businessProfileImage) &&
       Boolean(business.rdbCertificate),
@@ -1338,6 +1351,9 @@ export default function VendorDashboard() {
         businessPhone: business.businessPhone.trim(),
         businessEmail: business.businessEmail.trim(),
         openingHours: business.openingHours.trim(),
+        closingHours: business.closingHours.trim(),
+        weekendOpeningHours: business.weekendOpeningHours.trim(),
+        weekendClosingHours: business.weekendClosingHours.trim(),
         openingDays: business.openingDays,
         managerName: business.managerName.trim(),
         managerEmail: business.managerEmail.trim(),
@@ -1393,6 +1409,7 @@ export default function VendorDashboard() {
     if (step === 3) {
       return (
         business.openingHours.trim().length > 0 &&
+        business.closingHours.trim().length > 0 &&
         business.openingDays.length > 0
       );
     }
@@ -1439,6 +1456,9 @@ export default function VendorDashboard() {
         businessPhone: business.businessPhone.trim(),
         businessEmail: business.businessEmail.trim(),
         openingHours: business.openingHours.trim(),
+        closingHours: business.closingHours.trim(),
+        weekendOpeningHours: business.weekendOpeningHours.trim(),
+        weekendClosingHours: business.weekendClosingHours.trim(),
         openingDays: business.openingDays,
         managerName: business.managerName.trim(),
         managerEmail: business.managerEmail.trim(),
@@ -1479,6 +1499,9 @@ export default function VendorDashboard() {
       businessName: seed.business.businessName,
       location: seed.business.location,
       openingHours: seed.business.openingHours,
+      closingHours: seed.business.closingHours,
+      weekendOpeningHours: seed.business.weekendOpeningHours,
+      weekendClosingHours: seed.business.weekendClosingHours,
       openingDays: seed.business.openingDays,
       businessPhone: seed.business.businessPhone,
       businessEmail: seed.business.businessEmail,
@@ -1946,7 +1969,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 3 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>Opening Hours</span>
+                      <span>Weekday Opening Hour</span>
                       <input
                         type="time"
                         value={business.openingHours}
@@ -1954,6 +1977,48 @@ export default function VendorDashboard() {
                           setBusiness((current) => ({
                             ...current,
                             openingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekday Closing Hour</span>
+                      <input
+                        type="time"
+                        value={business.closingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            closingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekend Opening Hour (optional)</span>
+                      <input
+                        type="time"
+                        value={business.weekendOpeningHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendOpeningHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekend Closing Hour (optional)</span>
+                      <input
+                        type="time"
+                        value={business.weekendClosingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendClosingHours: event.target.value,
                           }))
                         }
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
@@ -3706,14 +3771,63 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
-                        Opening hours
+                        Weekday opening hour
                       </span>
                       <input
+                        type="time"
                         value={business.openingHours}
                         onChange={(event) =>
                           setBusiness((current) => ({
                             ...current,
                             openingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekday closing hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.closingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            closingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekend opening hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.weekendOpeningHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendOpeningHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekend closing hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.weekendClosingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendClosingHours: event.target.value,
                           }))
                         }
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"

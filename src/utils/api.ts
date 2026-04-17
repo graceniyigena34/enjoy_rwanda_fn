@@ -27,6 +27,9 @@ export interface BusinessProfileRecord {
   business_phone: string | null;
   business_email: string | null;
   opening_hours: string | null;
+  closing_hours?: string | null;
+  weekend_opening_hours?: string | null;
+  weekend_closing_hours?: string | null;
   opening_days: string | string[] | null;
   manager_name: string | null;
   manager_email: string | null;
@@ -60,6 +63,9 @@ export type BusinessProfileFormInput = {
   businessPhone: string;
   businessEmail: string;
   openingHours: string;
+  closingHours?: string;
+  weekendOpeningHours?: string;
+  weekendClosingHours?: string;
   openingDays: string[];
   managerName: string;
   managerEmail: string;
@@ -184,6 +190,9 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
   formData.append("business_phone", input.businessPhone);
   formData.append("business_email", input.businessEmail);
   formData.append("opening_hours", input.openingHours);
+  formData.append("closing_hours", input.closingHours ?? "");
+  formData.append("weekend_opening_hours", input.weekendOpeningHours ?? "");
+  formData.append("weekend_closing_hours", input.weekendClosingHours ?? "");
   formData.append("opening_days", JSON.stringify(input.openingDays));
   formData.append("manager_name", input.managerName);
   formData.append("manager_email", input.managerEmail);
