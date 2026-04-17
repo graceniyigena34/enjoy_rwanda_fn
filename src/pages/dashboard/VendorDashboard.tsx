@@ -31,6 +31,7 @@ type Tab =
   | "catalog"
   | "orders"
   | "bookings"
+  | "reservation"
   | "analytics"
   | "settings";
 type Timeframe = "Weekly" | "Monthly" | "Quarterly";
