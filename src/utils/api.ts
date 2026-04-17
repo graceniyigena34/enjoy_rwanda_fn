@@ -27,13 +27,33 @@ export interface BusinessProfileRecord {
   business_phone: string | null;
   business_email: string | null;
   opening_hours: string | null;
+  closing_hours?: string | null;
+  weekend_opening_hours?: string | null;
+  weekend_closing_hours?: string | null;
   opening_days: string | string[] | null;
   manager_name: string | null;
   manager_email: string | null;
   business_profile_image: string | null;
   rdb_certificate: string | null;
+  supporting_documents?: BusinessDocumentRecord[];
   is_verified?: boolean | null;
 }
+
+export interface BusinessDocumentRecord {
+  id: number;
+  business_id: number;
+  document_type: string | null;
+  file_url: string;
+  public_id: string | null;
+  description: string | null;
+  uploaded_at: string;
+}
+
+export type SupportingDocumentInput = {
+  file: File;
+  documentType?: string;
+  description?: string;
+};
 
 export type BusinessProfileFormInput = {
   businessName: string;
@@ -43,11 +63,15 @@ export type BusinessProfileFormInput = {
   businessPhone: string;
   businessEmail: string;
   openingHours: string;
+  closingHours?: string;
+  weekendOpeningHours?: string;
+  weekendClosingHours?: string;
   openingDays: string[];
   managerName: string;
   managerEmail: string;
   businessProfileImageFile?: File | null;
   rdbCertificateFile?: File | null;
+  additionalDocuments?: SupportingDocumentInput[];
 };
 
 export type MenuItemCreateInput = {
@@ -127,6 +151,11 @@ export interface RestaurantTypeRecord {
   restaurant_type: string;
 }
 
+export interface ShopTypeRecord {
+  id: number;
+  shop_type: string;
+}
+
 export interface BusinessManagerRecord {
   manager_id: number;
   business_id: number;
@@ -161,6 +190,9 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
   formData.append("business_phone", input.businessPhone);
   formData.append("business_email", input.businessEmail);
   formData.append("opening_hours", input.openingHours);
+  formData.append("closing_hours", input.closingHours ?? "");
+  formData.append("weekend_opening_hours", input.weekendOpeningHours ?? "");
+  formData.append("weekend_closing_hours", input.weekendClosingHours ?? "");
   formData.append("opening_days", JSON.stringify(input.openingDays));
   formData.append("manager_name", input.managerName);
   formData.append("manager_email", input.managerEmail);
@@ -171,6 +203,25 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
 
   if (input.rdbCertificateFile) {
     formData.append("rdb_certificate", input.rdbCertificateFile);
+  }
+
+  if (input.additionalDocuments?.length) {
+    const types = input.additionalDocuments.map(
+      (doc) => (doc.documentType?.trim() || "OTHER"),
+    );
+    const descriptions = input.additionalDocuments.map(
+      (doc) => doc.description?.trim() || "",
+    );
+
+    input.additionalDocuments.forEach((doc) => {
+      formData.append("additional_documents", doc.file);
+    });
+
+    formData.append("additional_document_types", JSON.stringify(types));
+    formData.append(
+      "additional_document_descriptions",
+      JSON.stringify(descriptions),
+    );
   }
 
   return formData;
@@ -264,6 +315,14 @@ export async function getBusinessProfiles() {
   return [];
 }
 
+export async function getBusinessProfileById(token: string, businessId: number) {
+  return requestJson<BusinessProfileRecord>(`${BASE_URL}/business-profile/${businessId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function setBusinessVerification(
   token: string,
   businessId: number,
@@ -308,6 +367,74 @@ export async function deleteMyManager(token: string) {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export async function deleteBusinessSupportingDocument(
+  token: string,
+  documentId: number,
+) {
+  return requestJson<{ message: string }>(
+    `${BASE_URL}/business-profile/me/documents/${documentId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+}
+
+function buildSupportingDocumentsFormData(input: SupportingDocumentInput[]) {
+  const formData = new FormData();
+
+  const types = input.map((doc) => doc.documentType?.trim() || "OTHER");
+  const descriptions = input.map((doc) => doc.description?.trim() || "");
+
+  input.forEach((doc) => {
+    formData.append("additional_documents", doc.file);
+  });
+
+  formData.append("additional_document_types", JSON.stringify(types));
+  formData.append(
+    "additional_document_descriptions",
+    JSON.stringify(descriptions),
+  );
+
+  return formData;
+}
+
+export async function uploadBusinessSupportingDocumentsByBusinessId(
+  token: string,
+  businessId: number,
+  documents: SupportingDocumentInput[],
+) {
+  const res = await fetch(`${BASE_URL}/business-profile/${businessId}/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildSupportingDocumentsFormData(documents),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to upload supporting documents"));
+  return data as BusinessDocumentRecord[];
+}
+
+export async function deleteBusinessSupportingDocumentByBusinessId(
+  token: string,
+  businessId: number,
+  documentId: number,
+) {
+  return requestJson<BusinessDocumentRecord[]>(
+    `${BASE_URL}/business-profile/${businessId}/documents/${documentId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
 }
 
 export async function getMyManagers(token: string) {
@@ -475,6 +602,65 @@ export async function createRestaurantType(token: string, restaurantType: string
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ restaurant_type: restaurantType }),
+  });
+}
+
+export async function updateRestaurantType(token: string, id: number, restaurantType: string) {
+  return requestJson<RestaurantTypeRecord>(`${BASE_URL}/vendor/restaurant-types/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ restaurant_type: restaurantType }),
+  });
+}
+
+export async function deleteRestaurantType(token: string, id: number) {
+  return requestJson<{ message: string }>(`${BASE_URL}/vendor/restaurant-types/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getShopTypes(token: string) {
+  return requestJson<ShopTypeRecord[]>(`${BASE_URL}/vendor/shop-types`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createShopType(token: string, shopType: string) {
+  return requestJson<ShopTypeRecord>(`${BASE_URL}/vendor/shop-types`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ shop_type: shopType }),
+  });
+}
+
+export async function updateShopType(token: string, id: number, shopType: string) {
+  return requestJson<ShopTypeRecord>(`${BASE_URL}/vendor/shop-types/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ shop_type: shopType }),
+  });
+}
+
+export async function deleteShopType(token: string, id: number) {
+  return requestJson<{ message: string }>(`${BASE_URL}/vendor/shop-types/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 }
 

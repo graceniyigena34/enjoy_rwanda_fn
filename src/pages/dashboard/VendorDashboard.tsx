@@ -6,14 +6,17 @@ import ReservationPage from "./ReservationPage";
 import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
+  type BusinessDocumentRecord,
   createBusinessProfile,
   createManager,
   createMenuItem,
+  deleteBusinessSupportingDocument,
   deleteManager,
   getMenuItems,
   getMyManagers,
   getMyBusinessProfile,
   getRestaurantTypes,
+  getShopTypes,
   getVendorBookings,
   updateBookingStatus,
   updateManager,
@@ -23,6 +26,8 @@ import {
   type BusinessProfileRecord,
   type MenuItemRecord,
   type RestaurantTypeRecord,
+  type ShopTypeRecord,
+  type SupportingDocumentInput,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
@@ -47,11 +52,21 @@ type StoredUpload = {
   previewUrl?: string;
 };
 
+type SupportingDocumentDraft = {
+  id: string;
+  file: File;
+  documentType: string;
+  description: string;
+};
+
 type BusinessInfo = {
   businessName: string;
   businessType: BusinessType;
   location: string;
   openingHours: string;
+  closingHours: string;
+  weekendOpeningHours: string;
+  weekendClosingHours: string;
   openingDays: string[];
   businessPhone: string;
   businessEmail: string;
@@ -161,6 +176,9 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     businessType,
     location: "",
     openingHours: "",
+    closingHours: "",
+    weekendOpeningHours: "",
+    weekendClosingHours: "",
     openingDays: [],
     businessPhone: "",
     businessEmail: "",
@@ -414,9 +432,10 @@ export default function VendorDashboard() {
   const [profile, setProfile] = useState<ProfileInfo>(
     () => storedState?.profile ?? initialSeed.profile,
   );
-  const [business, setBusiness] = useState<BusinessInfo>(
-    () => storedState?.business ?? initialSeed.business,
-  );
+  const [business, setBusiness] = useState<BusinessInfo>(() => ({
+    ...initialSeed.business,
+    ...(storedState?.business ?? {}),
+  }));
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>(
     () => storedState?.catalogItems ?? initialSeed.catalogItems,
   );
@@ -459,6 +478,21 @@ export default function VendorDashboard() {
     businessProfileImage: null,
     rdbCertificate: null,
   });
+  const [supportingDocuments, setSupportingDocuments] = useState<
+    SupportingDocumentDraft[]
+  >([]);
+  const [savedSupportingDocuments, setSavedSupportingDocuments] = useState<
+    BusinessDocumentRecord[]
+  >([]);
+  const [deletingSavedDocumentId, setDeletingSavedDocumentId] = useState<
+    number | null
+  >(null);
+  const [supportingDocsSubmitting, setSupportingDocsSubmitting] =
+    useState(false);
+  const [supportingDocsMessage, setSupportingDocsMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
@@ -481,6 +515,9 @@ export default function VendorDashboard() {
   const [restaurantTypesError, setRestaurantTypesError] = useState<
     string | null
   >(null);
+  const [shopTypes, setShopTypes] = useState<ShopTypeRecord[]>([]);
+  const [shopTypesLoading, setShopTypesLoading] = useState(false);
+  const [shopTypesError, setShopTypesError] = useState<string | null>(null);
   const [managers, setManagers] = useState<BusinessManagerRecord[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
   const [managerSubmitting, setManagerSubmitting] = useState(false);
@@ -775,6 +812,11 @@ export default function VendorDashboard() {
       businessType,
       location: record.location || seed.business.location,
       openingHours: record.opening_hours || seed.business.openingHours,
+      closingHours: record.closing_hours || seed.business.closingHours,
+      weekendOpeningHours:
+        record.weekend_opening_hours || seed.business.weekendOpeningHours,
+      weekendClosingHours:
+        record.weekend_closing_hours || seed.business.weekendClosingHours,
       openingDays: normalizeOpeningDays(record.opening_days),
       businessPhone: record.business_phone || "",
       businessEmail: record.business_email || "",
@@ -798,6 +840,13 @@ export default function VendorDashboard() {
           }
         : undefined,
     });
+    setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+    setSupportingDocuments([]);
+    setSavedSupportingDocuments(
+      Array.isArray(record.supporting_documents)
+        ? record.supporting_documents
+        : [],
+    );
     setCatalogItems(seed.catalogItems);
     setBookings(seed.bookings);
     setOrders(seed.orders);
@@ -1004,6 +1053,38 @@ export default function VendorDashboard() {
     });
   };
 
+  const selectedShopTypes = useMemo(
+    () =>
+      business.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [business.description],
+  );
+
+  const toggleShopType = (typeName: string) => {
+    setBusiness((current) => {
+      const selected = current.description
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const exists = selected.some(
+        (entry) => entry.toLowerCase() === typeName.toLowerCase(),
+      );
+
+      const next = exists
+        ? selected.filter(
+            (entry) => entry.toLowerCase() !== typeName.toLowerCase(),
+          )
+        : [...selected, typeName];
+
+      return {
+        ...current,
+        description: next.join(", "),
+      };
+    });
+  };
+
   const onboardingReady = useMemo(
     () =>
       business.businessName.trim().length > 0 &&
@@ -1015,6 +1096,7 @@ export default function VendorDashboard() {
       business.managerName.trim().length > 0 &&
       business.managerEmail.trim().length > 0 &&
       business.openingHours.trim().length > 0 &&
+      business.closingHours.trim().length > 0 &&
       business.openingDays.length > 0 &&
       Boolean(business.businessProfileImage) &&
       Boolean(business.rdbCertificate),
@@ -1178,6 +1260,136 @@ export default function VendorDashboard() {
     }));
   };
 
+  const addSupportingDocuments = (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const nextDocs = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      documentType: "OTHER",
+      description: "",
+    }));
+
+    setSupportingDocuments((current) => [...current, ...nextDocs]);
+  };
+
+  const updateSupportingDocument = (
+    id: string,
+    updates: Partial<
+      Pick<SupportingDocumentDraft, "documentType" | "description">
+    >,
+  ) => {
+    setSupportingDocuments((current) =>
+      current.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc)),
+    );
+  };
+
+  const removeSupportingDocument = (id: string) => {
+    setSupportingDocuments((current) => current.filter((doc) => doc.id !== id));
+  };
+
+  const removeSavedSupportingDocument = async (documentId: number) => {
+    if (!token) {
+      setOnboardingError(
+        "You must be signed in to manage supporting documents.",
+      );
+      return;
+    }
+
+    setOnboardingError(null);
+    setDeletingSavedDocumentId(documentId);
+    try {
+      await deleteBusinessSupportingDocument(token, documentId);
+      setSavedSupportingDocuments((current) =>
+        current.filter((doc) => doc.id !== documentId),
+      );
+      setSupportingDocsMessage({
+        type: "success",
+        text: "Supporting document deleted.",
+      });
+    } catch (error) {
+      setOnboardingError(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete supporting document.",
+      );
+      setSupportingDocsMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Unable to delete supporting document.",
+      });
+    } finally {
+      setDeletingSavedDocumentId(null);
+    }
+  };
+
+  const uploadSupportingDocumentsFromSettings = async () => {
+    if (!token) {
+      setSupportingDocsMessage({
+        type: "error",
+        text: "You must be signed in to upload documents.",
+      });
+      return;
+    }
+
+    if (supportingDocuments.length === 0) {
+      setSupportingDocsMessage({
+        type: "error",
+        text: "Select at least one document to upload.",
+      });
+      return;
+    }
+
+    setSupportingDocsSubmitting(true);
+    setSupportingDocsMessage(null);
+
+    try {
+      const payload = {
+        businessName: business.businessName.trim(),
+        businessType: business.businessType,
+        businessDescription: business.description.trim(),
+        location: business.location.trim(),
+        businessPhone: business.businessPhone.trim(),
+        businessEmail: business.businessEmail.trim(),
+        openingHours: business.openingHours.trim(),
+        closingHours: business.closingHours.trim(),
+        weekendOpeningHours: business.weekendOpeningHours.trim(),
+        weekendClosingHours: business.weekendClosingHours.trim(),
+        openingDays: business.openingDays,
+        managerName: business.managerName.trim(),
+        managerEmail: business.managerEmail.trim(),
+        businessProfileImageFile: null,
+        rdbCertificateFile: null,
+        additionalDocuments: supportingDocuments.map(
+          (doc): SupportingDocumentInput => ({
+            file: doc.file,
+            documentType: doc.documentType,
+            description: doc.description,
+          }),
+        ),
+      };
+
+      const result = await updateMyBusinessProfile(token, payload);
+      applyBusinessProfile(result);
+      setSupportingDocsMessage({
+        type: "success",
+        text: "Supporting documents uploaded successfully.",
+      });
+    } catch (error) {
+      setSupportingDocsMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to upload supporting documents.",
+      });
+    } finally {
+      setSupportingDocsSubmitting(false);
+    }
+  };
+
   const validateCurrentStep = (step: OnboardingStep) => {
     if (step === 1) {
       return (
@@ -1200,6 +1412,7 @@ export default function VendorDashboard() {
     if (step === 3) {
       return (
         business.openingHours.trim().length > 0 &&
+        business.closingHours.trim().length > 0 &&
         business.openingDays.length > 0
       );
     }
@@ -1246,11 +1459,21 @@ export default function VendorDashboard() {
         businessPhone: business.businessPhone.trim(),
         businessEmail: business.businessEmail.trim(),
         openingHours: business.openingHours.trim(),
+        closingHours: business.closingHours.trim(),
+        weekendOpeningHours: business.weekendOpeningHours.trim(),
+        weekendClosingHours: business.weekendClosingHours.trim(),
         openingDays: business.openingDays,
         managerName: business.managerName.trim(),
         managerEmail: business.managerEmail.trim(),
         businessProfileImageFile: businessFiles.businessProfileImage,
         rdbCertificateFile: businessFiles.rdbCertificate,
+        additionalDocuments: supportingDocuments.map(
+          (doc): SupportingDocumentInput => ({
+            file: doc.file,
+            documentType: doc.documentType,
+            description: doc.description,
+          }),
+        ),
       };
 
       const result = hasRemoteBusinessProfile
@@ -1279,6 +1502,9 @@ export default function VendorDashboard() {
       businessName: seed.business.businessName,
       location: seed.business.location,
       openingHours: seed.business.openingHours,
+      closingHours: seed.business.closingHours,
+      weekendOpeningHours: seed.business.weekendOpeningHours,
+      weekendClosingHours: seed.business.weekendClosingHours,
       openingDays: seed.business.openingDays,
       businessPhone: seed.business.businessPhone,
       businessEmail: seed.business.businessEmail,
@@ -1289,6 +1515,8 @@ export default function VendorDashboard() {
       description: seed.business.description,
     }));
     setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+    setSupportingDocuments([]);
+    setSavedSupportingDocuments([]);
     setBusinessId(null);
     setProfile(seed.profile);
     setCatalogItems(seed.catalogItems);
@@ -1372,6 +1600,35 @@ export default function VendorDashboard() {
     };
 
     void loadRestaurantTypes();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let active = true;
+
+    const loadShopTypes = async () => {
+      setShopTypesLoading(true);
+      setShopTypesError(null);
+      try {
+        const rows = await getShopTypes(token);
+        if (!active) return;
+        setShopTypes(rows);
+      } catch (error) {
+        if (!active) return;
+        setShopTypesError(
+          error instanceof Error ? error.message : "Failed to load shop types.",
+        );
+      } finally {
+        if (active) setShopTypesLoading(false);
+      }
+    };
+
+    void loadShopTypes();
 
     return () => {
       active = false;
@@ -1495,10 +1752,13 @@ export default function VendorDashboard() {
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100">
                 <p className="font-semibold">Account notice</p>
                 <p className="mt-1 leading-6">
-                  The manager name, manager email, and phone number you enter
-                  will be saved to the user table. Your initial password will be
-                  based on the business name using the format
-                  <span className="font-semibold"> business_name@2026#</span>.
+                  The manager account will automatically Created. Your initial
+                  password will be based on the business name using the format
+                  <span className="font-semibold">
+                    {" "}
+                    business_name@2026#
+                  </span>{" "}
+                  and he will login using that email.
                 </p>
               </div>
             </div>
@@ -1511,7 +1771,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>business_name</span>
+                      <span>Business Name</span>
                       <input
                         value={business.businessName}
                         onChange={(event) =>
@@ -1524,7 +1784,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_type</span>
+                      <span>Business Type</span>
                       <select
                         value={business.businessType}
                         onChange={(event) =>
@@ -1540,7 +1800,7 @@ export default function VendorDashboard() {
                       </select>
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>location</span>
+                      <span>Location</span>
                       <input
                         value={business.location}
                         onChange={(event) =>
@@ -1553,47 +1813,96 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>business_description</span>
+                      <span>Business Description</span>
 
-                      {restaurantTypesLoading ? (
-                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                          Loading categories...
-                        </div>
-                      ) : restaurantTypes.length === 0 ? (
-                        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
-                          No categories available yet. Ask admin to add
-                          restaurant types.
-                        </div>
+                      {business.businessType === "Restaurant" ? (
+                        <>
+                          {restaurantTypesLoading ? (
+                            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                              Loading restaurant types...
+                            </div>
+                          ) : restaurantTypes.length === 0 ? (
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                              No restaurant types available yet. Ask admin to
+                              add restaurant types.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              {restaurantTypes.map((item) => {
+                                const checked = selectedRestaurantTypes.some(
+                                  (entry) =>
+                                    entry.toLowerCase() ===
+                                    item.restaurant_type.toLowerCase(),
+                                );
+                                return (
+                                  <label
+                                    key={item.id}
+                                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        toggleRestaurantType(
+                                          item.restaurant_type,
+                                        )
+                                      }
+                                    />
+                                    <span>{item.restaurant_type}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {restaurantTypesError && (
+                            <p className="text-xs text-rose-600 dark:text-rose-300">
+                              {restaurantTypesError}
+                            </p>
+                          )}
+                        </>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {restaurantTypes.map((item) => {
-                            const checked = selectedRestaurantTypes.some(
-                              (entry) =>
-                                entry.toLowerCase() ===
-                                item.restaurant_type.toLowerCase(),
-                            );
-                            return (
-                              <label
-                                key={item.id}
-                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() =>
-                                    toggleRestaurantType(item.restaurant_type)
-                                  }
-                                />
-                                <span>{item.restaurant_type}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {restaurantTypesError && (
-                        <p className="text-xs text-rose-600 dark:text-rose-300">
-                          {restaurantTypesError}
-                        </p>
+                        <>
+                          {shopTypesLoading ? (
+                            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                              Loading shop types...
+                            </div>
+                          ) : shopTypes.length === 0 ? (
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/40 dark:bg-amber-500/10 dark:text-amber-200">
+                              No shop types available yet. Ask admin to add shop
+                              types.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              {shopTypes.map((item) => {
+                                const checked = selectedShopTypes.some(
+                                  (entry) =>
+                                    entry.toLowerCase() ===
+                                    item.shop_type.toLowerCase(),
+                                );
+                                return (
+                                  <label
+                                    key={item.id}
+                                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        toggleShopType(item.shop_type)
+                                      }
+                                    />
+                                    <span>{item.shop_type}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {shopTypesError && (
+                            <p className="text-xs text-rose-600 dark:text-rose-300">
+                              {shopTypesError}
+                            </p>
+                          )}
+                        </>
                       )}
                     </label>
                   </div>
@@ -1602,7 +1911,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 2 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_phone</span>
+                      <span>Business Phone Number</span>
                       <PhoneNumberInput
                         value={business.businessPhone}
                         onChange={(value) =>
@@ -1617,7 +1926,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_email</span>
+                      <span>Business Email</span>
                       <input
                         type="email"
                         value={business.businessEmail}
@@ -1631,7 +1940,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>manager_name</span>
+                      <span>Manager Name</span>
                       <input
                         value={business.managerName}
                         onChange={(event) =>
@@ -1644,7 +1953,7 @@ export default function VendorDashboard() {
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>manager_email</span>
+                      <span>Manager Email</span>
                       <input
                         type="email"
                         value={business.managerEmail}
@@ -1663,7 +1972,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 3 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>opening_hours</span>
+                      <span>Weekday Opening Hour</span>
                       <input
                         type="time"
                         value={business.openingHours}
@@ -1676,8 +1985,50 @@ export default function VendorDashboard() {
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekday Closing Hour</span>
+                      <input
+                        type="time"
+                        value={business.closingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            closingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekend Opening Hour (optional)</span>
+                      <input
+                        type="time"
+                        value={business.weekendOpeningHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendOpeningHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span>Weekend Closing Hour (optional)</span>
+                      <input
+                        type="time"
+                        value={business.weekendClosingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendClosingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
-                      <span>opening_days</span>
+                      <span>Opening Days</span>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {WEEK_DAYS.map((day) => (
                           <label
@@ -1700,7 +2051,7 @@ export default function VendorDashboard() {
                 {onboardingStep === 4 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>business_profile_image</span>
+                      <span>Business Profile Image</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1720,7 +2071,7 @@ export default function VendorDashboard() {
                       )}
                     </div>
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>rdb_certificate</span>
+                      <span>RDB Certificate</span>
                       <input
                         type="file"
                         accept="application/pdf,image/*"
@@ -1735,6 +2086,126 @@ export default function VendorDashboard() {
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           Uploaded: {business.rdbCertificate.name}
                         </p>
+                      )}
+                    </div>
+                    <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>Other Supporting Documents (Optional)</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*,.doc,.docx"
+                        multiple
+                        onChange={(event) => {
+                          addSupportingDocuments(event.target.files);
+                          event.currentTarget.value = "";
+                        }}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/5"
+                      />
+
+                      {supportingDocuments.length > 0 && (
+                        <div className="space-y-3 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          {supportingDocuments.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-white/10 sm:grid-cols-[2fr_1fr_auto]"
+                            >
+                              <div className="space-y-1">
+                                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                                  {doc.file.name}
+                                </p>
+                                <input
+                                  value={doc.description}
+                                  onChange={(event) =>
+                                    updateSupportingDocument(doc.id, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                  placeholder="Description (optional)"
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                                />
+                              </div>
+
+                              <select
+                                value={doc.documentType}
+                                onChange={(event) =>
+                                  updateSupportingDocument(doc.id, {
+                                    documentType: event.target.value,
+                                  })
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              >
+                                <option value="OTHER">OTHER</option>
+                                <option value="NID">NID</option>
+                                <option value="LICENSE">LICENSE</option>
+                                <option value="TAX_CERTIFICATE">
+                                  TAX_CERTIFICATE
+                                </option>
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={() => removeSupportingDocument(doc.id)}
+                                className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {savedSupportingDocuments.length > 0 && (
+                        <div className="space-y-2 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                            Previously uploaded documents
+                          </p>
+                          <ul className="space-y-2">
+                            {savedSupportingDocuments.map((doc) => {
+                              const href =
+                                resolveMediaUrl(doc.file_url) || doc.file_url;
+                              return (
+                                <li
+                                  key={doc.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-white/10"
+                                >
+                                  <div>
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                      {doc.document_type || "OTHER"}
+                                    </p>
+                                    {doc.description && (
+                                      <p className="text-slate-500 dark:text-slate-400">
+                                        {doc.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
+                                    >
+                                      View file
+                                    </a>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeSavedSupportingDocument(doc.id)
+                                      }
+                                      disabled={
+                                        deletingSavedDocumentId === doc.id
+                                      }
+                                      className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                      {deletingSavedDocumentId === doc.id
+                                        ? "Removing..."
+                                        : "Remove"}
+                                    </button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3305,14 +3776,63 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
-                        Opening hours
+                        Weekday opening hour
                       </span>
                       <input
+                        type="time"
                         value={business.openingHours}
                         onChange={(event) =>
                           setBusiness((current) => ({
                             ...current,
                             openingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekday closing hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.closingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            closingHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekend opening hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.weekendOpeningHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendOpeningHours: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Weekend closing hour
+                      </span>
+                      <input
+                        type="time"
+                        value={business.weekendClosingHours}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            weekendClosingHours: event.target.value,
                           }))
                         }
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
@@ -3397,6 +3917,157 @@ export default function VendorDashboard() {
                   title="Manage Managers"
                   subtitle="Add, update, and delete managers in a table view"
                 >
+                  <div className="mb-6 space-y-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Supporting documents
+                      </p>
+                      <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                        Upload, view, and delete files
+                      </h4>
+                    </div>
+
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*,.doc,.docx"
+                      onChange={(event) => {
+                        addSupportingDocuments(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-white/5"
+                    />
+
+                    {supportingDocuments.length > 0 && (
+                      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                        {supportingDocuments.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="grid gap-2 rounded-lg border border-slate-200 p-2 dark:border-white/10 sm:grid-cols-[2fr_1fr_auto]"
+                          >
+                            <div className="space-y-1">
+                              <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                                {doc.file.name}
+                              </p>
+                              <input
+                                value={doc.description}
+                                onChange={(event) =>
+                                  updateSupportingDocument(doc.id, {
+                                    description: event.target.value,
+                                  })
+                                }
+                                placeholder="Description (optional)"
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-white/5"
+                              />
+                            </div>
+
+                            <select
+                              value={doc.documentType}
+                              onChange={(event) =>
+                                updateSupportingDocument(doc.id, {
+                                  documentType: event.target.value,
+                                })
+                              }
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-white/5"
+                            >
+                              <option value="OTHER">OTHER</option>
+                              <option value="NID">NID</option>
+                              <option value="LICENSE">LICENSE</option>
+                              <option value="TAX_CERTIFICATE">
+                                TAX_CERTIFICATE
+                              </option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => removeSupportingDocument(doc.id)}
+                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 dark:border-rose-400/40 dark:text-rose-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void uploadSupportingDocumentsFromSettings()
+                          }
+                          disabled={supportingDocsSubmitting}
+                          className="rounded-lg bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {supportingDocsSubmitting
+                            ? "Uploading..."
+                            : "Upload supporting documents"}
+                        </button>
+                      </div>
+                    )}
+
+                    {savedSupportingDocuments.length === 0 ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No supporting documents uploaded yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {savedSupportingDocuments.map((doc) => {
+                          const href =
+                            resolveMediaUrl(doc.file_url) || doc.file_url;
+                          return (
+                            <li
+                              key={doc.id}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-white/10 dark:bg-white/5"
+                            >
+                              <div>
+                                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {doc.document_type || "OTHER"}
+                                </p>
+                                {doc.description && (
+                                  <p className="text-slate-500 dark:text-slate-400">
+                                    {doc.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void removeSavedSupportingDocument(doc.id)
+                                  }
+                                  disabled={deletingSavedDocumentId === doc.id}
+                                  className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/40 dark:text-rose-300"
+                                >
+                                  {deletingSavedDocumentId === doc.id
+                                    ? "Removing..."
+                                    : "Delete"}
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    {supportingDocsMessage && (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-medium ${
+                          supportingDocsMessage.type === "success"
+                            ? "bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]"
+                            : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                        }`}
+                      >
+                        {supportingDocsMessage.text}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <input

@@ -3,24 +3,43 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApp, hasRole } from "../../context/AppContext";
 import {
   createRestaurantType,
+  deleteRestaurantType,
+  deleteBusinessSupportingDocumentByBusinessId,
+  updateRestaurantType,
+  createShopType,
+  deleteShopType,
   getAdminUsers,
+  getBusinessProfileById,
   getBusinessProfiles,
   getRestaurantTypes,
+  getShopTypes,
   getVendorApplications,
+  uploadBusinessSupportingDocumentsByBusinessId,
   setBusinessVerification,
   reviewVendorApplication,
+  updateShopType,
   type AdminUserRecord,
   type BusinessProfileRecord,
   type RestaurantTypeRecord,
+  type ShopTypeRecord,
+  type SupportingDocumentInput,
   type VendorApplicationRecord,
 } from "../../utils/api";
 
-type Tab = "overview" | "users" | "vendors" | "reports";
+type SupportingDocumentDraft = {
+  id: string;
+  file: File;
+  documentType: string;
+  description: string;
+};
+
+type Tab = "overview" | "users" | "vendors" | "documents" | "reports";
 
 const navItems: { tab: Tab; icon: string; label: string }[] = [
   { tab: "overview", icon: "📊", label: "Overview" },
   { tab: "users", icon: "👥", label: "Users" },
   { tab: "vendors", icon: "🏪", label: "Vendors" },
+  { tab: "documents", icon: "📁", label: "Documents" },
   { tab: "reports", icon: "📈", label: "Reports" },
 ];
 
@@ -42,6 +61,17 @@ export default function AdminDashboard() {
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
     null,
   );
+  const [selectedBusinessDetails, setSelectedBusinessDetails] =
+    useState<BusinessProfileRecord | null>(null);
+  const [adminSupportingDocuments, setAdminSupportingDocuments] = useState<
+    SupportingDocumentDraft[]
+  >([]);
+  const [isUploadingBusinessDocs, setIsUploadingBusinessDocs] = useState(false);
+  const [isDeletingBusinessDocId, setIsDeletingBusinessDocId] = useState<
+    number | null
+  >(null);
+  const [documentBusinessQuery, setDocumentBusinessQuery] = useState("");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState("ALL");
   const [isTogglingBusinessId, setIsTogglingBusinessId] = useState<
     number | null
   >(null);
@@ -52,6 +82,23 @@ export default function AdminDashboard() {
   >([]);
   const [newRestaurantType, setNewRestaurantType] = useState("");
   const [isAddingRestaurantType, setIsAddingRestaurantType] = useState(false);
+  const [editingRestaurantTypeId, setEditingRestaurantTypeId] = useState<
+    number | null
+  >(null);
+  const [editingRestaurantName, setEditingRestaurantName] = useState("");
+  const [isDeletingRestaurantTypeId, setIsDeletingRestaurantTypeId] = useState<
+    number | null
+  >(null);
+  const [shopTypes, setShopTypes] = useState<ShopTypeRecord[]>([]);
+  const [newShopType, setNewShopType] = useState("");
+  const [isAddingShopType, setIsAddingShopType] = useState(false);
+  const [editingShopTypeId, setEditingShopTypeId] = useState<number | null>(
+    null,
+  );
+  const [editingShopName, setEditingShopName] = useState("");
+  const [isDeletingShopTypeId, setIsDeletingShopTypeId] = useState<
+    number | null
+  >(null);
 
   const handleSignOut = () => {
     logout();
@@ -81,6 +128,8 @@ export default function AdminDashboard() {
           ) ?? null),
     [selectedBusinessId, businessProfiles],
   );
+
+  const selectedBusinessForModal = selectedBusinessDetails ?? selectedBusiness;
 
   const getApplicationChecklist = (application: VendorApplicationRecord) => {
     const payloadInput = application.payload;
@@ -157,6 +206,31 @@ export default function AdminDashboard() {
     [vendorApplications],
   );
 
+  const filteredBusinessesForDocuments = useMemo(() => {
+    const query = documentBusinessQuery.trim().toLowerCase();
+    if (!query) return businessProfiles;
+    return businessProfiles.filter((business) => {
+      const fields = [
+        business.business_name,
+        business.business_type,
+        business.location,
+        business.owner_name,
+        business.owner_email,
+      ]
+        .map((value) => (typeof value === "string" ? value.toLowerCase() : ""))
+        .join(" ");
+      return fields.includes(query);
+    });
+  }, [businessProfiles, documentBusinessQuery]);
+
+  const filteredSelectedBusinessDocuments = useMemo(() => {
+    const docs = selectedBusinessForModal?.supporting_documents ?? [];
+    if (documentTypeFilter === "ALL") return docs;
+    return docs.filter(
+      (doc) => (doc.document_type ?? "OTHER") === documentTypeFilter,
+    );
+  }, [documentTypeFilter, selectedBusinessForModal?.supporting_documents]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -180,11 +254,13 @@ export default function AdminDashboard() {
           businessesData,
           applicationsData,
           restaurantTypesData,
+          shopTypesData,
         ] = await Promise.all([
           getAdminUsers(token),
           getBusinessProfiles(),
           getVendorApplications(token),
           getRestaurantTypes(token),
+          getShopTypes(token),
         ]);
 
         if (!mounted) return;
@@ -192,6 +268,7 @@ export default function AdminDashboard() {
         setBusinessProfiles(businessesData);
         setVendorApplications(applicationsData);
         setRestaurantTypes(restaurantTypesData);
+        setShopTypes(shopTypesData);
       } catch (error) {
         if (!mounted) return;
         setLoadError(
@@ -209,6 +286,39 @@ export default function AdminDashboard() {
       mounted = false;
     };
   }, [token]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSelectedBusiness = async () => {
+      if (!token || selectedBusinessId === null) {
+        if (active) {
+          setSelectedBusinessDetails(null);
+          setAdminSupportingDocuments([]);
+        }
+        return;
+      }
+
+      try {
+        const details = await getBusinessProfileById(token, selectedBusinessId);
+        if (!active) return;
+        setSelectedBusinessDetails(details);
+      } catch (error) {
+        if (!active) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load business profile details.",
+        );
+      }
+    };
+
+    void loadSelectedBusiness();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedBusinessId, token]);
 
   const pendingApprovals = pendingApplications;
   const approvedVendors = businessProfiles.filter(
@@ -316,6 +426,265 @@ export default function AdminDashboard() {
       );
     } finally {
       setIsAddingRestaurantType(false);
+    }
+  };
+
+  const handleEditRestaurantType = async () => {
+    if (!token || editingRestaurantTypeId === null) return;
+
+    const value = editingRestaurantName.trim();
+    if (!value) {
+      setLoadError("Restaurant type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      const updated = await updateRestaurantType(
+        token,
+        editingRestaurantTypeId,
+        value,
+      );
+      setRestaurantTypes((current) => {
+        const next = current.map((item) =>
+          item.id === editingRestaurantTypeId ? updated : item,
+        );
+        next.sort((a, b) =>
+          a.restaurant_type.localeCompare(b.restaurant_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setEditingRestaurantTypeId(null);
+      setEditingRestaurantName("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update restaurant type.",
+      );
+    }
+  };
+
+  const handleDeleteRestaurantType = async (id: number) => {
+    if (
+      !token ||
+      !window.confirm("Are you sure you want to delete this restaurant type?")
+    )
+      return;
+
+    try {
+      setLoadError(null);
+      setIsDeletingRestaurantTypeId(id);
+      await deleteRestaurantType(token, id);
+      setRestaurantTypes((current) => current.filter((item) => item.id !== id));
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete restaurant type.",
+      );
+    } finally {
+      setIsDeletingRestaurantTypeId(null);
+    }
+  };
+
+  const startEditingRestaurantType = (restaurantType: RestaurantTypeRecord) => {
+    setEditingRestaurantTypeId(restaurantType.id);
+    setEditingRestaurantName(restaurantType.restaurant_type);
+  };
+
+  const handleAddShopType = async () => {
+    if (!token) return;
+
+    const value = newShopType.trim();
+    if (!value) {
+      setLoadError("Shop type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      setIsAddingShopType(true);
+      const created = await createShopType(token, value);
+      setShopTypes((current) => {
+        const next = [created, ...current];
+        next.sort((a, b) =>
+          a.shop_type.localeCompare(b.shop_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setNewShopType("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to add shop type.",
+      );
+    } finally {
+      setIsAddingShopType(false);
+    }
+  };
+
+  const handleEditShopType = async () => {
+    if (!token || editingShopTypeId === null) return;
+
+    const value = editingShopName.trim();
+    if (!value) {
+      setLoadError("Shop type is required.");
+      return;
+    }
+
+    try {
+      setLoadError(null);
+      const updated = await updateShopType(token, editingShopTypeId, value);
+      setShopTypes((current) => {
+        const next = current.map((item) =>
+          item.id === editingShopTypeId ? updated : item,
+        );
+        next.sort((a, b) =>
+          a.shop_type.localeCompare(b.shop_type, "en", {
+            sensitivity: "base",
+          }),
+        );
+        return next;
+      });
+      setEditingShopTypeId(null);
+      setEditingShopName("");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to update shop type.",
+      );
+    }
+  };
+
+  const handleDeleteShopType = async (id: number) => {
+    if (
+      !token ||
+      !window.confirm("Are you sure you want to delete this shop type?")
+    )
+      return;
+
+    try {
+      setLoadError(null);
+      setIsDeletingShopTypeId(id);
+      await deleteShopType(token, id);
+      setShopTypes((current) => current.filter((item) => item.id !== id));
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to delete shop type.",
+      );
+    } finally {
+      setIsDeletingShopTypeId(null);
+    }
+  };
+
+  const startEditingShopType = (shopType: ShopTypeRecord) => {
+    setEditingShopTypeId(shopType.id);
+    setEditingShopName(shopType.shop_type);
+  };
+
+  const addAdminSupportingDocuments = (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const nextDocs = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      documentType: "OTHER",
+      description: "",
+    }));
+
+    setAdminSupportingDocuments((current) => [...current, ...nextDocs]);
+  };
+
+  const updateAdminSupportingDocument = (
+    id: string,
+    updates: Partial<
+      Pick<SupportingDocumentDraft, "documentType" | "description">
+    >,
+  ) => {
+    setAdminSupportingDocuments((current) =>
+      current.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc)),
+    );
+  };
+
+  const removeAdminSupportingDocument = (id: string) => {
+    setAdminSupportingDocuments((current) =>
+      current.filter((doc) => doc.id !== id),
+    );
+  };
+
+  const handleUploadBusinessDocuments = async () => {
+    if (
+      !token ||
+      selectedBusinessId === null ||
+      adminSupportingDocuments.length === 0
+    )
+      return;
+
+    try {
+      setLoadError(null);
+      setIsUploadingBusinessDocs(true);
+      const docs = adminSupportingDocuments.map(
+        (doc): SupportingDocumentInput => ({
+          file: doc.file,
+          documentType: doc.documentType,
+          description: doc.description,
+        }),
+      );
+      const uploaded = await uploadBusinessSupportingDocumentsByBusinessId(
+        token,
+        selectedBusinessId,
+        docs,
+      );
+      setSelectedBusinessDetails((current) =>
+        current
+          ? {
+              ...current,
+              supporting_documents: uploaded,
+            }
+          : current,
+      );
+      setAdminSupportingDocuments([]);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to upload supporting documents.",
+      );
+    } finally {
+      setIsUploadingBusinessDocs(false);
+    }
+  };
+
+  const handleDeleteBusinessDocument = async (documentId: number) => {
+    if (!token || selectedBusinessId === null) return;
+
+    try {
+      setLoadError(null);
+      setIsDeletingBusinessDocId(documentId);
+      const documents = await deleteBusinessSupportingDocumentByBusinessId(
+        token,
+        selectedBusinessId,
+        documentId,
+      );
+      setSelectedBusinessDetails((current) =>
+        current
+          ? {
+              ...current,
+              supporting_documents: documents,
+            }
+          : current,
+      );
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete supporting document.",
+      );
+    } finally {
+      setIsDeletingBusinessDocId(null);
     }
   };
 
@@ -658,15 +1027,169 @@ export default function AdminDashboard() {
                     No restaurant types found yet.
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-2">
                     {restaurantTypes.map((item) => (
-                      <span
+                      <div
                         key={item.id}
-                        className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                        className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200"
                       >
-                        {item.restaurant_type}
-                      </span>
+                        <span className="text-sm font-medium text-slate-900">
+                          {item.restaurant_type}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEditingRestaurantType(item)}
+                            className="text-xs px-3 py-1 rounded-lg border border-slate-300 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() =>
+                              void handleDeleteRestaurantType(item.id)
+                            }
+                            disabled={isDeletingRestaurantTypeId === item.id}
+                            className="text-xs px-3 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 font-medium disabled:opacity-50"
+                          >
+                            {isDeletingRestaurantTypeId === item.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
+                      </div>
                     ))}
+                  </div>
+                )}
+
+                {editingRestaurantTypeId !== null && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-200">
+                    <p className="text-sm text-blue-900 mb-3 font-semibold">
+                      Edit Restaurant Type
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        value={editingRestaurantName}
+                        onChange={(e) =>
+                          setEditingRestaurantName(e.target.value)
+                        }
+                        placeholder="Enter restaurant type name"
+                        className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => void handleEditRestaurantType()}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingRestaurantTypeId(null);
+                          setEditingRestaurantName("");
+                        }}
+                        className="bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900">Shop Types</h3>
+                    <p className="text-sm text-slate-500">
+                      Add options used in vendor onboarding for shop
+                      categorization.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {shopTypes.length} type
+                    {shopTypes.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <input
+                    value={newShopType}
+                    onChange={(event) => setNewShopType(event.target.value)}
+                    placeholder="e.g. Electronics"
+                    className="min-w-[240px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddShopType()}
+                    disabled={isAddingShopType}
+                    className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAddingShopType ? "Adding..." : "Add Type"}
+                  </button>
+                </div>
+
+                {shopTypes.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No shop types found yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {shopTypes.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200"
+                      >
+                        <span className="text-sm font-medium text-slate-900">
+                          {item.shop_type}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEditingShopType(item)}
+                            className="text-xs px-3 py-1 rounded-lg border border-slate-300 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteShopType(item.id)}
+                            disabled={isDeletingShopTypeId === item.id}
+                            className="text-xs px-3 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 font-medium disabled:opacity-50"
+                          >
+                            {isDeletingShopTypeId === item.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {editingShopTypeId !== null && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-200">
+                    <p className="text-sm text-blue-900 mb-3 font-semibold">
+                      Edit Shop Type
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        value={editingShopName}
+                        onChange={(e) => setEditingShopName(e.target.value)}
+                        placeholder="Enter shop type name"
+                        className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => void handleEditShopType()}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingShopTypeId(null);
+                          setEditingShopName("");
+                        }}
+                        className="bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1354,7 +1877,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {selectedBusiness && (
+          {tab === "vendors" && selectedBusinessForModal && (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
               <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
                 <div className="flex items-start justify-between gap-4">
@@ -1363,10 +1886,10 @@ export default function AdminDashboard() {
                       Business profile
                     </p>
                     <h3 className="mt-2 text-xl font-black text-slate-900">
-                      {selectedBusiness.business_name}
+                      {selectedBusinessForModal.business_name}
                     </h3>
                     <p className="text-sm text-slate-500">
-                      {selectedBusiness.business_type ?? "Type not set"}
+                      {selectedBusinessForModal.business_type ?? "Type not set"}
                     </p>
                   </div>
                   <button
@@ -1384,26 +1907,26 @@ export default function AdminDashboard() {
                     <div className="space-y-2 text-sm text-slate-700">
                       <p>
                         <span className="text-slate-500">Name:</span>{" "}
-                        {selectedBusiness.owner_name ?? "-"}
+                        {selectedBusinessForModal.owner_name ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Email:</span>{" "}
-                        {selectedBusiness.owner_email ?? "-"}
+                        {selectedBusinessForModal.owner_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Phone:</span>{" "}
-                        {selectedBusiness.owner_phone ?? "-"}
+                        {selectedBusinessForModal.owner_phone ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Verification:</span>{" "}
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            selectedBusiness.is_verified
+                            selectedBusinessForModal.is_verified
                               ? "bg-green-50 text-green-700"
                               : "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {selectedBusiness.is_verified
+                          {selectedBusinessForModal.is_verified
                             ? "Verified"
                             : "Not verified"}
                         </span>
@@ -1416,33 +1939,33 @@ export default function AdminDashboard() {
                     <div className="space-y-2 text-sm text-slate-700">
                       <p>
                         <span className="text-slate-500">Location:</span>{" "}
-                        {selectedBusiness.location ?? "-"}
+                        {selectedBusinessForModal.location ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Business email:</span>{" "}
-                        {selectedBusiness.business_email ?? "-"}
+                        {selectedBusinessForModal.business_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Business phone:</span>{" "}
-                        {selectedBusiness.business_phone ?? "-"}
+                        {selectedBusinessForModal.business_phone ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Manager:</span>{" "}
-                        {selectedBusiness.manager_name ?? "-"}
+                        {selectedBusinessForModal.manager_name ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Manager email:</span>{" "}
-                        {selectedBusiness.manager_email ?? "-"}
+                        {selectedBusinessForModal.manager_email ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Opening hours:</span>{" "}
-                        {selectedBusiness.opening_hours ?? "-"}
+                        {selectedBusinessForModal.opening_hours ?? "-"}
                       </p>
                       <p>
                         <span className="text-slate-500">Opening days:</span>{" "}
-                        {Array.isArray(selectedBusiness.opening_days)
-                          ? selectedBusiness.opening_days.join(", ")
-                          : (selectedBusiness.opening_days ?? "-")}
+                        {Array.isArray(selectedBusinessForModal.opening_days)
+                          ? selectedBusinessForModal.opening_days.join(", ")
+                          : (selectedBusinessForModal.opening_days ?? "-")}
                       </p>
                     </div>
                   </div>
@@ -1453,7 +1976,7 @@ export default function AdminDashboard() {
                     Description & files
                   </h4>
                   <p className="mb-4 text-sm text-slate-700">
-                    {selectedBusiness.business_description ??
+                    {selectedBusinessForModal.business_description ??
                       "No description provided."}
                   </p>
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -1461,10 +1984,10 @@ export default function AdminDashboard() {
                       <p className="text-xs uppercase tracking-wide text-slate-500">
                         Profile image
                       </p>
-                      {selectedBusiness.business_profile_image ? (
+                      {selectedBusinessForModal.business_profile_image ? (
                         <a
                           className="mt-1 block font-semibold text-slate-900 hover:underline"
-                          href={selectedBusiness.business_profile_image}
+                          href={selectedBusinessForModal.business_profile_image}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1478,10 +2001,10 @@ export default function AdminDashboard() {
                       <p className="text-xs uppercase tracking-wide text-slate-500">
                         RDB certificate
                       </p>
-                      {selectedBusiness.rdb_certificate ? (
+                      {selectedBusinessForModal.rdb_certificate ? (
                         <a
                           className="mt-1 block font-semibold text-slate-900 hover:underline"
-                          href={selectedBusiness.rdb_certificate}
+                          href={selectedBusinessForModal.rdb_certificate}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1492,6 +2015,441 @@ export default function AdminDashboard() {
                       )}
                     </div>
                   </div>
+
+                  <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="font-bold text-slate-900">
+                        Supporting documents
+                      </h4>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                        {
+                          (selectedBusinessForModal.supporting_documents ?? [])
+                            .length
+                        }
+                      </span>
+                    </div>
+
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*,.doc,.docx"
+                      onChange={(event) => {
+                        addAdminSupportingDocuments(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                      className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+
+                    {adminSupportingDocuments.length > 0 && (
+                      <div className="mb-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        {adminSupportingDocuments.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[2fr_1fr_auto]"
+                          >
+                            <div className="space-y-1">
+                              <p className="truncate text-sm font-medium text-slate-800">
+                                {doc.file.name}
+                              </p>
+                              <input
+                                value={doc.description}
+                                onChange={(event) =>
+                                  updateAdminSupportingDocument(doc.id, {
+                                    description: event.target.value,
+                                  })
+                                }
+                                placeholder="Description (optional)"
+                                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                              />
+                            </div>
+                            <select
+                              value={doc.documentType}
+                              onChange={(event) =>
+                                updateAdminSupportingDocument(doc.id, {
+                                  documentType: event.target.value,
+                                })
+                              }
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                            >
+                              <option value="OTHER">OTHER</option>
+                              <option value="NID">NID</option>
+                              <option value="LICENSE">LICENSE</option>
+                              <option value="TAX_CERTIFICATE">
+                                TAX_CERTIFICATE
+                              </option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeAdminSupportingDocument(doc.id)
+                              }
+                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => void handleUploadBusinessDocuments()}
+                          disabled={isUploadingBusinessDocs}
+                          className="rounded-lg bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isUploadingBusinessDocs
+                            ? "Uploading..."
+                            : "Upload new documents"}
+                        </button>
+                      </div>
+                    )}
+
+                    {(selectedBusinessForModal.supporting_documents ?? [])
+                      .length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        No supporting documents uploaded yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {(
+                          selectedBusinessForModal.supporting_documents ?? []
+                        ).map((doc) => (
+                          <li
+                            key={doc.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-800">
+                                {doc.document_type || "OTHER"}
+                              </p>
+                              {doc.description && (
+                                <p className="text-slate-500">
+                                  {doc.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <a
+                                className="font-semibold text-slate-900 underline"
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleDeleteBusinessDocument(doc.id)
+                                }
+                                disabled={isDeletingBusinessDocId === doc.id}
+                                className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isDeletingBusinessDocId === doc.id
+                                  ? "Removing..."
+                                  : "Delete"}
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "documents" && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">
+                      Document Control Center
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Manage supporting files for every business profile.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {businessProfiles.length} businesses
+                    </span>
+                    <span className="rounded-full bg-[#1a1a2e]/10 px-3 py-1 text-xs font-semibold text-[#1a1a2e]">
+                      {
+                        (selectedBusinessForModal?.supporting_documents ?? [])
+                          .length
+                      }{" "}
+                      docs selected
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.05fr_1.45fr]">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="font-bold text-slate-900">Businesses</h3>
+                    <input
+                      value={documentBusinessQuery}
+                      onChange={(event) =>
+                        setDocumentBusinessQuery(event.target.value)
+                      }
+                      placeholder="Search business, owner, location..."
+                      className="w-full max-w-[260px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#1a1a2e]"
+                    />
+                  </div>
+
+                  {filteredBusinessesForDocuments.length === 0 ? (
+                    <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      No businesses match your search.
+                    </p>
+                  ) : (
+                    <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                      {filteredBusinessesForDocuments.map((business) => {
+                        const isSelected =
+                          selectedBusinessId === business.business_id;
+
+                        return (
+                          <button
+                            key={
+                              business.business_id ??
+                              `${business.user_id}-${business.business_name}`
+                            }
+                            type="button"
+                            onClick={() =>
+                              setSelectedBusinessId(
+                                business.business_id ?? null,
+                              )
+                            }
+                            className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                              isSelected
+                                ? "border-[#1a1a2e] bg-[#1a1a2e]/5"
+                                : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {business.business_name}
+                              </p>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  business.is_verified
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-amber-100 text-amber-700"
+                                }`}
+                              >
+                                {business.is_verified
+                                  ? "Verified"
+                                  : "Unverified"}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {(business.business_type ?? "-") +
+                                " · " +
+                                (business.location ?? "-")}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {business.owner_email ?? "No owner email"}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  {!selectedBusinessForModal ? (
+                    <div className="flex h-full min-h-[360px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Select a business to manage documents
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          You can upload new files, view existing files, and
+                          delete outdated documents.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Selected business
+                          </p>
+                          <h3 className="mt-1 text-lg font-black text-slate-900">
+                            {selectedBusinessForModal.business_name}
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            {selectedBusinessForModal.business_type ?? "-"} ·{" "}
+                            {selectedBusinessForModal.location ?? "-"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBusinessId(null)}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
+                        >
+                          Clear
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-4">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Upload New Supporting Documents
+                        </p>
+                        <input
+                          type="file"
+                          multiple
+                          accept="application/pdf,image/*,.doc,.docx"
+                          onChange={(event) => {
+                            addAdminSupportingDocuments(event.target.files);
+                            event.currentTarget.value = "";
+                          }}
+                          className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                        />
+
+                        {adminSupportingDocuments.length > 0 && (
+                          <div className="space-y-2">
+                            {adminSupportingDocuments.map((doc) => (
+                              <div
+                                key={doc.id}
+                                className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[2fr_1fr_auto]"
+                              >
+                                <div className="space-y-1">
+                                  <p className="truncate text-sm font-medium text-slate-800">
+                                    {doc.file.name}
+                                  </p>
+                                  <input
+                                    value={doc.description}
+                                    onChange={(event) =>
+                                      updateAdminSupportingDocument(doc.id, {
+                                        description: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Description (optional)"
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none"
+                                  />
+                                </div>
+                                <select
+                                  value={doc.documentType}
+                                  onChange={(event) =>
+                                    updateAdminSupportingDocument(doc.id, {
+                                      documentType: event.target.value,
+                                    })
+                                  }
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none"
+                                >
+                                  <option value="OTHER">OTHER</option>
+                                  <option value="NID">NID</option>
+                                  <option value="LICENSE">LICENSE</option>
+                                  <option value="TAX_CERTIFICATE">
+                                    TAX_CERTIFICATE
+                                  </option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeAdminSupportingDocument(doc.id)
+                                  }
+                                  className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleUploadBusinessDocuments()
+                              }
+                              disabled={isUploadingBusinessDocs}
+                              className="rounded-lg bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isUploadingBusinessDocs
+                                ? "Uploading..."
+                                : "Upload documents"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            Existing Documents
+                          </p>
+                          <select
+                            value={documentTypeFilter}
+                            onChange={(event) =>
+                              setDocumentTypeFilter(event.target.value)
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none"
+                          >
+                            <option value="ALL">All types</option>
+                            <option value="OTHER">OTHER</option>
+                            <option value="NID">NID</option>
+                            <option value="LICENSE">LICENSE</option>
+                            <option value="TAX_CERTIFICATE">
+                              TAX_CERTIFICATE
+                            </option>
+                          </select>
+                        </div>
+
+                        {filteredSelectedBusinessDocuments.length === 0 ? (
+                          <p className="text-sm text-slate-500">
+                            No documents found for the selected filter.
+                          </p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {filteredSelectedBusinessDocuments.map((doc) => (
+                              <li
+                                key={doc.id}
+                                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
+                              >
+                                <div>
+                                  <p className="font-semibold text-slate-800">
+                                    {doc.document_type || "OTHER"}
+                                  </p>
+                                  {doc.description && (
+                                    <p className="text-slate-500">
+                                      {doc.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    className="font-semibold text-slate-900 underline"
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    View
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleDeleteBusinessDocument(doc.id)
+                                    }
+                                    disabled={
+                                      isDeletingBusinessDocId === doc.id
+                                    }
+                                    className="rounded-md border border-rose-200 px-2 py-1 font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {isDeletingBusinessDocId === doc.id
+                                      ? "Removing..."
+                                      : "Delete"}
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
