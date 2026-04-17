@@ -32,8 +32,25 @@ export interface BusinessProfileRecord {
   manager_email: string | null;
   business_profile_image: string | null;
   rdb_certificate: string | null;
+  supporting_documents?: BusinessDocumentRecord[];
   is_verified?: boolean | null;
 }
+
+export interface BusinessDocumentRecord {
+  id: number;
+  business_id: number;
+  document_type: string | null;
+  file_url: string;
+  public_id: string | null;
+  description: string | null;
+  uploaded_at: string;
+}
+
+export type SupportingDocumentInput = {
+  file: File;
+  documentType?: string;
+  description?: string;
+};
 
 export type BusinessProfileFormInput = {
   businessName: string;
@@ -48,6 +65,7 @@ export type BusinessProfileFormInput = {
   managerEmail: string;
   businessProfileImageFile?: File | null;
   rdbCertificateFile?: File | null;
+  additionalDocuments?: SupportingDocumentInput[];
 };
 
 export type MenuItemCreateInput = {
@@ -176,6 +194,25 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
 
   if (input.rdbCertificateFile) {
     formData.append("rdb_certificate", input.rdbCertificateFile);
+  }
+
+  if (input.additionalDocuments?.length) {
+    const types = input.additionalDocuments.map(
+      (doc) => (doc.documentType?.trim() || "OTHER"),
+    );
+    const descriptions = input.additionalDocuments.map(
+      (doc) => doc.description?.trim() || "",
+    );
+
+    input.additionalDocuments.forEach((doc) => {
+      formData.append("additional_documents", doc.file);
+    });
+
+    formData.append("additional_document_types", JSON.stringify(types));
+    formData.append(
+      "additional_document_descriptions",
+      JSON.stringify(descriptions),
+    );
   }
 
   return formData;

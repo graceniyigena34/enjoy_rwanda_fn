@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
+  type BusinessDocumentRecord,
   createBusinessProfile,
   createManager,
   createMenuItem,
@@ -24,6 +25,7 @@ import {
   type MenuItemRecord,
   type RestaurantTypeRecord,
   type ShopTypeRecord,
+  type SupportingDocumentInput,
 } from "../../utils/api";
 
 type BusinessType = "Restaurant" | "Shop";
@@ -45,6 +47,13 @@ type StoredUpload = {
   type: string;
   size: number;
   previewUrl?: string;
+};
+
+type SupportingDocumentDraft = {
+  id: string;
+  file: File;
+  documentType: string;
+  description: string;
 };
 
 type BusinessInfo = {
@@ -459,6 +468,12 @@ export default function VendorDashboard() {
     businessProfileImage: null,
     rdbCertificate: null,
   });
+  const [supportingDocuments, setSupportingDocuments] = useState<
+    SupportingDocumentDraft[]
+  >([]);
+  const [savedSupportingDocuments, setSavedSupportingDocuments] = useState<
+    BusinessDocumentRecord[]
+  >([]);
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
@@ -801,6 +816,13 @@ export default function VendorDashboard() {
           }
         : undefined,
     });
+    setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+    setSupportingDocuments([]);
+    setSavedSupportingDocuments(
+      Array.isArray(record.supporting_documents)
+        ? record.supporting_documents
+        : [],
+    );
     setCatalogItems(seed.catalogItems);
     setBookings(seed.bookings);
     setOrders(seed.orders);
@@ -1212,6 +1234,34 @@ export default function VendorDashboard() {
     }));
   };
 
+  const addSupportingDocuments = (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const nextDocs = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      documentType: "OTHER",
+      description: "",
+    }));
+
+    setSupportingDocuments((current) => [...current, ...nextDocs]);
+  };
+
+  const updateSupportingDocument = (
+    id: string,
+    updates: Partial<
+      Pick<SupportingDocumentDraft, "documentType" | "description">
+    >,
+  ) => {
+    setSupportingDocuments((current) =>
+      current.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc)),
+    );
+  };
+
+  const removeSupportingDocument = (id: string) => {
+    setSupportingDocuments((current) => current.filter((doc) => doc.id !== id));
+  };
+
   const validateCurrentStep = (step: OnboardingStep) => {
     if (step === 1) {
       return (
@@ -1285,6 +1335,13 @@ export default function VendorDashboard() {
         managerEmail: business.managerEmail.trim(),
         businessProfileImageFile: businessFiles.businessProfileImage,
         rdbCertificateFile: businessFiles.rdbCertificate,
+        additionalDocuments: supportingDocuments.map(
+          (doc): SupportingDocumentInput => ({
+            file: doc.file,
+            documentType: doc.documentType,
+            description: doc.description,
+          }),
+        ),
       };
 
       const result = hasRemoteBusinessProfile
@@ -1323,6 +1380,8 @@ export default function VendorDashboard() {
       description: seed.business.description,
     }));
     setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+    setSupportingDocuments([]);
+    setSavedSupportingDocuments([]);
     setBusinessId(null);
     setProfile(seed.profile);
     setCatalogItems(seed.catalogItems);
@@ -1850,6 +1909,110 @@ export default function VendorDashboard() {
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           Uploaded: {business.rdbCertificate.name}
                         </p>
+                      )}
+                    </div>
+                    <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>Other Supporting Documents (Optional)</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*,.doc,.docx"
+                        multiple
+                        onChange={(event) => {
+                          addSupportingDocuments(event.target.files);
+                          event.currentTarget.value = "";
+                        }}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/5"
+                      />
+
+                      {supportingDocuments.length > 0 && (
+                        <div className="space-y-3 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          {supportingDocuments.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-white/10 sm:grid-cols-[2fr_1fr_auto]"
+                            >
+                              <div className="space-y-1">
+                                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                                  {doc.file.name}
+                                </p>
+                                <input
+                                  value={doc.description}
+                                  onChange={(event) =>
+                                    updateSupportingDocument(doc.id, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                  placeholder="Description (optional)"
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                                />
+                              </div>
+
+                              <select
+                                value={doc.documentType}
+                                onChange={(event) =>
+                                  updateSupportingDocument(doc.id, {
+                                    documentType: event.target.value,
+                                  })
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              >
+                                <option value="OTHER">OTHER</option>
+                                <option value="NID">NID</option>
+                                <option value="LICENSE">LICENSE</option>
+                                <option value="TAX_CERTIFICATE">
+                                  TAX_CERTIFICATE
+                                </option>
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={() => removeSupportingDocument(doc.id)}
+                                className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-400/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {savedSupportingDocuments.length > 0 && (
+                        <div className="space-y-2 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                            Previously uploaded documents
+                          </p>
+                          <ul className="space-y-2">
+                            {savedSupportingDocuments.map((doc) => {
+                              const href =
+                                resolveMediaUrl(doc.file_url) || doc.file_url;
+                              return (
+                                <li
+                                  key={doc.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-white/10"
+                                >
+                                  <div>
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                      {doc.document_type || "OTHER"}
+                                    </p>
+                                    {doc.description && (
+                                      <p className="text-slate-500 dark:text-slate-400">
+                                        {doc.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-semibold text-[#1a1a2e] underline dark:text-sky-300"
+                                  >
+                                    View file
+                                  </a>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   </div>
