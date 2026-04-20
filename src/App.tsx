@@ -17,14 +17,18 @@ import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import About from "./pages/shared/About";
 import BookingConfirming from "./pages/restaurants/BookingConfirming";
+import BookingUnavailable from "./pages/restaurants/BookingUnavailable";
 
 function Layout() {
   const location = useLocation();
   const { darkMode } = useApp();
-  const isDashboard = location.pathname === "/admin" || location.pathname === "/vendor";
+  const isDashboard =
+    location.pathname === "/admin" || location.pathname === "/vendor";
 
   return (
-    <div className={`${darkMode ? "dark" : ""} flex flex-col min-h-screen bg-white dark:bg-gray-900 transition-colors`}>
+    <div
+      className={`${darkMode ? "dark" : ""} flex flex-col min-h-screen bg-white dark:bg-gray-900 transition-colors`}
+    >
       {!isDashboard && <Navbar />}
       <main className="flex-1 w-full">
         <Routes>
@@ -43,6 +47,7 @@ function Layout() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/about" element={<About />} />
           <Route path="/booking-confirming" element={<BookingConfirming />} />
+          <Route path="/booking-unavailable" element={<BookingUnavailable />} />
         </Routes>
       </main>
       {!isDashboard && <Footer />}

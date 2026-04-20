@@ -100,11 +100,20 @@ export type BookingCreateInput = {
   telephone: string;
   numberOfPeople: number;
   specialRequest?: string;
-  menuId: number;
+  menuId?: number;
   date: string;
   time: string;
   businessId: number;
 };
+
+export interface BookingPublicStatusRecord {
+  id: number;
+  status: string;
+  date: string;
+  time: string;
+  number_of_people: number;
+  business_id: number;
+}
 
 export interface BookingRecord {
   id: number;
@@ -116,7 +125,7 @@ export interface BookingRecord {
   telephone: string;
   number_of_people: number;
   special_request: string | null;
-  menu_id: number;
+  menu_id: number | null;
   date: string;
   time: string;
   status: string;
@@ -553,6 +562,13 @@ export async function createBooking(input: BookingCreateInput) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export async function getBookingPublicStatus(id: number, email: string) {
+  const params = new URLSearchParams({ email });
+  return requestJson<BookingPublicStatusRecord>(
+    `${BASE_URL}/bookings/public/${id}/status?${params.toString()}`,
+  );
 }
 
 export async function getAdminUsers(token: string) {
