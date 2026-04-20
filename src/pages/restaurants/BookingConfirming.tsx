@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getBookingPublicStatus } from "../../utils/api";
 
@@ -50,6 +50,7 @@ export default function BookingConfirming() {
   const [countdown, setCountdown] = useState(TOTAL_SECONDS);
   const [status, setStatus] = useState<WaitingStatus>("pending");
   const [statusError, setStatusError] = useState("");
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!context) {
@@ -70,6 +71,38 @@ export default function BookingConfirming() {
     return () => window.clearInterval(timer);
   }, [context]);
 
+  const pollStatus = useCallback(async () => {
+    if (!context) return;
+    try {
+      const res = await getBookingPublicStatus(
+        context.bookingId,
+        context.email,
+      );
+      setLastCheckedAt(new Date().toLocaleTimeString());
+      if (res.status === "confirmed") {
+        setStatus("confirmed");
+        localStorage.removeItem(CONTEXT_KEY);
+        navigate("/payment", { replace: true });
+        return;
+      }
+      if (res.status === "cancelled") {
+        setStatus("cancelled");
+        localStorage.removeItem(CONTEXT_KEY);
+        navigate("/booking-unavailable", {
+          replace: true,
+          state: { restaurantName: context.restaurantName },
+        });
+      }
+      setStatusError("");
+    } catch (error) {
+      setStatusError(
+        error instanceof Error
+          ? error.message
+          : "Could not refresh booking status.",
+      );
+    }
+  }, [context, navigate]);
+
   useEffect(() => {
     if (!context) return;
     if (status !== "pending") return;
@@ -77,33 +110,11 @@ export default function BookingConfirming() {
     let stopped = false;
     const poll = async () => {
       try {
-        const res = await getBookingPublicStatus(
-          context.bookingId,
-          context.email,
-        );
         if (stopped) return;
-        if (res.status === "confirmed") {
-          setStatus("confirmed");
-          localStorage.removeItem(CONTEXT_KEY);
-          navigate("/payment", { replace: true });
-          return;
-        }
-        if (res.status === "cancelled") {
-          setStatus("cancelled");
-          localStorage.removeItem(CONTEXT_KEY);
-          navigate("/booking-unavailable", {
-            replace: true,
-            state: { restaurantName: context.restaurantName },
-          });
-          return;
-        }
-      } catch (error) {
+        await pollStatus();
+      } finally {
         if (!stopped) {
-          setStatusError(
-            error instanceof Error
-              ? error.message
-              : "Could not refresh booking status.",
-          );
+          // no-op: interval drives the next refresh
         }
       }
     };
@@ -111,13 +122,27 @@ export default function BookingConfirming() {
     void poll();
     const interval = window.setInterval(() => {
       void poll();
-    }, 4000);
+    }, 3000);
+
+    const handleFocus = () => {
+      void poll();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void poll();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       stopped = true;
       window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [context, navigate, status]);
+  }, [context, navigate, pollStatus, status]);
 
   useEffect(() => {
     if (countdown > 0) return;
@@ -180,6 +205,11 @@ export default function BookingConfirming() {
 
         <p className="text-xs text-gray-400 mb-2">
           Booking ID: {context?.bookingId ?? "-"}
+        </p>
+        <p className="text-xs text-gray-400 mb-2">
+          {lastCheckedAt
+            ? `Last refreshed at ${lastCheckedAt}`
+            : "Checking for updates..."}
         </p>
         {!!statusError && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">

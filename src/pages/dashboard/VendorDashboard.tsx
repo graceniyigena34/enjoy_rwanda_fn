@@ -3394,7 +3394,7 @@ export default function VendorDashboard() {
                               <th className="px-6 py-3">Email</th>
                               <th className="px-6 py-3">Telephone</th>
                               <th className="px-6 py-3">Date &amp; Time</th>
-                              <th className="px-6 py-3">People</th>
+                              <th className="px-6 py-3">Table Of</th>
                               <th className="px-6 py-3">Special Request</th>
                               <th className="px-6 py-3">Status</th>
                               <th className="px-6 py-3">Actions</th>
