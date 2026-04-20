@@ -263,21 +263,30 @@ export default function RestaurantDetail() {
             <div className="max-w-xl mx-auto">
               <div className="mb-6">
                 <h2 className="text-2xl font-black text-gray-900">Reserve a Table</h2>
-                <p className="text-sm text-gray-500 mt-1">Enter the number of people and the reservation price will appear automatically.</p>
+                <p className="text-sm text-gray-500 mt-1">Select the number of people and the reservation price will appear automatically.</p>
               </div>
 
               <div className="mb-4">
                 <label className="text-sm font-medium text-gray-700 block mb-1">Number of People</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 2 or 2-4"
+                <select
                   value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]"
-                />
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTableSearch(val);
+                    setMatchedTable(tableConfigs.find((t) => t.table_of_people === val) ?? null);
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
+                >
+                  <option value="">-- Select number of people --</option>
+                  {tableConfigs.map((t) => (
+                    <option key={t.id} value={t.table_of_people}>
+                      {t.table_of_people}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {tableSearch.trim() && (
+              {matchedTable && (
                 <div className={`rounded-2xl px-5 py-4 mb-5 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}>
                   {matchedTable ? (
                     <>
