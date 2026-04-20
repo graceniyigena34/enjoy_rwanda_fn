@@ -358,13 +358,22 @@ export default function RestaurantDetail() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 2 or 2-4"
+                <select
                   value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]"
-                />
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTableSearch(val);
+                    setMatchedTable(tableConfigs.find((t) => t.table_of_people === val) ?? null);
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
+                >
+                  <option value="">-- Select number of people --</option>
+                  {tableConfigs.map((t) => (
+                    <option key={t.id} value={t.table_of_people}>
+                      {t.table_of_people}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {tableSearch.trim() && (
