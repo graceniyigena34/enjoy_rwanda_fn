@@ -60,7 +60,35 @@ export default function RestaurantDetail() {
   const [bookingError, setBookingError] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState("");
-  const peopleOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const [tableOptionQuery, setTableOptionQuery] = useState("");
+
+  const parsePeopleCount = (value: string) => {
+    const trimmed = value.trim();
+    const direct = Number(trimmed);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+
+    const firstRangePart = Number(trimmed.split("-")[0]);
+    if (Number.isFinite(firstRangePart) && firstRangePart > 0) {
+      return firstRangePart;
+    }
+
+    const firstNumberMatch = trimmed.match(/\d+/);
+    if (firstNumberMatch) {
+      const parsed = Number(firstNumberMatch[0]);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+
+    return 1;
+  };
+
+  const formatReservationAmount = (value: number) => {
+    if (!Number.isFinite(value)) return "0 RWF";
+    const compact = new Intl.NumberFormat("en", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
+    return `${compact} RWF`;
+  };
 
   // Fetch table configs from DB for this restaurant only.
   useEffect(() => {
@@ -128,6 +156,74 @@ export default function RestaurantDetail() {
     setMatchedTable(found ?? null);
   }, [tableSearch, tableConfigs]);
 
+  const peopleOptions = useMemo(() => {
+    const capacities = tableConfigs
+      .map((tableConfig) => parsePeopleCount(String(tableConfig.table_of_people)))
+      .filter((capacity) => Number.isFinite(capacity) && capacity > 0);
+    const maxCapacity = capacities.length > 0 ? Math.max(...capacities) : 12;
+    const upperLimit = Math.max(12, maxCapacity);
+    return Array.from({ length: upperLimit - 1 }, (_, index) => index + 2);
+  }, [tableConfigs]);
+
+  const filteredPeopleOptions = useMemo(() => {
+    const query = tableOptionQuery.trim().toLowerCase();
+    if (!query) return peopleOptions;
+
+    const byCount = peopleOptions.filter((count) =>
+      String(count).includes(query),
+    );
+    if (byCount.length > 0) return byCount;
+
+    return peopleOptions.filter((count) => {
+      const matchingTables = tableConfigs.filter(
+        (tableConfig) =>
+          parsePeopleCount(String(tableConfig.table_of_people)) === count,
+      );
+
+      return matchingTables.some((tableConfig) => {
+        const peopleText = String(
+          parsePeopleCount(String(tableConfig.table_of_people)),
+        );
+        const priceText = String(Math.round(Number(tableConfig.price)));
+        return peopleText.includes(query) || priceText.includes(query);
+      });
+    });
+  }, [peopleOptions, tableOptionQuery]);
+
+  useEffect(() => {
+    const query = tableOptionQuery.trim().toLowerCase();
+    if (!query || tableConfigs.length === 0) return;
+
+    const numericQuery = Number(query);
+    if (Number.isFinite(numericQuery) && numericQuery > 0) {
+      setTableSearch(String(Math.trunc(numericQuery)));
+      return;
+    }
+
+    const sortedTables = [...tableConfigs].sort(
+      (a, b) =>
+        parsePeopleCount(String(a.table_of_people)) -
+        parsePeopleCount(String(b.table_of_people)),
+    );
+
+    const matchedByPrice = sortedTables.find((tableConfig) =>
+      String(Math.round(Number(tableConfig.price))).includes(query),
+    );
+
+    const matchedBySize = sortedTables.find((tableConfig) => {
+      const peopleText = String(
+        parsePeopleCount(String(tableConfig.table_of_people)),
+      );
+      return peopleText.includes(query);
+    });
+
+    const matched = matchedByPrice ?? matchedBySize;
+    if (!matched) return;
+
+    const peopleCount = parsePeopleCount(String(matched.table_of_people));
+    setTableSearch(String(peopleCount));
+  }, [tableConfigs, tableOptionQuery]);
+
   if (!restaurant)
     return (
       <div className="p-10 text-center">
@@ -137,25 +233,6 @@ export default function RestaurantDetail() {
         </Link>
       </div>
     );
-
-  const parsePeopleCount = (value: string) => {
-    const trimmed = value.trim();
-    const direct = Number(trimmed);
-    if (Number.isFinite(direct) && direct > 0) return direct;
-
-    const firstRangePart = Number(trimmed.split("-")[0]);
-    if (Number.isFinite(firstRangePart) && firstRangePart > 0) {
-      return firstRangePart;
-    }
-
-    const firstNumberMatch = trimmed.match(/\d+/);
-    if (firstNumberMatch) {
-      const parsed = Number(firstNumberMatch[0]);
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
-
-    return 1;
-  };
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,69 +458,100 @@ export default function RestaurantDetail() {
         <div>
           {!tableStep ? (
             /* Step 1: Search for table size → price shows automatically */
-            <div className="max-w-[250px] sm:max-w-sm mx-auto px-0 sm:px-0 border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
-              <div className="mb-2 sm:mb-6 text-center sm:text-left">
-                <h2 className="text-base sm:text-2xl font-black text-gray-900">
+            <div className="max-w-[260px] sm:max-w-sm mx-auto px-0 sm:px-0 border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
+              <div className="mb-3 sm:mb-6 text-left">
+                <h2 className="text-base sm:text-xl font-black text-gray-900">
                   Reserve a Table
                 </h2>
-                <p className="text-[10px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1 leading-tight">
+                <p className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-tight">
                   Enter the number of people and the reservation price will
                   appear automatically.
                 </p>
               </div>
 
               <div className="mb-2 sm:mb-3">
-                <label className="text-[10px] sm:text-sm font-medium text-gray-700 block mb-1">
+                <label className="text-[11px] sm:text-xs font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
-                <select
-                  value={tableSearch}
-                  onChange={(e) => {
-                    setTableSearch(e.target.value);
-                  }}
-                  disabled={tableLoading || tableConfigs.length === 0}
-                  className="w-full border border-gray-200 rounded-md px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
-                >
-                  <option value="">
-                    {tableLoading
-                      ? "Loading table options..."
-                      : "Select number of people"}
-                  </option>
-                  {peopleOptions.map((count) => (
-                    <option key={count} value={String(count)}>
-                      {count}
+                <div className="grid grid-cols-2 gap-2 mb-1">
+                  <div className="w-full flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 focus-within:border-[#1a1a2e]">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="text-gray-400 shrink-0"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={tableOptionQuery}
+                      onChange={(e) => setTableOptionQuery(e.target.value)}
+                      placeholder="Search"
+                      className="w-full border-none outline-none bg-transparent text-[11px] sm:text-xs text-gray-900 placeholder:text-gray-400 p-0"
+                    />
+                  </div>
+                  <select
+                    value={tableSearch}
+                    onChange={(e) => {
+                      setTableSearch(e.target.value);
+                    }}
+                    disabled={tableLoading || tableConfigs.length === 0}
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
+                  >
+                    <option value="">
+                      {tableLoading
+                        ? "Loading..."
+                        : "Select number of people"}
                     </option>
-                  ))}
-                </select>
+                    {filteredPeopleOptions.map((count) => (
+                      <option key={count} value={String(count)}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {!tableLoading && !tableError && filteredPeopleOptions.length === 0 && (
+                  <p className="mt-1 text-[10px] text-gray-400 text-left">
+                    No table size matches your search.
+                  </p>
+                )}
               </div>
 
               {!tableLoading && tableError && (
-                <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700">
                   {tableError}
                 </div>
               )}
 
               {tableSearch.trim() && (
                 <div
-                  className={`rounded-lg px-2 sm:px-3 py-1.5 sm:py-2.5 mb-2 sm:mb-3 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
+                  className={`w-full rounded-md px-2 py-1.5 mb-2 sm:mb-3 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
                 >
                   {matchedTable ? (
-                    <>
-                      <p className="text-[9px] sm:text-[11px] uppercase tracking-widest text-gray-400 mb-0.5 sm:mb-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-400">
                         Reservation Price
                       </p>
-                      <p className="text-sm sm:text-xl font-black text-[#1a1a2e] leading-tight">
-                        {Number(matchedTable.price).toLocaleString()} RWF
+                      <p className="text-xs sm:text-sm font-black text-[#1a1a2e] leading-tight whitespace-nowrap">
+                        {formatReservationAmount(Number(matchedTable.price))}
                       </p>
-                      <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
-                        Amount only
-                      </p>
-                    </>
+                    </div>
                   ) : (
-                    <p className="text-[11px] sm:text-sm text-gray-400">
+                    <p className="text-[10px] sm:text-[11px] text-gray-400">
                       No table found for <strong>{tableSearch}</strong>.
                     </p>
                   )}
+                </div>
+              )}
+
+              {matchedTable && (
+                <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] sm:text-[11px] text-amber-800">
+                  Non-consumable. No refund.
                 </div>
               )}
 
@@ -453,21 +561,21 @@ export default function RestaurantDetail() {
                 onClick={() => {
                   setTableStep(true);
                 }}
-                className="w-full bg-[#1a1a2e] !text-white py-1.5 sm:py-2 rounded-md sm:rounded-lg font-bold text-[11px] sm:text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-[125px] sm:w-[155px] mx-auto block bg-[#1a1a2e] !text-white py-1.5 rounded-md font-bold text-[10px] sm:text-[11px] hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
                 Continue to Booking &rarr;
               </button>
             </div>
           ) : (
             /* Step 2: Booking form */
-            <div className="max-w-[270px] sm:max-w-lg mx-auto border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
-              <div className="mb-2.5 sm:mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-lg sm:rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-2.5 sm:px-4 py-1.5 sm:py-2.5">
-                <div>
-                  <p className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-400">
-                    Reservation
+            <div className="max-w-[320px] sm:max-w-2xl mx-auto border border-gray-200 rounded-xl bg-white p-3 sm:p-5">
+              <div className="mb-4 w-full mx-auto flex items-center justify-between gap-2 rounded-lg border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] uppercase tracking-widest text-gray-400">
+                    Reservation Price
                   </p>
-                  <p className="font-bold text-gray-900 text-xs sm:text-sm leading-snug">
-                    {Number(matchedTable?.price).toLocaleString()} RWF
+                  <p className="font-bold text-gray-900 text-sm leading-snug whitespace-nowrap">
+                    {formatReservationAmount(Number(matchedTable?.price))}
                   </p>
                 </div>
                 <button
@@ -479,10 +587,10 @@ export default function RestaurantDetail() {
                 </button>
               </div>
 
-              <form onSubmit={handleBooking} className="space-y-2 sm:space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              <form onSubmit={handleBooking} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Full Name
                     </label>
                     <input
@@ -491,11 +599,11 @@ export default function RestaurantDetail() {
                       onChange={(e) => setGuestName(e.target.value)}
                       placeholder="John Doe"
                       required
-                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Email
                     </label>
                     <input
@@ -504,13 +612,13 @@ export default function RestaurantDetail() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Telephone
                     </label>
                     <PhoneNumberInput
@@ -519,13 +627,13 @@ export default function RestaurantDetail() {
                       required
                       defaultCountryIso2="RW"
                       placeholder="7XXXXXXXX"
-                      className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-1.5 sm:gap-2"
+                      className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Date
                     </label>
                     <input
@@ -534,11 +642,11 @@ export default function RestaurantDetail() {
                       onChange={(e) => setBookingDate(e.target.value)}
                       min={new Date().toISOString().split("T")[0]}
                       required
-                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Time
                     </label>
                     <input
@@ -546,20 +654,20 @@ export default function RestaurantDetail() {
                       value={bookingTime}
                       onChange={(e) => setBookingTime(e.target.value)}
                       required
-                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
                     Special Requests
                   </label>
                   <textarea
                     value={specialRequests}
                     onChange={(e) => setSpecialRequests(e.target.value)}
                     placeholder="Allergies, dietary requirements, special occasions..."
-                    rows={1}
-                    className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400 resize-none"
+                    rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400 resize-none"
                   />
                 </div>
                 {bookingError && (
@@ -567,10 +675,13 @@ export default function RestaurantDetail() {
                     {bookingError}
                   </div>
                 )}
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Non-consumable. No refund.
+                </div>
                 <button
                   type="submit"
                   disabled={bookingSubmitting}
-                  className="w-full bg-[#1a1a2e] !text-white py-1.5 sm:py-2 rounded-md sm:rounded-lg font-semibold text-[11px] sm:text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {bookingSubmitting ? "Booking..." : "Book Now"}
                 </button>
