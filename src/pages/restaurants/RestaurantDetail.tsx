@@ -436,7 +436,7 @@ export default function RestaurantDetail() {
                         {Number(matchedTable.price).toLocaleString()} RWF
                       </p>
                       <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
-                        Table of {matchedTable.table_of_people} people
+                        Amount only
                       </p>
                     </>
                   ) : (
@@ -467,7 +467,6 @@ export default function RestaurantDetail() {
                     Reservation
                   </p>
                   <p className="font-bold text-gray-900 text-xs sm:text-sm leading-snug">
-                    Table of {matchedTable?.table_of_people} &mdash;{" "}
                     {Number(matchedTable?.price).toLocaleString()} RWF
                   </p>
                 </div>
