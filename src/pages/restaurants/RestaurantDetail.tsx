@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { restaurants } from "../../data/mockData";
 import {
   createBooking,
   getMenuItems,
   getTableConfigurations,
-  getBusinessProfiles,
   type MenuItemRecord,
   type TableConfigRecord,
 } from "../../utils/api";
@@ -25,21 +24,25 @@ type MenuItem = {
 export default function RestaurantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const businessId = Number(id);
+  const initialPeopleCount = searchParams.get("people")?.trim() ?? "";
+  const initialDate = searchParams.get("date")?.trim() ?? "";
+  const initialTime = searchParams.get("time")?.trim() ?? "";
 
   const restaurant = restaurants.find((r) => r.id === businessId);
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [tableStep, setTableStep] = useState(false);
-  const [bookingDate, setBookingDate] = useState("");
-  const [bookingTime, setBookingTime] = useState("");
+  const [bookingDate, setBookingDate] = useState(initialDate);
+  const [bookingTime, setBookingTime] = useState(initialTime);
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
 
   // Table search state
-  const [tableSearch, setTableSearch] = useState("");
+  const [tableSearch, setTableSearch] = useState(initialPeopleCount);
   const [tableConfigs, setTableConfigs] = useState<TableConfigRecord[]>([]);
   const [matchedTable, setMatchedTable] = useState<TableConfigRecord | null>(
     null,
@@ -55,44 +58,73 @@ export default function RestaurantDetail() {
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableError, setTableError] = useState("");
+  const peopleOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-  // Fetch ALL table configs from ALL businesses in DB
-  // Visitor types a number → matches against real DB data
+  // Fetch table configs from DB for this restaurant only.
   useEffect(() => {
-    void getBusinessProfiles()
-      .then(async (profiles) => {
-        // Fetch table configs for all businesses and merge
-        const all: TableConfigRecord[] = [];
-        for (const p of profiles) {
-          if (!p.business_id) continue;
-          try {
-            const data = await getTableConfigurations(Number(p.business_id));
-            all.push(...data);
-          } catch {
-            // skip failed fetches
-          }
-        }
-        if (all.length > 0) setTableConfigs(all);
-      })
-      .catch(() => {});
-  }, []);
+    if (!Number.isFinite(businessId) || businessId <= 0) {
+      setTableConfigs([]);
+      setTableError("Invalid restaurant id.");
+      return;
+    }
 
-  // Auto-match price when visitor types - exact match first, then starts-with
+    let active = true;
+    const loadTables = async () => {
+      setTableLoading(true);
+      setTableError("");
+      try {
+        const rows = await getTableConfigurations(businessId);
+        if (!active) return;
+        setTableConfigs(rows);
+      } catch (error) {
+        if (!active) return;
+        setTableConfigs([]);
+        setTableError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load table configurations.",
+        );
+      } finally {
+        if (active) setTableLoading(false);
+      }
+    };
+
+    void loadTables();
+    return () => {
+      active = false;
+    };
+  }, [businessId]);
+
+  // Match selected people count to DB table capacity using range fallback.
+  // Example: selecting 3 will pick a 4-seat table when 3 is unavailable.
   useEffect(() => {
     if (!tableSearch.trim()) {
       setMatchedTable(null);
       return;
     }
-    const val = tableSearch.trim().toLowerCase();
-    // 1. Exact match
-    let found = tableConfigs.find(
-      (t) => t.table_of_people.toLowerCase() === val,
+    const selectedCount = Number(tableSearch.trim());
+    const sortedTables = [...tableConfigs].sort(
+      (a, b) =>
+        parsePeopleCount(String(a.table_of_people)) -
+        parsePeopleCount(String(b.table_of_people)),
     );
-    // 2. Starts with
-    if (!found)
-      found = tableConfigs.find((t) =>
-        t.table_of_people.toLowerCase().startsWith(val),
+
+    let found = sortedTables.find(
+      (t) => parsePeopleCount(String(t.table_of_people)) === selectedCount,
+    );
+
+    if (!found) {
+      found = sortedTables.find(
+        (t) => parsePeopleCount(String(t.table_of_people)) >= selectedCount,
       );
+    }
+
+    if (!found) {
+      found = sortedTables[sortedTables.length - 1];
+    }
+
     setMatchedTable(found ?? null);
   }, [tableSearch, tableConfigs]);
 
@@ -114,6 +146,12 @@ export default function RestaurantDetail() {
     const firstRangePart = Number(trimmed.split("-")[0]);
     if (Number.isFinite(firstRangePart) && firstRangePart > 0) {
       return firstRangePart;
+    }
+
+    const firstNumberMatch = trimmed.match(/\d+/);
+    if (firstNumberMatch) {
+      const parsed = Number(firstNumberMatch[0]);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
 
     return 1;
@@ -343,57 +381,66 @@ export default function RestaurantDetail() {
         <div>
           {!tableStep ? (
             /* Step 1: Search for table size → price shows automatically */
-            <div className="max-w-xl mx-auto">
-              <div className="mb-6">
-                <h2 className="text-2xl font-black text-gray-900">
+            <div className="max-w-[250px] sm:max-w-sm mx-auto px-0 sm:px-0 border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
+              <div className="mb-2 sm:mb-6 text-center sm:text-left">
+                <h2 className="text-base sm:text-2xl font-black text-gray-900">
                   Reserve a Table
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-[10px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1 leading-tight">
                   Enter the number of people and the reservation price will
                   appear automatically.
                 </p>
               </div>
 
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 block mb-1">
+              <div className="mb-2 sm:mb-3">
+                <label className="text-[10px] sm:text-sm font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
                 <select
                   value={tableSearch}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setTableSearch(val);
-                    setMatchedTable(tableConfigs.find((t) => t.table_of_people === val) ?? null);
+                    setTableSearch(e.target.value);
                   }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
+                  disabled={tableLoading || tableConfigs.length === 0}
+                  className="w-full border border-gray-200 rounded-md px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
                 >
-                  <option value="">-- Select number of people --</option>
-                  {tableConfigs.map((t) => (
-                    <option key={t.id} value={t.table_of_people}>
-                      {t.table_of_people}
+                  <option value="">
+                    {tableLoading
+                      ? "Loading table options..."
+                      : "Select number of people"}
+                  </option>
+                  {peopleOptions.map((count) => (
+                    <option key={count} value={String(count)}>
+                      {count}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {!tableLoading && tableError && (
+                <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                  {tableError}
+                </div>
+              )}
+
               {tableSearch.trim() && (
                 <div
-                  className={`rounded-2xl px-5 py-4 mb-5 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
+                  className={`rounded-lg px-2 sm:px-3 py-1.5 sm:py-2.5 mb-2 sm:mb-3 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
                 >
                   {matchedTable ? (
                     <>
-                      <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
+                      <p className="text-[9px] sm:text-[11px] uppercase tracking-widest text-gray-400 mb-0.5 sm:mb-1">
                         Reservation Price
                       </p>
-                      <p className="text-3xl font-black text-[#1a1a2e]">
+                      <p className="text-sm sm:text-xl font-black text-[#1a1a2e] leading-tight">
                         {Number(matchedTable.price).toLocaleString()} RWF
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
                         Table of {matchedTable.table_of_people} people
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-gray-400">
+                    <p className="text-[11px] sm:text-sm text-gray-400">
                       No table found for <strong>{tableSearch}</strong>.
                     </p>
                   )}
@@ -406,20 +453,20 @@ export default function RestaurantDetail() {
                 onClick={() => {
                   setTableStep(true);
                 }}
-                className="w-full bg-[#1a1a2e] !text-white py-3.5 rounded-xl font-bold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-[#1a1a2e] !text-white py-1.5 sm:py-2 rounded-md sm:rounded-lg font-bold text-[11px] sm:text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Continue to Booking &rarr;
               </button>
             </div>
           ) : (
             /* Step 2: Booking form */
-            <div>
-              <div className="mb-5 flex items-center justify-between rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-3">
+            <div className="max-w-[270px] sm:max-w-lg mx-auto border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
+              <div className="mb-2.5 sm:mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-lg sm:rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-2.5 sm:px-4 py-1.5 sm:py-2.5">
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-gray-400">
+                  <p className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-400">
                     Reservation
                   </p>
-                  <p className="font-bold text-gray-900 text-sm">
+                  <p className="font-bold text-gray-900 text-xs sm:text-sm leading-snug">
                     Table of {matchedTable?.table_of_people} &mdash;{" "}
                     {Number(matchedTable?.price).toLocaleString()} RWF
                   </p>
@@ -427,16 +474,16 @@ export default function RestaurantDetail() {
                 <button
                   type="button"
                   onClick={() => setTableStep(false)}
-                  className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2"
+                  className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2 self-start sm:self-auto"
                 >
                   Change
                 </button>
               </div>
 
-              <form onSubmit={handleBooking} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <form onSubmit={handleBooking} className="space-y-2 sm:space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                       Full Name
                     </label>
                     <input
@@ -445,11 +492,11 @@ export default function RestaurantDetail() {
                       onChange={(e) => setGuestName(e.target.value)}
                       placeholder="John Doe"
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                       Email
                     </label>
                     <input
@@ -458,13 +505,13 @@ export default function RestaurantDetail() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                       Telephone
                     </label>
                     <PhoneNumberInput
@@ -473,13 +520,13 @@ export default function RestaurantDetail() {
                       required
                       defaultCountryIso2="RW"
                       placeholder="7XXXXXXXX"
-                      className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2"
+                      className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-1.5 sm:gap-2"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                       Date
                     </label>
                     <input
@@ -488,11 +535,11 @@ export default function RestaurantDetail() {
                       onChange={(e) => setBookingDate(e.target.value)}
                       min={new Date().toISOString().split("T")[0]}
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                    <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                       Time
                     </label>
                     <input
@@ -500,20 +547,20 @@ export default function RestaurantDetail() {
                       value={bookingTime}
                       onChange={(e) => setBookingTime(e.target.value)}
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 block mb-0.5 sm:mb-1">
                     Special Requests
                   </label>
                   <textarea
                     value={specialRequests}
                     onChange={(e) => setSpecialRequests(e.target.value)}
                     placeholder="Allergies, dietary requirements, special occasions..."
-                    rows={3}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400 resize-none"
+                    rows={1}
+                    className="w-full border border-gray-200 rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm outline-none focus:border-gray-400 resize-none"
                   />
                 </div>
                 {bookingError && (
@@ -524,7 +571,7 @@ export default function RestaurantDetail() {
                 <button
                   type="submit"
                   disabled={bookingSubmitting}
-                  className="w-full bg-[#1a1a2e] !text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#1a1a2e] !text-white py-1.5 sm:py-2 rounded-md sm:rounded-lg font-semibold text-[11px] sm:text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {bookingSubmitting ? "Booking..." : "Book Now"}
                 </button>
