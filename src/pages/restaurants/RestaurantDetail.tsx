@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { restaurants } from "../../data/mockData";
 import {
   createBooking,
   getMenuItems,
   getTableConfigurations,
-  getBusinessProfiles,
   type MenuItemRecord,
   type TableConfigRecord,
 } from "../../utils/api";
@@ -25,21 +24,25 @@ type MenuItem = {
 export default function RestaurantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const businessId = Number(id);
+  const initialPeopleCount = searchParams.get("people")?.trim() ?? "";
+  const initialDate = searchParams.get("date")?.trim() ?? "";
+  const initialTime = searchParams.get("time")?.trim() ?? "";
 
   const restaurant = restaurants.find((r) => r.id === businessId);
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [tableStep, setTableStep] = useState(false);
-  const [bookingDate, setBookingDate] = useState("");
-  const [bookingTime, setBookingTime] = useState("");
+  const [bookingDate, setBookingDate] = useState(initialDate);
+  const [bookingTime, setBookingTime] = useState(initialTime);
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
 
   // Table search state
-  const [tableSearch, setTableSearch] = useState("");
+  const [tableSearch, setTableSearch] = useState(initialPeopleCount);
   const [tableConfigs, setTableConfigs] = useState<TableConfigRecord[]>([]);
   const [matchedTable, setMatchedTable] = useState<TableConfigRecord | null>(
     null,
@@ -55,56 +58,9 @@ export default function RestaurantDetail() {
   const [orderList, setOrderList] = useState<MenuItem[]>([]);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
-
-  // Fetch ALL table configs from ALL businesses in DB
-  // Visitor types a number → matches against real DB data
-  useEffect(() => {
-    void getBusinessProfiles()
-      .then(async (profiles) => {
-        // Fetch table configs for all businesses and merge
-        const all: TableConfigRecord[] = [];
-        for (const p of profiles) {
-          if (!p.business_id) continue;
-          try {
-            const data = await getTableConfigurations(Number(p.business_id));
-            all.push(...data);
-          } catch {
-            // skip failed fetches
-          }
-        }
-        if (all.length > 0) setTableConfigs(all);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Auto-match price when visitor types - exact match first, then starts-with
-  useEffect(() => {
-    if (!tableSearch.trim()) {
-      setMatchedTable(null);
-      return;
-    }
-    const val = tableSearch.trim().toLowerCase();
-    // 1. Exact match
-    let found = tableConfigs.find(
-      (t) => t.table_of_people.toLowerCase() === val,
-    );
-    // 2. Starts with
-    if (!found)
-      found = tableConfigs.find((t) =>
-        t.table_of_people.toLowerCase().startsWith(val),
-      );
-    setMatchedTable(found ?? null);
-  }, [tableSearch, tableConfigs]);
-
-  if (!restaurant)
-    return (
-      <div className="p-10 text-center">
-        Restaurant not found.{" "}
-        <Link to="/restaurants" className="text-blue-600 underline">
-          Go back
-        </Link>
-      </div>
-    );
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableError, setTableError] = useState("");
+  const [tableOptionQuery, setTableOptionQuery] = useState("");
 
   const parsePeopleCount = (value: string) => {
     const trimmed = value.trim();
@@ -116,8 +72,167 @@ export default function RestaurantDetail() {
       return firstRangePart;
     }
 
+    const firstNumberMatch = trimmed.match(/\d+/);
+    if (firstNumberMatch) {
+      const parsed = Number(firstNumberMatch[0]);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+
     return 1;
   };
+
+  const formatReservationAmount = (value: number) => {
+    if (!Number.isFinite(value)) return "0 RWF";
+    const compact = new Intl.NumberFormat("en", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
+    return `${compact} RWF`;
+  };
+
+  // Fetch table configs from DB for this restaurant only.
+  useEffect(() => {
+    if (!Number.isFinite(businessId) || businessId <= 0) {
+      setTableConfigs([]);
+      setTableError("Invalid restaurant id.");
+      return;
+    }
+
+    let active = true;
+    const loadTables = async () => {
+      setTableLoading(true);
+      setTableError("");
+      try {
+        const rows = await getTableConfigurations(businessId);
+        if (!active) return;
+        setTableConfigs(rows);
+      } catch (error) {
+        if (!active) return;
+        setTableConfigs([]);
+        setTableError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load table configurations.",
+        );
+      } finally {
+        if (active) setTableLoading(false);
+      }
+    };
+
+    void loadTables();
+    return () => {
+      active = false;
+    };
+  }, [businessId]);
+
+  // Match selected people count to DB table capacity using range fallback.
+  // Example: selecting 3 will pick a 4-seat table when 3 is unavailable.
+  useEffect(() => {
+    if (!tableSearch.trim()) {
+      setMatchedTable(null);
+      return;
+    }
+    const selectedCount = Number(tableSearch.trim());
+    const sortedTables = [...tableConfigs].sort(
+      (a, b) =>
+        parsePeopleCount(String(a.table_of_people)) -
+        parsePeopleCount(String(b.table_of_people)),
+    );
+
+    let found = sortedTables.find(
+      (t) => parsePeopleCount(String(t.table_of_people)) === selectedCount,
+    );
+
+    if (!found) {
+      found = sortedTables.find(
+        (t) => parsePeopleCount(String(t.table_of_people)) >= selectedCount,
+      );
+    }
+
+    if (!found) {
+      found = sortedTables[sortedTables.length - 1];
+    }
+
+    setMatchedTable(found ?? null);
+  }, [tableSearch, tableConfigs]);
+
+  const peopleOptions = useMemo(() => {
+    const capacities = tableConfigs
+      .map((tableConfig) => parsePeopleCount(String(tableConfig.table_of_people)))
+      .filter((capacity) => Number.isFinite(capacity) && capacity > 0);
+    const maxCapacity = capacities.length > 0 ? Math.max(...capacities) : 12;
+    const upperLimit = Math.max(12, maxCapacity);
+    return Array.from({ length: upperLimit - 1 }, (_, index) => index + 2);
+  }, [tableConfigs]);
+
+  const filteredPeopleOptions = useMemo(() => {
+    const query = tableOptionQuery.trim().toLowerCase();
+    if (!query) return peopleOptions;
+
+    const byCount = peopleOptions.filter((count) =>
+      String(count).includes(query),
+    );
+    if (byCount.length > 0) return byCount;
+
+    return peopleOptions.filter((count) => {
+      const matchingTables = tableConfigs.filter(
+        (tableConfig) =>
+          parsePeopleCount(String(tableConfig.table_of_people)) === count,
+      );
+
+      return matchingTables.some((tableConfig) => {
+        const peopleText = String(
+          parsePeopleCount(String(tableConfig.table_of_people)),
+        );
+        const priceText = String(Math.round(Number(tableConfig.price)));
+        return peopleText.includes(query) || priceText.includes(query);
+      });
+    });
+  }, [peopleOptions, tableOptionQuery]);
+
+  useEffect(() => {
+    const query = tableOptionQuery.trim().toLowerCase();
+    if (!query || tableConfigs.length === 0) return;
+
+    const numericQuery = Number(query);
+    if (Number.isFinite(numericQuery) && numericQuery > 0) {
+      setTableSearch(String(Math.trunc(numericQuery)));
+      return;
+    }
+
+    const sortedTables = [...tableConfigs].sort(
+      (a, b) =>
+        parsePeopleCount(String(a.table_of_people)) -
+        parsePeopleCount(String(b.table_of_people)),
+    );
+
+    const matchedByPrice = sortedTables.find((tableConfig) =>
+      String(Math.round(Number(tableConfig.price))).includes(query),
+    );
+
+    const matchedBySize = sortedTables.find((tableConfig) => {
+      const peopleText = String(
+        parsePeopleCount(String(tableConfig.table_of_people)),
+      );
+      return peopleText.includes(query);
+    });
+
+    const matched = matchedByPrice ?? matchedBySize;
+    if (!matched) return;
+
+    const peopleCount = parsePeopleCount(String(matched.table_of_people));
+    setTableSearch(String(peopleCount));
+  }, [tableConfigs, tableOptionQuery]);
+
+  if (!restaurant)
+    return (
+      <div className="p-10 text-center">
+        Restaurant not found.{" "}
+        <Link to="/restaurants" className="text-blue-600 underline">
+          Go back
+        </Link>
+      </div>
+    );
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -343,60 +458,100 @@ export default function RestaurantDetail() {
         <div>
           {!tableStep ? (
             /* Step 1: Search for table size → price shows automatically */
-            <div className="max-w-xl mx-auto">
-              <div className="mb-6">
-                <h2 className="text-2xl font-black text-gray-900">
+            <div className="max-w-[260px] sm:max-w-sm mx-auto px-0 sm:px-0 border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
+              <div className="mb-3 sm:mb-6 text-left">
+                <h2 className="text-base sm:text-xl font-black text-gray-900">
                   Reserve a Table
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-tight">
                   Enter the number of people and the reservation price will
                   appear automatically.
                 </p>
               </div>
 
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 block mb-1">
+              <div className="mb-2 sm:mb-3">
+                <label className="text-[11px] sm:text-xs font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
-                <select
-                  value={tableSearch}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setTableSearch(val);
-                    setMatchedTable(tableConfigs.find((t) => t.table_of_people === val) ?? null);
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
-                >
-                  <option value="">-- Select number of people --</option>
-                  {tableConfigs.map((t) => (
-                    <option key={t.id} value={t.table_of_people}>
-                      {t.table_of_people}
+                <div className="grid grid-cols-2 gap-2 mb-1">
+                  <div className="w-full flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 focus-within:border-[#1a1a2e]">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="text-gray-400 shrink-0"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={tableOptionQuery}
+                      onChange={(e) => setTableOptionQuery(e.target.value)}
+                      placeholder="Search"
+                      className="w-full border-none outline-none bg-transparent text-[11px] sm:text-xs text-gray-900 placeholder:text-gray-400 p-0"
+                    />
+                  </div>
+                  <select
+                    value={tableSearch}
+                    onChange={(e) => {
+                      setTableSearch(e.target.value);
+                    }}
+                    disabled={tableLoading || tableConfigs.length === 0}
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
+                  >
+                    <option value="">
+                      {tableLoading
+                        ? "Loading..."
+                        : "Select number of people"}
                     </option>
-                  ))}
-                </select>
+                    {filteredPeopleOptions.map((count) => (
+                      <option key={count} value={String(count)}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {!tableLoading && !tableError && filteredPeopleOptions.length === 0 && (
+                  <p className="mt-1 text-[10px] text-gray-400 text-left">
+                    No table size matches your search.
+                  </p>
+                )}
               </div>
+
+              {!tableLoading && tableError && (
+                <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700">
+                  {tableError}
+                </div>
+              )}
 
               {tableSearch.trim() && (
                 <div
-                  className={`rounded-2xl px-5 py-4 mb-5 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
+                  className={`w-full rounded-md px-2 py-1.5 mb-2 sm:mb-3 border ${matchedTable ? "border-[#1a1a2e]/20 bg-[#1a1a2e]/5" : "border-gray-200 bg-gray-50"}`}
                 >
                   {matchedTable ? (
-                    <>
-                      <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-gray-400">
                         Reservation Price
                       </p>
-                      <p className="text-3xl font-black text-[#1a1a2e]">
-                        {Number(matchedTable.price).toLocaleString()} RWF
+                      <p className="text-xs sm:text-sm font-black text-[#1a1a2e] leading-tight whitespace-nowrap">
+                        {formatReservationAmount(Number(matchedTable.price))}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Table of {matchedTable.table_of_people} people
-                      </p>
-                    </>
+                    </div>
                   ) : (
-                    <p className="text-sm text-gray-400">
+                    <p className="text-[10px] sm:text-[11px] text-gray-400">
                       No table found for <strong>{tableSearch}</strong>.
                     </p>
                   )}
+                </div>
+              )}
+
+              {matchedTable && (
+                <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] sm:text-[11px] text-amber-800">
+                  Non-consumable. No refund.
                 </div>
               )}
 
@@ -406,35 +561,34 @@ export default function RestaurantDetail() {
                 onClick={() => {
                   setTableStep(true);
                 }}
-                className="w-full bg-[#1a1a2e] !text-white py-3.5 rounded-xl font-bold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-[125px] sm:w-[155px] mx-auto block bg-[#1a1a2e] !text-white py-1.5 rounded-md font-bold text-[10px] sm:text-[11px] hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
                 Continue to Booking &rarr;
               </button>
             </div>
           ) : (
             /* Step 2: Booking form */
-            <div>
-              <div className="mb-5 flex items-center justify-between rounded-2xl border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-5 py-3">
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-gray-400">
-                    Reservation
+            <div className="max-w-[320px] sm:max-w-2xl mx-auto border border-gray-200 rounded-xl bg-white p-3 sm:p-5">
+              <div className="mb-4 w-full mx-auto flex items-center justify-between gap-2 rounded-lg border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] uppercase tracking-widest text-gray-400">
+                    Reservation Price
                   </p>
-                  <p className="font-bold text-gray-900 text-sm">
-                    Table of {matchedTable?.table_of_people} &mdash;{" "}
-                    {Number(matchedTable?.price).toLocaleString()} RWF
+                  <p className="font-bold text-gray-900 text-sm leading-snug whitespace-nowrap">
+                    {formatReservationAmount(Number(matchedTable?.price))}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setTableStep(false)}
-                  className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2"
+                  className="text-xs text-[#1a1a2e] font-semibold underline underline-offset-2 self-start sm:self-auto"
                 >
                   Change
                 </button>
               </div>
 
-              <form onSubmit={handleBooking} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <form onSubmit={handleBooking} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">
                       Full Name
@@ -445,7 +599,7 @@ export default function RestaurantDetail() {
                       onChange={(e) => setGuestName(e.target.value)}
                       placeholder="John Doe"
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
@@ -458,11 +612,11 @@ export default function RestaurantDetail() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">
                       Telephone
@@ -477,7 +631,7 @@ export default function RestaurantDetail() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">
                       Date
@@ -488,7 +642,7 @@ export default function RestaurantDetail() {
                       onChange={(e) => setBookingDate(e.target.value)}
                       min={new Date().toISOString().split("T")[0]}
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                   <div>
@@ -500,7 +654,7 @@ export default function RestaurantDetail() {
                       value={bookingTime}
                       onChange={(e) => setBookingTime(e.target.value)}
                       required
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 </div>
@@ -512,8 +666,8 @@ export default function RestaurantDetail() {
                     value={specialRequests}
                     onChange={(e) => setSpecialRequests(e.target.value)}
                     placeholder="Allergies, dietary requirements, special occasions..."
-                    rows={3}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400 resize-none"
+                    rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400 resize-none"
                   />
                 </div>
                 {bookingError && (
@@ -521,10 +675,13 @@ export default function RestaurantDetail() {
                     {bookingError}
                   </div>
                 )}
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Non-consumable. No refund.
+                </div>
                 <button
                   type="submit"
                   disabled={bookingSubmitting}
-                  className="w-full bg-[#1a1a2e] !text-white py-3 rounded-xl font-semibold hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {bookingSubmitting ? "Booking..." : "Book Now"}
                 </button>
