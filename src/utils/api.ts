@@ -1,6 +1,6 @@
 const API_BASE_FROM_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 // const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
-const DEFAULT_BASE_URL = "http://localhost:5000/api";
+const DEFAULT_BASE_URL = "http://localhost:1000/api";
 export const BASE_URL = (API_BASE_FROM_ENV && API_BASE_FROM_ENV.length > 0
   ? API_BASE_FROM_ENV
   : DEFAULT_BASE_URL
@@ -81,6 +81,12 @@ export type MenuItemCreateInput = {
   available?: boolean;
   imageFile?: File | null;
 };
+
+export interface MenuBulkImportResult {
+  success: boolean;
+  importedCount: number;
+  items: MenuItemRecord[];
+}
 
 export interface MenuItemRecord {
   id: number;
@@ -508,6 +514,50 @@ export async function createMenuItem(token: string, input: MenuItemCreateInput) 
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(toErrorMessage(data, "Failed to create menu item"));
   return data as MenuItemRecord;
+}
+
+export async function updateMenuItem(token: string, id: number, input: Partial<MenuItemCreateInput>) {
+  const res = await fetch(`${BASE_URL}/menu/${id}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildMenuItemFormData(input as MenuItemCreateInput),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to update menu item"));
+  return data as MenuItemRecord;
+}
+
+export async function deleteMenuItem(token: string, id: number) {
+  const res = await fetch(`${BASE_URL}/menu/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to delete menu item"));
+  return data;
+}
+
+export async function importMenuSheet(token: string, sheetFile: File) {
+  const formData = new FormData();
+  formData.append("sheet", sheetFile);
+
+  const res = await fetch(`${BASE_URL}/menu/import-sheet`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to import menu sheet"));
+  return data as MenuBulkImportResult;
 }
 
 export async function getMenuItems(params?: { businessId?: number | string }) {

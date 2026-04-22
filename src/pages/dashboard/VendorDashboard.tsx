@@ -12,14 +12,17 @@ import {
   createMenuItem,
   deleteBusinessSupportingDocument,
   deleteManager,
+  deleteMenuItem,
   getMenuItems,
   getMyManagers,
   getMyBusinessProfile,
   getRestaurantTypes,
   getShopTypes,
   getVendorBookings,
+  importMenuSheet,
   updateBookingStatus,
   updateManager,
+  updateMenuItem,
   updateMyBusinessProfile,
   type BusinessManagerRecord,
   type BookingRecord,
@@ -470,6 +473,9 @@ export default function VendorDashboard() {
     "success" | "error"
   >("success");
   const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
+  const [menuSheetModalOpen, setMenuSheetModalOpen] = useState(false);
+  const [menuSheetFile, setMenuSheetFile] = useState<File | null>(null);
+  const [menuSheetImporting, setMenuSheetImporting] = useState(false);
   const [businessId, setBusinessId] = useState<number | null>(null);
   const [businessFiles, setBusinessFiles] = useState<{
     businessProfileImage: File | null;
@@ -502,6 +508,26 @@ export default function VendorDashboard() {
     imagePreviewUrl: undefined,
     imageFile: null,
   });
+  const [editingMenuItemId, setEditingMenuItemId] = useState<number | null>(
+    null,
+  );
+  const [menuEditForm, setMenuEditForm] = useState<NewItemFormState>({
+    itemName: "",
+    price: "",
+    prepTime: "",
+    description: "",
+    imageName: "",
+    imagePreviewUrl: undefined,
+    imageFile: null,
+  });
+  const [menuEditMessage, setMenuEditMessage] = useState<string | null>(null);
+  const [menuEditMessageType, setMenuEditMessageType] = useState<
+    "success" | "error"
+  >("success");
+  const [menuEditSubmitting, setMenuEditSubmitting] = useState(false);
+  const [deletingMenuItemId, setDeletingMenuItemId] = useState<number | null>(
+    null,
+  );
   const [managerActionMessage, setManagerActionMessage] = useState<
     string | null
   >(null);
@@ -1161,10 +1187,21 @@ export default function VendorDashboard() {
     });
   };
 
+  const resetMenuSheetImport = () => {
+    setMenuSheetFile(null);
+    setMenuSheetModalOpen(false);
+  };
+
   const handleOpenMenuForm = () => {
     setMenuFormMessage(null);
     setMenuFormMessageType("success");
     setMenuFormOpen(true);
+  };
+
+  const handleOpenMenuSheetModal = () => {
+    setMenuFormMessage(null);
+    setMenuFormMessageType("success");
+    setMenuSheetModalOpen(true);
   };
 
   const handleMenuImageChange = (file: File) => {
@@ -1178,6 +1215,58 @@ export default function VendorDashboard() {
       }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleMenuSheetImport = async () => {
+    if (!token) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage("You must be signed in to import menu items.");
+      return;
+    }
+
+    if (!menuSheetFile) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage("Please select a CSV or Excel file first.");
+      return;
+    }
+
+    setMenuSheetImporting(true);
+    try {
+      const result = await importMenuSheet(token, menuSheetFile);
+      const importedItems = result.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        subtitle:
+          (item.description ?? "").trim().slice(0, 44) || "Imported item",
+        price: Number(item.price),
+        status: Number(item.available) === 1 ? "Active" : "Unavailable",
+        metric: "Imported",
+        accent: "bg-[#1a1a2e]",
+        imageUrl: resolveMediaUrl(item.imageurl),
+      }));
+
+      setCatalogItems((current) => [...importedItems, ...current]);
+      setAvailabilityByItemId((current) => {
+        const next = { ...current };
+        result.items.forEach((item) => {
+          next[item.id] = Number(item.available) === 1;
+        });
+        return next;
+      });
+
+      setMenuFormMessageType("success");
+      setMenuFormMessage(
+        `${result.importedCount} ${isShop ? "product" : "menu item"}${result.importedCount === 1 ? "" : "s"} imported successfully.`,
+      );
+      resetMenuSheetImport();
+    } catch (error) {
+      setMenuFormMessageType("error");
+      setMenuFormMessage(
+        error instanceof Error ? error.message : "Failed to import menu sheet.",
+      );
+    } finally {
+      setMenuSheetImporting(false);
+    }
   };
 
   const handleMenuFormSubmit = async (
@@ -1245,6 +1334,143 @@ export default function VendorDashboard() {
       );
     } finally {
       setMenuFormSubmitting(false);
+    }
+  };
+
+  const openEditMenuForm = (item: CatalogItem) => {
+    setEditingMenuItemId(item.id);
+    setMenuEditForm({
+      itemName: item.name,
+      price: String(item.price),
+      prepTime: "",
+      description: item.subtitle,
+      imageName: "",
+      imagePreviewUrl: item.imageUrl,
+      imageFile: null,
+    });
+    setMenuEditMessage(null);
+  };
+
+  const resetMenuEditForm = () => {
+    setEditingMenuItemId(null);
+    setMenuEditForm({
+      itemName: "",
+      price: "",
+      prepTime: "",
+      description: "",
+      imageName: "",
+      imagePreviewUrl: undefined,
+      imageFile: null,
+    });
+    setMenuEditMessage(null);
+  };
+
+  const handleMenuImageChangeForEdit = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMenuEditForm((current) => ({
+        ...current,
+        imageName: file.name,
+        imagePreviewUrl: String(reader.result),
+        imageFile: file,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleMenuEditSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    if (!token || editingMenuItemId === null) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage("Invalid state: unable to update item.");
+      return;
+    }
+
+    const parsedPrice = Number(menuEditForm.price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage("Please enter a valid item price.");
+      return;
+    }
+
+    setMenuEditSubmitting(true);
+    try {
+      const updated = await updateMenuItem(token, editingMenuItemId, {
+        name: menuEditForm.itemName.trim(),
+        description: menuEditForm.description.trim(),
+        price: parsedPrice,
+        imageFile: menuEditForm.imageFile ?? null,
+      });
+
+      setCatalogItems((current) =>
+        current.map((item) =>
+          item.id === editingMenuItemId
+            ? {
+                ...item,
+                name: updated.name,
+                price: Number(updated.price),
+                subtitle:
+                  updated.description?.trim().slice(0, 44) || "Menu item",
+                imageUrl: resolveMediaUrl(updated.imageurl),
+              }
+            : item,
+        ),
+      );
+
+      setMenuEditMessageType("success");
+      setMenuEditMessage(
+        `${isShop ? "Product" : "Menu item"} updated successfully.`,
+      );
+      resetMenuEditForm();
+      setTimeout(() => setMenuEditMessage(null), 2000);
+    } catch (error) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage(
+        error instanceof Error ? error.message : "Failed to update item.",
+      );
+    } finally {
+      setMenuEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteMenuItem = async (itemId: number) => {
+    if (!token) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage("You must be signed in to delete items.");
+      return;
+    }
+
+    const approved = window.confirm(
+      `Delete this ${isShop ? "product" : "menu item"} permanently?`,
+    );
+    if (!approved) return;
+
+    setDeletingMenuItemId(itemId);
+    try {
+      await deleteMenuItem(token, itemId);
+      setCatalogItems((current) =>
+        current.filter((item) => item.id !== itemId),
+      );
+      setAvailabilityByItemId((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+      setMenuEditMessageType("success");
+      setMenuEditMessage(
+        `${isShop ? "Product" : "Menu item"} deleted successfully.`,
+      );
+      setTimeout(() => setMenuEditMessage(null), 2000);
+    } catch (error) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage(
+        error instanceof Error ? error.message : "Failed to delete item.",
+      );
+    } finally {
+      setDeletingMenuItemId(null);
     }
   };
 
@@ -2870,14 +3096,36 @@ export default function VendorDashboard() {
                       in real-time.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenMenuForm}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
-                  >
-                    <span className="text-lg leading-none">+</span>
-                    {isShop ? "Add New Product" : "Add New Item"}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleOpenMenuSheetModal}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#1a1a2e] bg-white px-5 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-[#1a1a2e]/10 dark:border-[#1a1a2e]/50 dark:bg-white/5"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"
+                        />
+                      </svg>
+                      Upload CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOpenMenuForm}
+                      className="inline-flex items-center gap-2 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
+                    >
+                      <span className="text-lg leading-none">+</span>
+                      {isShop ? "Add New Product" : "Add New Item"}
+                    </button>
+                  </div>
                 </div>
 
                 {menuFormOpen && (
@@ -3038,6 +3286,235 @@ export default function VendorDashboard() {
                   >
                     {menuFormMessage}
                   </div>
+                )}
+
+                {editingMenuItemId !== null && (
+                  <SectionCard
+                    title={isShop ? "Edit Product" : "Edit Item"}
+                    subtitle={`Update the information below to edit this ${isShop ? "product" : "menu item"}.`}
+                  >
+                    <form
+                      onSubmit={handleMenuEditSubmit}
+                      className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]"
+                    >
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Item name
+                          </span>
+                          <input
+                            required
+                            value={menuEditForm.itemName}
+                            onChange={(event) =>
+                              setMenuEditForm((current) => ({
+                                ...current,
+                                itemName: event.target.value,
+                              }))
+                            }
+                            placeholder={
+                              isShop
+                                ? "e.g. Handwoven Basket"
+                                : "e.g. Traditional Akabenz"
+                            }
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Price (RWF)
+                          </span>
+                          <input
+                            required
+                            type="number"
+                            min={0}
+                            value={menuEditForm.price}
+                            onChange={(event) =>
+                              setMenuEditForm((current) => ({
+                                ...current,
+                                price: event.target.value,
+                              }))
+                            }
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Prep time (min)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={menuEditForm.prepTime}
+                            onChange={(event) =>
+                              setMenuEditForm((current) => ({
+                                ...current,
+                                prepTime: event.target.value,
+                              }))
+                            }
+                            placeholder="e.g. 15"
+                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Description
+                          </span>
+                          <textarea
+                            required
+                            rows={4}
+                            value={menuEditForm.description}
+                            onChange={(event) =>
+                              setMenuEditForm((current) => ({
+                                ...current,
+                                description: event.target.value,
+                              }))
+                            }
+                            placeholder="Tell your customers about this item, its ingredients, and what makes it special."
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-4">
+                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                            Image
+                          </span>
+                          <label className="block cursor-pointer rounded-2xl border border-slate-200 bg-slate-100 px-4 py-6 text-center transition hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              Images in public directory
+                            </span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              Click to choose an image from the public
+                              directory.
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (!file) return;
+                                handleMenuImageChangeForEdit(file);
+                              }}
+                            />
+                          </label>
+
+                          {menuEditForm.imagePreviewUrl && (
+                            <img
+                              src={menuEditForm.imagePreviewUrl}
+                              alt="Item preview"
+                              className="h-36 w-full rounded-[1.5rem] object-cover"
+                            />
+                          )}
+
+                          <div className="rounded-[1.5rem] border border-[#1a1a2e]/20 bg-[#1a1a2e]/10 px-4 py-3 text-sm text-[#1a1a2e] dark:text-[#1a1a2e]">
+                            Items with high-quality photos receive more orders.
+                            {menuEditForm.imageName && (
+                              <span className="mt-1 block text-xs">
+                                Selected: {menuEditForm.imageName}
+                              </span>
+                            )}
+                          </div>
+                        </label>
+
+                        <div className="lg:col-span-2 flex justify-end gap-3 border-t border-slate-200/70 pt-4 dark:border-white/10">
+                          <button
+                            type="button"
+                            onClick={resetMenuEditForm}
+                            className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={menuEditSubmitting}
+                            className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {menuEditSubmitting ? "Saving..." : "Update Item"}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </SectionCard>
+                )}
+
+                {menuEditMessage && (
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm font-medium ${menuEditMessageType === "success" ? "border border-[#1a1a2e]/30 bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]" : "border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                  >
+                    {menuEditMessage}
+                  </div>
+                )}
+
+                {menuSheetModalOpen && (
+                  <SectionCard
+                    title="Import from CSV/Excel"
+                    subtitle="Bulk upload menu items from a spreadsheet file"
+                  >
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          File Format
+                        </p>
+                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                          Upload a .csv, .xls, or .xlsx file with these columns:
+                        </p>
+                        <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                          <li>
+                            • <span className="font-semibold">name</span>{" "}
+                            (required) - Item name
+                          </li>
+                          <li>
+                            • <span className="font-semibold">price</span>{" "}
+                            (required) - Price in RWF
+                          </li>
+                          <li>
+                            • <span className="font-semibold">description</span>{" "}
+                            (optional) - Item description
+                          </li>
+                        </ul>
+                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                          All imported items will be set as Active.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <input
+                          type="file"
+                          accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null;
+                            setMenuSheetFile(file);
+                          }}
+                        />
+                        {menuSheetFile && (
+                          <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                            Selected: {menuSheetFile.name}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
+                        <button
+                          type="button"
+                          onClick={resetMenuSheetImport}
+                          className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleMenuSheetImport}
+                          disabled={menuSheetImporting || !menuSheetFile}
+                          className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {menuSheetImporting ? "Importing..." : "Import Sheet"}
+                        </button>
+                      </div>
+                    </div>
+                  </SectionCard>
                 )}
 
                 <div className="grid gap-6 xl:grid-cols-[1.45fr_0.65fr]">
@@ -3219,12 +3696,27 @@ export default function VendorDashboard() {
                                 </button>
                               </td>
                               <td className="px-6 py-4">
-                                <button
-                                  type="button"
-                                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-white/10 dark:text-slate-300"
-                                >
-                                  Edit
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditMenuForm(item)}
+                                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDeleteMenuItem(item.id)
+                                    }
+                                    disabled={deletingMenuItemId === item.id}
+                                    className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/30 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                                  >
+                                    {deletingMenuItemId === item.id
+                                      ? "Deleting..."
+                                      : "Delete"}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
