@@ -432,6 +432,7 @@ export default function VendorDashboard() {
     useState(false);
   const [profileHydrating, setProfileHydrating] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [menuItemsDisplayCount, setMenuItemsDisplayCount] = useState(4);
   const [profile, setProfile] = useState<ProfileInfo>(
     () => storedState?.profile ?? initialSeed.profile,
   );
@@ -594,6 +595,13 @@ export default function VendorDashboard() {
   useEffect(() => {
     if (tab === "bookings") void loadVendorBookings();
   }, [tab, loadVendorBookings]);
+
+  useEffect(() => {
+    // Reset menu items display count when switching to catalog tab
+    if (tab === "catalog") {
+      setMenuItemsDisplayCount(4);
+    }
+  }, [tab]);
 
   useEffect(() => {
     if (!token) return;
@@ -1471,6 +1479,54 @@ export default function VendorDashboard() {
       );
     } finally {
       setDeletingMenuItemId(null);
+    }
+  };
+
+  const handleToggleMenuItemAvailability = async (
+    itemId: number,
+    currentAvailability: boolean,
+  ) => {
+    if (!token) {
+      setMenuEditMessageType("error");
+      setMenuEditMessage("You must be signed in to update availability.");
+      return;
+    }
+
+    const newAvailability = !currentAvailability;
+
+    // Update local state optimistically
+    setAvailabilityByItemId((current) => ({
+      ...current,
+      [itemId]: newAvailability,
+    }));
+
+    try {
+      // Update on backend
+      await updateMenuItem(token, itemId, {
+        name: "",
+        price: 0,
+        description: "",
+        available: newAvailability,
+        imageFile: null,
+      });
+
+      setMenuEditMessageType("success");
+      setMenuEditMessage(
+        `${isShop ? "Product" : "Menu item"} availability updated.`,
+      );
+      setTimeout(() => setMenuEditMessage(null), 2000);
+    } catch (error) {
+      // Revert on error
+      setAvailabilityByItemId((current) => ({
+        ...current,
+        [itemId]: currentAvailability,
+      }));
+      setMenuEditMessageType("error");
+      setMenuEditMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to update availability.",
+      );
     }
   };
 
@@ -3638,89 +3694,91 @@ export default function VendorDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredCatalog.slice(0, 4).map((item) => {
-                          return (
-                            <tr
-                              key={item.id}
-                              className="border-t border-slate-200/70 dark:border-white/10"
-                            >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <img
-                                    src={
-                                      item.imageUrl ||
-                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E"
-                                    }
-                                    alt={item.name}
-                                    className="h-12 w-12 rounded-full object-cover"
-                                    onError={(e) => {
-                                      (
-                                        e.currentTarget as HTMLImageElement
-                                      ).src =
-                                        `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E`;
-                                    }}
-                                  />
-                                  <div>
-                                    <p className="font-semibold text-slate-950 dark:text-white">
-                                      {item.name}
-                                    </p>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                                      {item.subtitle}
-                                    </p>
+                        {filteredCatalog
+                          .slice(0, menuItemsDisplayCount)
+                          .map((item) => {
+                            return (
+                              <tr
+                                key={item.id}
+                                className="border-t border-slate-200/70 dark:border-white/10"
+                              >
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <img
+                                      src={
+                                        item.imageUrl ||
+                                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E"
+                                      }
+                                      alt={item.name}
+                                      className="h-12 w-12 rounded-full object-cover"
+                                      onError={(e) => {
+                                        (
+                                          e.currentTarget as HTMLImageElement
+                                        ).src =
+                                          `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23cbd5e1'/%3E%3C/svg%3E`;
+                                      }}
+                                    />
+                                    <div>
+                                      <p className="font-semibold text-slate-950 dark:text-white">
+                                        {item.name}
+                                      </p>
+                                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        {item.subtitle}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
-                              </td>
+                                </td>
 
-                              <td className="px-6 py-4 text-2xl font-semibold text-slate-950 dark:text-white">
-                                {item.price.toLocaleString("en-RW")}
-                              </td>
-                              <td className="px-6 py-4">
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={
-                                    availabilityByItemId[item.id] ?? true
-                                  }
-                                  aria-label={`Toggle availability for ${item.name}`}
-                                  onClick={() =>
-                                    setAvailabilityByItemId((current) => ({
-                                      ...current,
-                                      [item.id]: !(current[item.id] ?? true),
-                                    }))
-                                  }
-                                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-[#1a1a2e]" : "bg-slate-300 dark:bg-slate-600"}`}
-                                >
-                                  <span
-                                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${(availabilityByItemId[item.id] ?? true) ? "translate-x-6" : "translate-x-1"}`}
-                                  />
-                                </button>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex gap-2">
+                                <td className="px-6 py-4 text-2xl font-semibold text-slate-950 dark:text-white">
+                                  {item.price.toLocaleString("en-RW")}
+                                </td>
+                                <td className="px-6 py-4">
                                   <button
                                     type="button"
-                                    onClick={() => openEditMenuForm(item)}
-                                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleDeleteMenuItem(item.id)
+                                    role="switch"
+                                    aria-checked={
+                                      availabilityByItemId[item.id] ?? true
                                     }
-                                    disabled={deletingMenuItemId === item.id}
-                                    className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/30 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                                    aria-label={`Toggle availability for ${item.name}`}
+                                    onClick={() =>
+                                      handleToggleMenuItemAvailability(
+                                        item.id,
+                                        availabilityByItemId[item.id] ?? true,
+                                      )
+                                    }
+                                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${(availabilityByItemId[item.id] ?? true) ? "bg-[#1a1a2e]" : "bg-slate-300 dark:bg-slate-600"}`}
                                   >
-                                    {deletingMenuItemId === item.id
-                                      ? "Deleting..."
-                                      : "Delete"}
+                                    <span
+                                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${(availabilityByItemId[item.id] ?? true) ? "translate-x-6" : "translate-x-1"}`}
+                                    />
                                   </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditMenuForm(item)}
+                                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteMenuItem(item.id)
+                                      }
+                                      disabled={deletingMenuItemId === item.id}
+                                      className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/30 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                                    >
+                                      {deletingMenuItemId === item.id
+                                        ? "Deleting..."
+                                        : "Delete"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
@@ -3728,12 +3786,63 @@ export default function VendorDashboard() {
                   <div className="border-t border-slate-200/70 px-6 py-5 text-center dark:border-white/10">
                     <button
                       type="button"
-                      className="rounded-full border border-[#1a1a2e] px-10 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-[#1a1a2e]/30 dark:text-slate-200"
+                      onClick={() =>
+                        setMenuItemsDisplayCount((prev) => prev + 4)
+                      }
+                      disabled={menuItemsDisplayCount >= filteredCatalog.length}
+                      className="rounded-full border border-[#1a1a2e] px-10 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#1a1a2e]/30 dark:text-slate-200"
                     >
-                      Load More Items
+                      {menuItemsDisplayCount >= filteredCatalog.length
+                        ? "No More Items"
+                        : "Load More Items"}
                     </button>
                   </div>
                 </section>
+
+                <SectionCard
+                  title={isShop ? "Catalog Summary" : "Menu Summary"}
+                  subtitle={`${filteredCatalog.length} ${isShop ? "product" : "menu item"}${filteredCatalog.length === 1 ? "" : "s"} in your ${isShop ? "catalog" : "menu"}`}
+                >
+                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                        Active Items
+                      </p>
+                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
+                        {
+                          filteredCatalog.filter(
+                            (item) => item.status.toLowerCase() === "active",
+                          ).length
+                        }
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                        Unavailable Items
+                      </p>
+                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
+                        {
+                          filteredCatalog.filter(
+                            (item) => item.status.toLowerCase() !== "active",
+                          ).length
+                        }
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                        Total Inventory Value
+                      </p>
+                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
+                        {money.format(
+                          filteredCatalog.reduce(
+                            (sum, item) => sum + item.price,
+                            0,
+                          ),
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </SectionCard>
               </section>
             )}
 
