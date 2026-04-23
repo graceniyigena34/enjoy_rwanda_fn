@@ -66,6 +66,7 @@ type BusinessInfo = {
   businessName: string;
   businessType: BusinessType;
   location: string;
+  businessWebsiteUrl: string;
   openingHours: string;
   closingHours: string;
   weekendOpeningHours: string;
@@ -182,6 +183,7 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     businessName: "",
     businessType,
     location: "",
+    businessWebsiteUrl: "",
     openingHours: "",
     closingHours: "",
     weekendOpeningHours: "",
@@ -934,6 +936,8 @@ export default function VendorDashboard() {
         businessName: record.business_name || seed.business.businessName,
         businessType,
         location: record.location || seed.business.location,
+        businessWebsiteUrl:
+          record.business_website_url || seed.business.businessWebsiteUrl,
         openingHours: record.opening_hours || seed.business.openingHours,
         closingHours: record.closing_hours || seed.business.closingHours,
         weekendOpeningHours:
@@ -1228,6 +1232,7 @@ export default function VendorDashboard() {
       business.businessType.trim().length > 0 &&
       business.description.trim().length > 0 &&
       business.location.trim().length > 0 &&
+      business.businessWebsiteUrl.trim().length > 0 &&
       business.businessPhone.trim().length > 0 &&
       business.businessEmail.trim().length > 0 &&
       business.managerName.trim().length > 0 &&
@@ -1738,6 +1743,7 @@ export default function VendorDashboard() {
         businessType: business.businessType,
         businessDescription: business.description.trim(),
         location: business.location.trim(),
+        businessWebsiteUrl: business.businessWebsiteUrl.trim(),
         businessPhone: business.businessPhone.trim(),
         businessEmail: business.businessEmail.trim(),
         openingHours: business.openingHours.trim(),
@@ -1789,6 +1795,7 @@ export default function VendorDashboard() {
     if (
       !business.businessName.trim() ||
       !business.location.trim() ||
+      !business.businessWebsiteUrl.trim() ||
       !business.businessPhone.trim() ||
       !business.businessEmail.trim() ||
       !business.managerName.trim() ||
@@ -1810,6 +1817,7 @@ export default function VendorDashboard() {
         businessType: business.businessType,
         businessDescription: business.description.trim(),
         location: business.location.trim(),
+        businessWebsiteUrl: business.businessWebsiteUrl.trim(),
         businessPhone: business.businessPhone.trim(),
         businessEmail: business.businessEmail.trim(),
         openingHours: business.openingHours.trim(),
@@ -1854,7 +1862,8 @@ export default function VendorDashboard() {
         business.businessName.trim().length > 0 &&
         business.businessType.trim().length > 0 &&
         business.description.trim().length > 0 &&
-        business.location.trim().length > 0
+        business.location.trim().length > 0 &&
+        business.businessWebsiteUrl.trim().length > 0
       );
     }
 
@@ -2267,6 +2276,21 @@ export default function VendorDashboard() {
                             location: event.target.value,
                           }))
                         }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>Business Website URL</span>
+                      <input
+                        type="url"
+                        value={business.businessWebsiteUrl}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessWebsiteUrl: event.target.value,
+                          }))
+                        }
+                        placeholder="https://yourbusiness.co.rw"
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
@@ -4487,6 +4511,57 @@ export default function VendorDashboard() {
                   subtitle="Edit the vendor profile and switch between restaurant or shop mode"
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Business profile image
+                      </span>
+                      <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
+                        <div className="space-y-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              updateUploadField("businessProfileImage", file);
+                            }}
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition file:mr-4 file:rounded-full file:border-0 file:bg-[#1a1a2e] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                          />
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Upload a new image to replace the current business
+                            profile photo.
+                          </p>
+                          {businessFiles.businessProfileImage && (
+                            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300">
+                              New image selected:{" "}
+                              {businessFiles.businessProfileImage.name}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                          {business.businessProfileImage?.previewUrl ? (
+                            <img
+                              src={business.businessProfileImage.previewUrl}
+                              alt="Business profile preview"
+                              className="h-20 w-20 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 dark:bg-white/10">
+                              No image
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                              Current image
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {business.businessProfileImage?.name ||
+                                "No image uploaded yet."}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
                         Owner name
@@ -4561,6 +4636,23 @@ export default function VendorDashboard() {
                             location: event.target.value,
                           }))
                         }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Business website URL
+                      </span>
+                      <input
+                        type="url"
+                        value={business.businessWebsiteUrl}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessWebsiteUrl: event.target.value,
+                          }))
+                        }
+                        placeholder="https://yourbusiness.co.rw"
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
@@ -4814,6 +4906,14 @@ export default function VendorDashboard() {
                       </p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                         {business.businessType} vendor
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Website
+                      </p>
+                      <p className="mt-2 break-words text-lg font-semibold text-slate-950 dark:text-white">
+                        {business.businessWebsiteUrl.trim() || "Not set"}
                       </p>
                     </div>
                     <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
