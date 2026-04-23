@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useParams,
   Link,
@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
+  BASE_URL,
   createBooking,
   getBusinessProfiles,
   getMenuItems,
@@ -40,6 +41,37 @@ type BusinessDetailRecord = {
   cuisine: string | null;
   price_range: string | null;
   status: string;
+  galleryPhotos: Array<{
+    id: number;
+    image_url: string;
+    title: string | null;
+    created_at: string;
+    public_id: string | null;
+  }>;
+};
+
+const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
+
+const resolveMediaUrl = (value: string | null | undefined) => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("blob:")
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("//")) {
+    return `${window.location.protocol}${trimmed}`;
+  }
+
+  const normalizedPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return `${API_ORIGIN}${normalizedPath}`;
 };
 
 function normalizeOpeningDays(value: BusinessProfileRecord["opening_days"]) {
@@ -100,6 +132,19 @@ function toBusinessDetail(
     cuisine: record.business_type,
     price_range: null,
     status: record.is_verified ? "Open" : "Pending",
+    galleryPhotos: (record.business_photos ?? [])
+      .filter(
+        (photo) =>
+          typeof photo?.image_url === "string" &&
+          photo.image_url.trim().length > 0,
+      )
+      .map((photo) => ({
+        id: photo.id,
+        image_url: photo.image_url,
+        title: photo.title,
+        created_at: photo.created_at,
+        public_id: photo.public_id,
+      })),
   };
 }
 
@@ -108,6 +153,9 @@ export default function RestaurantDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const businessId = Number(id);
+  const entryMode = searchParams.get("entry")?.trim().toLowerCase();
+  const isDetailsEntry = entryMode === "details";
+  const initialTab: "menu" | "book" = entryMode === "details" ? "menu" : "book";
   const initialPeopleCount = searchParams.get("people")?.trim() ?? "";
   const initialDate = searchParams.get("date")?.trim() ?? "";
   const initialTime = searchParams.get("time")?.trim() ?? "";
@@ -131,9 +179,11 @@ export default function RestaurantDetail() {
       try {
         setRestaurantLoading(true);
         const data = await getBusinessProfiles();
-        const matched = (data || []).find(
-          (item) => Number(item.business_id ?? item.user_id) === businessId,
-        );
+        const matched =
+          (data || []).find(
+            (item) => Number(item.business_id ?? item.user_id) === businessId,
+          ) ?? null;
+
         if (active) {
           if (matched) {
             setRestaurant(toBusinessDetail(matched, businessId));
@@ -163,7 +213,7 @@ export default function RestaurantDetail() {
     };
   }, [businessId]);
 
-  const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
+  const [activeTab, setActiveTab] = useState<"menu" | "book">(initialTab);
   const [tableStep, setTableStep] = useState(false);
   const [showMenuPrompt, setShowMenuPrompt] = useState(false);
   const [menuSelectionStep, setMenuSelectionStep] = useState(false);
@@ -194,6 +244,74 @@ export default function RestaurantDetail() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState("");
   const [tableOptionQuery, setTableOptionQuery] = useState("");
+  const [currentHeroPhotoIndex, setCurrentHeroPhotoIndex] = useState(0);
+  const [currentGalleryPhotoIndex, setCurrentGalleryPhotoIndex] = useState(0);
+  const [showDiscoveryMode, setShowDiscoveryMode] = useState(isDetailsEntry);
+  const gallerySectionRef = useRef<HTMLElement | null>(null);
+  const menuSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const heroPhotos = useMemo(() => {
+    if (!restaurant) return [] as Array<{ id: number; image_url: string; title: string | null }>;
+    if (restaurant.galleryPhotos.length > 0) {
+      return restaurant.galleryPhotos.map((photo) => ({
+        id: photo.id,
+        image_url: photo.image_url,
+        title: photo.title,
+      }));
+    }
+    if (restaurant.image) {
+      return [
+        {
+          id: -1,
+          image_url: restaurant.image,
+          title: restaurant.name,
+        },
+      ];
+    }
+    return [] as Array<{ id: number; image_url: string; title: string | null }>;
+  }, [restaurant]);
+
+  useEffect(() => {
+    setCurrentHeroPhotoIndex(0);
+  }, [restaurant?.id]);
+
+  useEffect(() => {
+    setShowDiscoveryMode(isDetailsEntry);
+  }, [isDetailsEntry, restaurant?.id]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab, restaurant?.id]);
+
+  useEffect(() => {
+    setCurrentGalleryPhotoIndex(0);
+  }, [restaurant?.id]);
+
+  useEffect(() => {
+    if (heroPhotos.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setCurrentHeroPhotoIndex((prev) => (prev + 1) % heroPhotos.length);
+    }, 3200);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [heroPhotos]);
+
+  useEffect(() => {
+    if (!restaurant || restaurant.galleryPhotos.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setCurrentGalleryPhotoIndex((prev) =>
+        (prev + 1) % restaurant.galleryPhotos.length,
+      );
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [restaurant]);
 
   const parsePeopleCount = (value: string) => {
     const trimmed = value.trim();
@@ -221,6 +339,23 @@ export default function RestaurantDetail() {
       maximumFractionDigits: 1,
     }).format(value);
     return `${compact} RWF`;
+  };
+
+  const scrollToGallery = () => {
+    gallerySectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const openMenuExperience = () => {
+    setActiveTab("menu");
+    window.setTimeout(() => {
+      menuSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
   };
 
   // Fetch table configs from DB for this restaurant only.
@@ -615,12 +750,30 @@ export default function RestaurantDetail() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
-        {restaurant.image ? (
-          <img
-            src={restaurant.image}
-            alt={restaurant.name}
-            className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl"
-          />
+        {heroPhotos.length > 0 ? (
+          <div className="relative w-full md:w-72 h-48 sm:h-56 overflow-hidden rounded-2xl bg-slate-100">
+            {heroPhotos.map((photo, index) => (
+              <img
+                key={photo.id}
+                src={resolveMediaUrl(photo.image_url)}
+                alt={photo.title || restaurant.name}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${index === currentHeroPhotoIndex ? "opacity-100" : "opacity-0"}`}
+              />
+            ))}
+            {heroPhotos.length > 1 && (
+              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/30 px-2 py-1">
+                {heroPhotos.map((photo, index) => (
+                  <button
+                    key={`dot-${photo.id}`}
+                    type="button"
+                    onClick={() => setCurrentHeroPhotoIndex(index)}
+                    aria-label={`View photo ${index + 1}`}
+                    className={`h-1.5 w-1.5 rounded-full transition ${index === currentHeroPhotoIndex ? "bg-white" : "bg-white/50"}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="w-full md:w-72 h-48 sm:h-56 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-2xl flex items-center justify-center">
             <svg
@@ -680,6 +833,144 @@ export default function RestaurantDetail() {
           </div>
         </div>
       </div>
+
+      {showDiscoveryMode && (
+        <section className="mb-6 overflow-hidden rounded-2xl border border-[#1a1a2e]/15 bg-gradient-to-r from-[#f2f3ff] via-[#f9f7ff] to-[#eef6ff] p-4 shadow-[0_18px_45px_rgba(26,26,46,0.08)] dark:border-[#9aa6ff]/25 dark:from-[#1d2037] dark:via-[#22233f] dark:to-[#1d2a3d]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1a1a2e]/70 dark:text-slate-300">
+                Discovery Mode
+              </p>
+              <h2 className="text-base font-black text-[#1a1a2e] dark:text-white">
+                Explore visuals first, then move into menu and booking.
+              </h2>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium">
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:ring-slate-600">
+                  {restaurant.galleryPhotos.length} gallery photos
+                </span>
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:ring-slate-600">
+                  {menuItems.length} menu items loaded
+                </span>
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:ring-slate-600">
+                  {restaurant.workingDays.length || 0} operating days
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={scrollToGallery}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-700 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100"
+              >
+                Jump to Gallery
+              </button>
+              <button
+                type="button"
+                onClick={openMenuExperience}
+                className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(26,26,46,0.28)] transition hover:-translate-y-0.5 hover:bg-[#2d2d4e]"
+              >
+                Open Menu Experience
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDiscoveryMode(false)}
+                className="rounded-xl border border-transparent px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white/60 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-900/40"
+              >
+                Hide
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section ref={gallerySectionRef} className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-black text-gray-900 dark:text-white">
+            Business Gallery
+          </h2>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {restaurant.galleryPhotos.length} photo
+            {restaurant.galleryPhotos.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {restaurant.galleryPhotos.length > 0 ? (
+          <div className="space-y-3">
+            <div className="relative h-56 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-72 dark:border-slate-700 dark:bg-slate-900/40">
+              {restaurant.galleryPhotos.map((photo, index) => (
+                <img
+                  key={`gallery-slide-${photo.id}`}
+                  src={resolveMediaUrl(photo.image_url)}
+                  alt={photo.title || restaurant.name}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ${index === currentGalleryPhotoIndex ? "translate-x-0 opacity-100 scale-100" : index < currentGalleryPhotoIndex ? "-translate-x-8 opacity-0 scale-[1.02]" : "translate-x-8 opacity-0 scale-[1.02]"}`}
+                />
+              ))}
+
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-3 pt-10">
+                <p className="text-sm font-semibold text-white">
+                  {restaurant.galleryPhotos[currentGalleryPhotoIndex]?.title ||
+                    "Business gallery"}
+                </p>
+              </div>
+
+              {restaurant.galleryPhotos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentGalleryPhotoIndex((prev) =>
+                        prev === 0
+                          ? restaurant.galleryPhotos.length - 1
+                          : prev - 1,
+                      )
+                    }
+                    aria-label="Previous gallery photo"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
+                  >
+                    &lt;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentGalleryPhotoIndex((prev) =>
+                        (prev + 1) % restaurant.galleryPhotos.length,
+                      )
+                    }
+                    aria-label="Next gallery photo"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
+                  >
+                    &gt;
+                  </button>
+                </>
+              )}
+            </div>
+
+            {restaurant.galleryPhotos.length > 1 && (
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                {restaurant.galleryPhotos.map((photo, index) => (
+                  <button
+                    key={`gallery-thumb-${photo.id}`}
+                    type="button"
+                    onClick={() => setCurrentGalleryPhotoIndex(index)}
+                    className={`overflow-hidden rounded-lg border transition ${index === currentGalleryPhotoIndex ? "border-[#1a1a2e] ring-2 ring-[#1a1a2e]/25" : "border-slate-200 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500"}`}
+                    aria-label={`Open gallery photo ${index + 1}`}
+                  >
+                    <img
+                      src={resolveMediaUrl(photo.image_url)}
+                      alt={photo.title || `${restaurant.name} gallery ${index + 1}`}
+                      className="h-14 w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
+            No gallery photos uploaded yet for this business.
+          </div>
+        )}
+      </section>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 mb-6 overflow-x-auto">
@@ -1096,7 +1387,7 @@ export default function RestaurantDetail() {
 
       {/* VIEW MENU */}
       {activeTab === "menu" && (
-        <div className="flex flex-col lg:flex-row gap-6">
+        <div ref={menuSectionRef} className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
               <input

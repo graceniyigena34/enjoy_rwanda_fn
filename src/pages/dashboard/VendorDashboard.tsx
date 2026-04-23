@@ -16,6 +16,7 @@ import {
   deleteMenuItem,
   deleteBusinessPhoto,
   getMenuItems,
+  getMyBusinessPhotos,
   getMyManagers,
   getMyBusinessProfile,
   getRestaurantTypes,
@@ -1010,6 +1011,9 @@ export default function VendorDashboard() {
         Array.isArray(record.supporting_documents)
           ? record.supporting_documents
           : [],
+      );
+      setBusinessGallery(
+        Array.isArray(record.business_photos) ? record.business_photos : [],
       );
       setCatalogItems(seed.catalogItems);
       setBookings(seed.bookings);
@@ -2108,6 +2112,7 @@ export default function VendorDashboard() {
     setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
     setSupportingDocuments([]);
     setSavedSupportingDocuments([]);
+    setBusinessGallery([]);
     setBusinessId(null);
     setProfile(seed.profile);
     setCatalogItems(seed.catalogItems);
@@ -2134,11 +2139,20 @@ export default function VendorDashboard() {
         if (remoteProfile) {
           setHasRemoteBusinessProfile(true);
           applyBusinessProfile(remoteProfile);
+          try {
+            const photos = await getMyBusinessPhotos(token);
+            if (active) {
+              setBusinessGallery(photos);
+            }
+          } catch {
+            // Fallback to photos embedded in profile when endpoint is unavailable.
+          }
           setOnboardingComplete(true);
           setOnboardingStep(4);
         } else {
           setHasRemoteBusinessProfile(false);
           setBusinessId(null);
+          setBusinessGallery([]);
           if (user.role !== "manager") {
             setOnboardingComplete(Boolean(storedState?.onboardingComplete));
           }
@@ -2147,6 +2161,7 @@ export default function VendorDashboard() {
         if (!active) return;
         setHasRemoteBusinessProfile(false);
         setBusinessId(null);
+        setBusinessGallery([]);
         if (user.role !== "manager") {
           setOnboardingError(
             error instanceof Error
