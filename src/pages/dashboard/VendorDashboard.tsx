@@ -499,6 +499,8 @@ export default function VendorDashboard() {
   const [vendorBookings, setVendorBookings] = useState<BookingRecord[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
+  const [selectedGalleryPhoto, setSelectedGalleryPhoto] =
+    useState<BusinessPhotoRecord | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(
     null,
   );
@@ -4002,11 +4004,18 @@ export default function VendorDashboard() {
                                 key={image.id}
                                 className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/60"
                               >
-                                <img
-                                  src={previewUrl}
-                                  alt={image.title || fileName}
-                                  className="h-40 w-full object-cover"
-                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedGalleryPhoto(image)}
+                                  className="block w-full"
+                                  title="View photo"
+                                >
+                                  <img
+                                    src={previewUrl}
+                                    alt={image.title || fileName}
+                                    className="h-40 w-full cursor-zoom-in object-cover"
+                                  />
+                                </button>
                                 <figcaption className="space-y-1 px-4 py-3">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
@@ -4038,6 +4047,42 @@ export default function VendorDashboard() {
                   </div>
                 </SectionCard>
               </section>
+            )}
+
+            {selectedGalleryPhoto && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm"
+                onClick={() => setSelectedGalleryPhoto(null)}
+              >
+                <div
+                  className="w-full max-w-5xl rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.25)] dark:border-white/10 dark:bg-slate-900"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                      {selectedGalleryPhoto.title || getFileNameFromUrl(selectedGalleryPhoto.image_url)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGalleryPhoto(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:text-slate-300"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <img
+                    src={
+                      resolveMediaUrl(selectedGalleryPhoto.image_url) ??
+                      selectedGalleryPhoto.image_url
+                    }
+                    alt={
+                      selectedGalleryPhoto.title ||
+                      getFileNameFromUrl(selectedGalleryPhoto.image_url)
+                    }
+                    className="max-h-[75vh] w-full rounded-2xl object-contain"
+                  />
+                </div>
+              </div>
             )}
 
             {tab === "orders" && (
