@@ -95,6 +95,8 @@ type CatalogItem = {
   metric: string;
   accent: string;
   imageUrl?: string;
+  category?: string | null;
+  subcategory?: string | null;
 };
 
 type BookingItem = {
@@ -146,6 +148,8 @@ type NewItemFormState = {
   imageName: string;
   imagePreviewUrl?: string;
   imageFile?: File | null;
+  category?: string;
+  subcategory?: string;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -939,6 +943,8 @@ export default function VendorDashboard() {
         metric: "Live item",
         accent: "bg-[#1a1a2e]",
         imageUrl: resolveMediaUrl(record.imageurl),
+        category: record.category ?? null,
+        subcategory: record.subcategory ?? null,
       };
     },
     [isShop],
@@ -1251,6 +1257,8 @@ export default function VendorDashboard() {
         metric: "Imported",
         accent: "bg-[#1a1a2e]",
         imageUrl: resolveMediaUrl(item.imageurl),
+        category: item.category ?? null,
+        subcategory: item.subcategory ?? null,
       }));
 
       setCatalogItems((current) => [...importedItems, ...current]);
@@ -3687,7 +3695,8 @@ export default function VendorDashboard() {
                       <thead className="bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5 dark:text-slate-400">
                         <tr>
                           <th className="px-6 py-3">Item Details</th>
-
+                          <th className="px-6 py-3">Category</th>
+                          <th className="px-6 py-3">Subcategory</th>
                           <th className="px-6 py-3">Price (RWF)</th>
                           <th className="px-6 py-3">Availability</th>
                           <th className="px-6 py-3">Actions</th>
@@ -3727,6 +3736,18 @@ export default function VendorDashboard() {
                                       </p>
                                     </div>
                                   </div>
+                                </td>
+
+                                <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
+                                  <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
+                                    {item.category || "—"}
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
+                                  <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
+                                    {item.subcategory || "—"}
+                                  </span>
                                 </td>
 
                                 <td className="px-6 py-4 text-2xl font-semibold text-slate-950 dark:text-white">
