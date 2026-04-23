@@ -779,3 +779,48 @@ export async function deleteTableConfiguration(token: string, id: number) {
     throw new Error(toErrorMessage(data, "Failed to delete"));
   }
 }
+
+// ── Restaurants ──────────────────────────────────────────────
+export interface TableRecord {
+  id: number;
+  number: string;
+  capacity: number;
+  status: string;
+}
+
+export interface MenuItem {
+  id: number;
+  name: string;
+  price: number;
+  description: string | null;
+  available: number | boolean;
+  imageurl: string | null;
+}
+
+export interface RestaurantRecord {
+  id: number;
+  vendor_id?: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  cuisine: string | null;
+  price_range: string | null;
+  hours: string | null;
+  deposit: number;
+  status: string;
+  image: string | null;
+  rating?: number;
+  reviews?: number;
+  tables?: TableRecord[];
+  menu?: MenuItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getRestaurants() {
+  return requestJson<RestaurantRecord[]>(`${BASE_URL}/restaurants`);
+}
+
+export async function getRestaurant(id: number) {
+  return requestJson<RestaurantRecord>(`${BASE_URL}/restaurants/${id}`);
+}

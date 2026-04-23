@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { restaurants } from "../../data/mockData";
+import {
+  useParams,
+  Link,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import {
   createBooking,
+  getBusinessProfiles,
   getMenuItems,
   getTableConfigurations,
   type MenuItemRecord,
   type TableConfigRecord,
+  type BusinessProfileRecord,
 } from "../../utils/api";
 import PhoneNumberInput, {
   splitInternationalPhone,
 } from "../../components/forms/PhoneNumberInput";
+import { parseRestaurantHours } from "../../utils/restaurantUtils";
 
 type MenuItem = {
   id: number;
@@ -21,6 +28,40 @@ type MenuItem = {
   image?: string;
 };
 
+type BusinessDetailRecord = {
+  id: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  hours: string | null;
+  image: string | null;
+  cuisine: string | null;
+  price_range: string | null;
+  status: string;
+};
+
+function toBusinessDetail(
+  record: BusinessProfileRecord,
+  fallbackId: number,
+): BusinessDetailRecord {
+  const hours =
+    record.opening_hours && record.closing_hours
+      ? `${record.opening_hours} - ${record.closing_hours}`
+      : record.opening_hours || record.closing_hours || null;
+
+  return {
+    id: record.business_id ?? fallbackId,
+    name: record.business_name,
+    description: record.business_description,
+    location: record.location,
+    hours,
+    image: record.business_profile_image,
+    cuisine: record.business_type,
+    price_range: null,
+    status: record.is_verified ? "Open" : "Pending",
+  };
+}
+
 export default function RestaurantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -30,7 +71,56 @@ export default function RestaurantDetail() {
   const initialDate = searchParams.get("date")?.trim() ?? "";
   const initialTime = searchParams.get("time")?.trim() ?? "";
 
-  const restaurant = restaurants.find((r) => r.id === businessId);
+  const [restaurant, setRestaurant] = useState<BusinessDetailRecord | null>(
+    null,
+  );
+  const [restaurantLoading, setRestaurantLoading] = useState(true);
+  const [restaurantError, setRestaurantError] = useState<string | null>(null);
+
+  // Fetch business profile data from API
+  useEffect(() => {
+    let active = true;
+    const loadRestaurant = async () => {
+      if (!Number.isFinite(businessId) || businessId <= 0) {
+        setRestaurantError("Invalid business id.");
+        setRestaurantLoading(false);
+        return;
+      }
+
+      try {
+        setRestaurantLoading(true);
+        const data = await getBusinessProfiles();
+        const matched = (data || []).find(
+          (item) => Number(item.business_id ?? item.user_id) === businessId,
+        );
+        if (active) {
+          if (matched) {
+            setRestaurant(toBusinessDetail(matched, businessId));
+            setRestaurantError(null);
+          } else {
+            setRestaurant(null);
+            setRestaurantError("Business not found.");
+          }
+        }
+      } catch (error) {
+        if (active) {
+          setRestaurant(null);
+          setRestaurantError(
+            error instanceof Error ? error.message : "Failed to load business.",
+          );
+        }
+      } finally {
+        if (active) {
+          setRestaurantLoading(false);
+        }
+      }
+    };
+
+    void loadRestaurant();
+    return () => {
+      active = false;
+    };
+  }, [businessId]);
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [tableStep, setTableStep] = useState(false);
@@ -158,7 +248,9 @@ export default function RestaurantDetail() {
 
   const peopleOptions = useMemo(() => {
     const capacities = tableConfigs
-      .map((tableConfig) => parsePeopleCount(String(tableConfig.table_of_people)))
+      .map((tableConfig) =>
+        parsePeopleCount(String(tableConfig.table_of_people)),
+      )
       .filter((capacity) => Number.isFinite(capacity) && capacity > 0);
     const maxCapacity = capacities.length > 0 ? Math.max(...capacities) : 12;
     const upperLimit = Math.max(12, maxCapacity);
@@ -224,18 +316,12 @@ export default function RestaurantDetail() {
     setTableSearch(String(peopleCount));
   }, [tableConfigs, tableOptionQuery]);
 
-  if (!restaurant)
-    return (
-      <div className="p-10 text-center">
-        Restaurant not found.{" "}
-        <Link to="/restaurants" className="text-blue-600 underline">
-          Go back
-        </Link>
-      </div>
-    );
-
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!restaurant) {
+      setBookingError("Business details are still loading.");
+      return;
+    }
     const normalizedName = guestName.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const parsedPhone = splitInternationalPhone(telephone);
@@ -414,28 +500,81 @@ export default function RestaurantDetail() {
     </div>
   );
 
+  if (restaurantLoading) {
+    return (
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a1a2e] mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">
+              Loading business details...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurant || restaurantError) {
+    return (
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        <div className="p-10 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Business not found
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            {restaurantError ||
+              "The business you're looking for doesn't exist or is no longer available."}
+          </p>
+          <Link
+            to="/restaurants"
+            className="inline-block bg-[#1a1a2e] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#2d2d4e] transition-colors"
+          >
+            Back to Businesses
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
-        <img
-          src={restaurant.image}
-          alt={restaurant.name}
-          className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl"
-        />
+        {restaurant.image ? (
+          <img
+            src={restaurant.image}
+            alt={restaurant.name}
+            className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl"
+          />
+        ) : (
+          <div className="w-full md:w-72 h-48 sm:h-56 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-2xl flex items-center justify-center">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-slate-400 dark:text-slate-500"
+            >
+              <path d="M8 7h12M6 11h12M7 15h10M5 19h14M3 21h18" />
+            </svg>
+          </div>
+        )}
         <div className="flex flex-col justify-center">
-          <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium w-fit mb-2">
-            {restaurant.cuisine}
+          <span className="text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium w-fit mb-2">
+            {restaurant.cuisine || "Business"}
           </span>
-          <h1 className="text-3xl font-black text-gray-900 mb-2">
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">
             {restaurant.name}
           </h1>
-          <p className="text-gray-500 mb-3">{restaurant.description}</p>
-          <div className="flex gap-4 text-sm text-gray-500 flex-wrap">
-            <span>📍 {restaurant.location}</span>
-            <span>⭐ {restaurant.rating}</span>
-            <span>💰 {restaurant.priceRange}</span>
-            <span>🕐 {restaurant.hours}</span>
+          <p className="text-gray-600 dark:text-gray-400 mb-3">
+            {restaurant.description}
+          </p>
+          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
+            <span>📍 {restaurant.location || "Location TBA"}</span>
+            <span>🕐 {parseRestaurantHours(restaurant.hours).displayText}</span>
           </div>
         </div>
       </div>
@@ -504,9 +643,7 @@ export default function RestaurantDetail() {
                     className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
                   >
                     <option value="">
-                      {tableLoading
-                        ? "Loading..."
-                        : "Select number of people"}
+                      {tableLoading ? "Loading..." : "Select number of people"}
                     </option>
                     {filteredPeopleOptions.map((count) => (
                       <option key={count} value={String(count)}>
@@ -515,11 +652,13 @@ export default function RestaurantDetail() {
                     ))}
                   </select>
                 </div>
-                {!tableLoading && !tableError && filteredPeopleOptions.length === 0 && (
-                  <p className="mt-1 text-[10px] text-gray-400 text-left">
-                    No table size matches your search.
-                  </p>
-                )}
+                {!tableLoading &&
+                  !tableError &&
+                  filteredPeopleOptions.length === 0 && (
+                    <p className="mt-1 text-[10px] text-gray-400 text-left">
+                      No table size matches your search.
+                    </p>
+                  )}
               </div>
 
               {!tableLoading && tableError && (
