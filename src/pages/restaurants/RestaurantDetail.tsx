@@ -165,6 +165,8 @@ export default function RestaurantDetail() {
 
   const [activeTab, setActiveTab] = useState<"menu" | "book">("book");
   const [tableStep, setTableStep] = useState(false);
+  const [showMenuPrompt, setShowMenuPrompt] = useState(false);
+  const [menuSelectionStep, setMenuSelectionStep] = useState(false);
   const [bookingDate, setBookingDate] = useState(initialDate);
   const [bookingTime, setBookingTime] = useState(initialTime);
   const [guestName, setGuestName] = useState("");
@@ -385,46 +387,62 @@ export default function RestaurantDetail() {
       return;
     }
 
-    setBookingSubmitting(true);
-    setBookingError("");
-    try {
-      const created = await createBooking({
-        tableId: matchedTable?.id ?? null,
-        visitorName: normalizedName,
-        fullnames: normalizedName,
-        email: normalizedEmail,
-        telephone: normalizedPhoneWithCode,
-        numberOfPeople: peopleCount,
-        specialRequest: specialRequests.trim(),
-        date: bookingDate,
-        time: bookingTime,
-        businessId: Number(restaurant.id),
-      });
+    // If we're in menu selection step, submit the booking with menu items
+    if (menuSelectionStep) {
+      setBookingSubmitting(true);
+      setBookingError("");
+      try {
+        // Use the first menu item's ID if any (backend expects single menu_id)
+        const menuId = orderList.length > 0 ? orderList[0].id : undefined;
 
-      localStorage.setItem(
-        "enjoy-rwanda.pendingBookingContext",
-        JSON.stringify({
-          bookingId: created.id,
+        const created = await createBooking({
+          tableId: matchedTable?.id ?? null,
+          visitorName: normalizedName,
+          fullnames: normalizedName,
           email: normalizedEmail,
-          restaurantName: restaurant.name,
-          createdAt: Date.now(),
-        }),
-      );
+          telephone: normalizedPhoneWithCode,
+          numberOfPeople: peopleCount,
+          specialRequest: specialRequests.trim(),
+          date: bookingDate,
+          time: bookingTime,
+          businessId: Number(restaurant.id),
+          menuId,
+        });
 
-      navigate("/booking-confirming", {
-        state: {
-          bookingId: created.id,
-          email: normalizedEmail,
-          restaurantName: restaurant.name,
-        },
-      });
-    } catch (error) {
-      setBookingError(
-        error instanceof Error ? error.message : "Failed to create booking.",
-      );
-    } finally {
-      setBookingSubmitting(false);
+        localStorage.setItem(
+          "enjoy-rwanda.pendingBookingContext",
+          JSON.stringify({
+            bookingId: created.id,
+            email: normalizedEmail,
+            restaurantName: restaurant.name,
+            menuItems: orderList.map((item) => ({
+              name: item.name,
+              price: item.price,
+            })),
+            menuTotal: orderTotal,
+            createdAt: Date.now(),
+          }),
+        );
+
+        navigate("/booking-confirming", {
+          state: {
+            bookingId: created.id,
+            email: normalizedEmail,
+            restaurantName: restaurant.name,
+          },
+        });
+      } catch (error) {
+        setBookingError(
+          error instanceof Error ? error.message : "Failed to create booking.",
+        );
+      } finally {
+        setBookingSubmitting(false);
+      }
+      return;
     }
+
+    // First submission: show menu prompt
+    setShowMenuPrompt(true);
   };
 
   const inferMenuCategory = (row: MenuItemRecord): "Food" | "Drinks" => {
@@ -886,13 +904,160 @@ export default function RestaurantDetail() {
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   Non-consumable. No refund.
                 </div>
-                <button
-                  type="submit"
-                  disabled={bookingSubmitting}
-                  className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {bookingSubmitting ? "Booking..." : "Book Now"}
-                </button>
+
+                {/* Menu Prompt - Show after guest info is filled */}
+                {showMenuPrompt && !menuSelectionStep && (
+                  <div className="mt-4 p-4 rounded-xl border-2 border-orange-200 bg-orange-50">
+                    <div className="text-center mb-4">
+                      <p className="text-lg font-bold text-gray-900 mb-1">
+                        🍽️ Add Menu Items?
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Would you like to add food or drinks to your
+                        reservation?
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuSelectionStep(true);
+                          setActiveTab("menu");
+                        }}
+                        className="flex-1 bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors"
+                      >
+                        Yes, Add Menu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Proceed without menu items
+                          setBookingSubmitting(true);
+                          setBookingError("");
+                          try {
+                            const normalizedName = guestName.trim();
+                            const normalizedEmail = email.trim().toLowerCase();
+                            const parsedPhone =
+                              splitInternationalPhone(telephone);
+                            const normalizedPhone = parsedPhone.localNumber;
+                            const normalizedPhoneWithCode = normalizedPhone
+                              ? `${parsedPhone.countryCode}${normalizedPhone}`
+                              : "";
+                            const peopleCount = matchedTable
+                              ? parsePeopleCount(
+                                  String(matchedTable.table_of_people),
+                                )
+                              : parsePeopleCount(tableSearch);
+
+                            const created = await createBooking({
+                              tableId: matchedTable?.id ?? null,
+                              visitorName: normalizedName,
+                              fullnames: normalizedName,
+                              email: normalizedEmail,
+                              telephone: normalizedPhoneWithCode,
+                              numberOfPeople: peopleCount,
+                              specialRequest: specialRequests.trim(),
+                              date: bookingDate,
+                              time: bookingTime,
+                              businessId: Number(restaurant.id),
+                            });
+
+                            localStorage.setItem(
+                              "enjoy-rwanda.pendingBookingContext",
+                              JSON.stringify({
+                                bookingId: created.id,
+                                email: normalizedEmail,
+                                restaurantName: restaurant.name,
+                                createdAt: Date.now(),
+                              }),
+                            );
+
+                            navigate("/booking-confirming", {
+                              state: {
+                                bookingId: created.id,
+                                email: normalizedEmail,
+                                restaurantName: restaurant.name,
+                              },
+                            });
+                          } catch (error) {
+                            setBookingError(
+                              error instanceof Error
+                                ? error.message
+                                : "Failed to create booking.",
+                            );
+                          } finally {
+                            setBookingSubmitting(false);
+                          }
+                        }}
+                        disabled={bookingSubmitting}
+                        className="flex-1 bg-gray-200 !text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300 transition-colors disabled:opacity-50"
+                      >
+                        No, Continue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Menu Selection Step - Show combined total */}
+                {menuSelectionStep && (
+                  <div className="mt-4 p-4 rounded-xl border-2 border-green-200 bg-green-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-bold text-gray-900">
+                        🧾 Order Summary
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setMenuSelectionStep(false)}
+                        className="text-xs text-gray-500 underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <div className="space-y-2 mb-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Reservation:</span>
+                        <span className="font-semibold">
+                          {formatReservationAmount(Number(matchedTable?.price))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Menu Items:</span>
+                        <span className="font-semibold">
+                          {orderTotal > 0
+                            ? `${orderTotal.toLocaleString()} RWF`
+                            : "None"}
+                        </span>
+                      </div>
+                      <div className="border-t border-green-200 pt-2 flex justify-between font-bold">
+                        <span>Total to Pay:</span>
+                        <span className="text-green-700">
+                          {(
+                            (Number(matchedTable?.price) || 0) + orderTotal
+                          ).toLocaleString()}{" "}
+                          RWF
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={bookingSubmitting}
+                      className="w-full bg-green-600 !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {bookingSubmitting ? "Booking..." : "Confirm Booking"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Regular submit button when no menu prompt shown */}
+                {!showMenuPrompt && (
+                  <button
+                    type="submit"
+                    disabled={bookingSubmitting}
+                    className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {bookingSubmitting ? "Booking..." : "Book Now"}
+                  </button>
+                )}
               </form>
             </div>
           )}
