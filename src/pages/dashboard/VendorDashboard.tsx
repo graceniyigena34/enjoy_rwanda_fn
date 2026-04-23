@@ -7,12 +7,14 @@ import PhoneNumberInput from "../../components/forms/PhoneNumberInput";
 import {
   BASE_URL,
   type BusinessDocumentRecord,
+  type BusinessPhotoRecord,
   createBusinessProfile,
   createManager,
   createMenuItem,
   deleteBusinessSupportingDocument,
   deleteManager,
   deleteMenuItem,
+  deleteBusinessPhoto,
   getMenuItems,
   getMyManagers,
   getMyBusinessProfile,
@@ -24,6 +26,7 @@ import {
   updateManager,
   updateMenuItem,
   updateMyBusinessProfile,
+  uploadBusinessPhotos,
   type BusinessManagerRecord,
   type BookingRecord,
   type BusinessProfileRecord,
@@ -36,6 +39,7 @@ import {
 type BusinessType = "Restaurant" | "Shop";
 type Tab =
   | "overview"
+  | "gallery"
   | "catalog"
   | "orders"
   | "bookings"
@@ -244,6 +248,25 @@ function NavIcon({ tab }: { tab: Tab }) {
       </svg>
     );
   }
+  if (tab === "gallery") {
+    return (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="8" cy="9" r="1.5" />
+        <path d="m21 16-5-5-4 4-2-2-5 5" />
+      </svg>
+    );
+  }
   if (tab === "catalog") {
     return (
       <svg
@@ -362,6 +385,7 @@ function SectionCard({
             </p>
           )}
         </div>
+
         {action}
       </div>
       {children}
@@ -446,6 +470,17 @@ export default function VendorDashboard() {
     ...initialSeed.business,
     ...(storedState?.business ?? {}),
   }));
+  const [businessGallery, setBusinessGallery] = useState<BusinessPhotoRecord[]>([]);
+  const [businessGalleryFiles, setBusinessGalleryFiles] = useState<File[]>([]);
+  const [businessGalleryTitle, setBusinessGalleryTitle] = useState("");
+  const [businessGallerySubmitting, setBusinessGallerySubmitting] =
+    useState(false);
+  const [businessGalleryMessage, setBusinessGalleryMessage] = useState<
+    string | null
+  >(null);
+  const [businessGalleryMessageType, setBusinessGalleryMessageType] = useState<
+    "success" | "error"
+  >("success");
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>(
     () => storedState?.catalogItems ?? initialSeed.catalogItems,
   );
@@ -471,6 +506,8 @@ export default function VendorDashboard() {
   const [vendorBookings, setVendorBookings] = useState<BookingRecord[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
+  const [selectedGalleryPhoto, setSelectedGalleryPhoto] =
+    useState<BusinessPhotoRecord | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(
     null,
   );
@@ -1066,6 +1103,7 @@ export default function VendorDashboard() {
   const liveLabel = isShop ? "Inventory live" : "Service live";
   const navItems: { value: Tab; label: string }[] = [
     { value: "overview", label: "Overview" },
+    { value: "gallery", label: "Business gallery" },
     { value: "catalog", label: catalogLabel },
     { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
     { value: "bookings", label: "Bookings" },
@@ -1678,6 +1716,92 @@ export default function VendorDashboard() {
 
   const removeSupportingDocument = (id: string) => {
     setSupportingDocuments((current) => current.filter((doc) => doc.id !== id));
+  };
+
+  const resetBusinessGalleryDraft = () => {
+    setBusinessGalleryFiles([]);
+    setBusinessGalleryTitle("");
+    setBusinessGalleryMessage(null);
+  };
+
+  const handleBusinessGalleryFilesChange = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const nextFiles = Array.from(files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+
+    if (nextFiles.length === 0) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage("Please choose at least one image file.");
+      return;
+    }
+
+    setBusinessGalleryFiles(nextFiles);
+    setBusinessGalleryMessageType("success");
+    setBusinessGalleryMessage(
+      `${nextFiles.length} image${nextFiles.length === 1 ? "" : "s"} selected. Click Save photos to store them.`,
+    );
+  };
+
+  const handleAddBusinessGalleryImages = async () => {
+    if (!token) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage("You must be signed in to upload business photos.");
+      return;
+    }
+
+    if (!businessGalleryFiles.length) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage("Select one or more business images first.");
+      return;
+    }
+
+    setBusinessGallerySubmitting(true);
+    setBusinessGalleryMessage(null);
+
+    try {
+      const uploaded = await uploadBusinessPhotos(token, {
+        files: businessGalleryFiles,
+        title: businessGalleryTitle,
+      });
+
+      setBusinessGallery(uploaded);
+      setBusinessGalleryMessageType("success");
+      setBusinessGalleryMessage(
+        `${uploaded.length} business image${uploaded.length === 1 ? "" : "s"} saved successfully.`,
+      );
+      resetBusinessGalleryDraft();
+    } catch (error) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to add business images.",
+      );
+    } finally {
+      setBusinessGallerySubmitting(false);
+    }
+  };
+
+  const handleRemoveBusinessGalleryImage = async (imageId: number) => {
+    if (!token) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage("You must be signed in to remove business photos.");
+      return;
+    }
+
+    try {
+      const updated = await deleteBusinessPhoto(token, imageId);
+      setBusinessGallery(updated);
+      setBusinessGalleryMessageType("success");
+      setBusinessGalleryMessage("Business photo removed.");
+    } catch (error) {
+      setBusinessGalleryMessageType("error");
+      setBusinessGalleryMessage(
+        error instanceof Error ? error.message : "Failed to remove business photo.",
+      );
+    }
   };
 
   const removeSavedSupportingDocument = async (documentId: number) => {
@@ -3981,52 +4105,229 @@ export default function VendorDashboard() {
                     </button>
                   </div>
                 </section>
+              </section>
+            )}
+
+            {tab === "gallery" && (
+              <section className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Dashboard &gt; Business gallery
+                    </p>
+                    <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                      Business Photos
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Upload more pictures of your business so customers can see your space and products.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTab("catalog")}
+                    className="rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-white/10 dark:text-slate-200"
+                  >
+                    Back to menu items
+                  </button>
+                </div>
 
                 <SectionCard
-                  title={isShop ? "Catalog Summary" : "Menu Summary"}
-                  subtitle={`${filteredCatalog.length} ${isShop ? "product" : "menu item"}${filteredCatalog.length === 1 ? "" : "s"} in your ${isShop ? "catalog" : "menu"}`}
+                  title="Business image gallery"
+                  subtitle="Choose your photos first, then click Save photos to store them in your business gallery."
                 >
-                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                        Active Items
-                      </p>
-                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
-                        {
-                          filteredCatalog.filter(
-                            (item) => item.status.toLowerCase() === "active",
-                          ).length
-                        }
-                      </p>
+                  <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                    <div className="space-y-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-5 dark:border-white/15 dark:bg-white/5">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                          Add new images
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          Select one or more photos from your device.
+                        </p>
+                      </div>
+
+                      <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.4rem] border border-slate-200 bg-white px-4 py-8 text-center transition hover:border-[#1a1a2e] dark:border-white/10 dark:bg-slate-900/60">
+                        <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#1a1a2e]/15 text-xl font-bold text-[#1a1a2e]">
+                          IMG
+                        </span>
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          Choose business images
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          PNG, JPG, or WEBP files only.
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(event) =>
+                            handleBusinessGalleryFilesChange(event.target.files)
+                          }
+                        />
+                      </label>
+
+                      <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                          Gallery title
+                        </span>
+                        <input
+                          value={businessGalleryTitle}
+                          onChange={(event) =>
+                            setBusinessGalleryTitle(event.target.value)
+                          }
+                          placeholder="Dining area, storefront, products, events"
+                          className="w-full rounded-full border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-slate-900/60"
+                        />
+                      </label>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleAddBusinessGalleryImages()}
+                          disabled={
+                            businessGallerySubmitting ||
+                            businessGalleryFiles.length === 0
+                          }
+                          className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {businessGallerySubmitting
+                            ? "Saving..."
+                            : "Save photos"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetBusinessGalleryDraft}
+                          className="rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:border-[#1a1a2e] hover:text-[#1a1a2e] dark:border-white/10 dark:text-slate-300"
+                        >
+                          Clear selection
+                        </button>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#1a1a2e]/10 px-4 py-3 text-sm text-[#1a1a2e] dark:text-[#1a1a2e]">
+                        {businessGalleryFiles.length > 0
+                          ? `${businessGalleryFiles.length} image${businessGalleryFiles.length === 1 ? "" : "s"} ready to save.`
+                          : "No images selected yet."}
+                      </div>
+
+                      {businessGalleryMessage && (
+                        <div
+                          className={`rounded-2xl border px-4 py-3 text-sm font-medium ${businessGalleryMessageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200" : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                        >
+                          {businessGalleryMessage}
+                        </div>
+                      )}
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                        Unavailable Items
-                      </p>
-                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
-                        {
-                          filteredCatalog.filter(
-                            (item) => item.status.toLowerCase() !== "active",
-                          ).length
-                        }
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                        Total Inventory Value
-                      </p>
-                      <p className="mt-3 text-2xl font-bold text-slate-950 dark:text-white">
-                        {money.format(
-                          filteredCatalog.reduce(
-                            (sum, item) => sum + item.price,
-                            0,
-                          ),
-                        )}
-                      </p>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                            Uploaded photos
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            These stay in the dashboard until you remove them.
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                          {businessGallery.length} total
+                        </span>
+                      </div>
+
+                      {businessGallery.length === 0 ? (
+                        <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400">
+                          No business images uploaded yet.
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {businessGallery.map((image) => {
+                            const fileName = getFileNameFromUrl(image.image_url);
+                            const previewUrl = resolveMediaUrl(image.image_url) ?? image.image_url;
+
+                            return (
+                              <figure
+                                key={image.id}
+                                className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/60"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedGalleryPhoto(image)}
+                                  className="block w-full"
+                                  title="View photo"
+                                >
+                                  <img
+                                    src={previewUrl}
+                                    alt={image.title || fileName}
+                                    className="h-40 w-full cursor-zoom-in object-cover"
+                                  />
+                                </button>
+                                <figcaption className="space-y-1 px-4 py-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-semibold text-slate-950 dark:text-white">
+                                        {image.title || fileName}
+                                      </p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {fileName}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleRemoveBusinessGalleryImage(image.id)}
+                                      className="rounded-full border border-rose-200 px-3 py-1 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                                    {new Date(image.created_at).toLocaleDateString()}
+                                  </p>
+                                </figcaption>
+                              </figure>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </SectionCard>
               </section>
+            )}
+
+            {selectedGalleryPhoto && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm"
+                onClick={() => setSelectedGalleryPhoto(null)}
+              >
+                <div
+                  className="w-full max-w-5xl rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.25)] dark:border-white/10 dark:bg-slate-900"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                      {selectedGalleryPhoto.title || getFileNameFromUrl(selectedGalleryPhoto.image_url)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGalleryPhoto(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:text-slate-300"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <img
+                    src={
+                      resolveMediaUrl(selectedGalleryPhoto.image_url) ??
+                      selectedGalleryPhoto.image_url
+                    }
+                    alt={
+                      selectedGalleryPhoto.title ||
+                      getFileNameFromUrl(selectedGalleryPhoto.image_url)
+                    }
+                    className="max-h-[75vh] w-full rounded-2xl object-contain"
+                  />
+                </div>
+              </div>
             )}
 
             {tab === "orders" && (

@@ -37,6 +37,7 @@ export interface BusinessProfileRecord {
   business_profile_image: string | null;
   rdb_certificate: string | null;
   supporting_documents?: BusinessDocumentRecord[];
+  business_photos?: BusinessPhotoRecord[];
   is_verified?: boolean | null;
 }
 
@@ -49,6 +50,20 @@ export interface BusinessDocumentRecord {
   description: string | null;
   uploaded_at: string;
 }
+
+export interface BusinessPhotoRecord {
+  id: number;
+  business_id: number;
+  title: string | null;
+  image_url: string;
+  public_id: string | null;
+  created_at: string;
+}
+
+export type BusinessPhotoUploadInput = {
+  files: File[];
+  title?: string;
+};
 
 export type SupportingDocumentInput = {
   file: File;
@@ -260,6 +275,15 @@ function buildMenuItemFormData(input: MenuItemCreateInput) {
   return formData;
 }
 
+function buildBusinessPhotosFormData(input: BusinessPhotoUploadInput) {
+  const formData = new FormData();
+  input.files.forEach((file) => {
+    formData.append("business_photos", file);
+  });
+  formData.append("photo_title", input.title?.trim() ?? "");
+  return formData;
+}
+
 export async function apiLogin(email: string, password: string) {
   return requestJson<{ token: string; user: AuthUser }>(`${BASE_URL}/auth/login`, {
     method: "POST",
@@ -303,6 +327,14 @@ export async function getMyBusinessProfile(token: string) {
 
   if (!res.ok) throw new Error(toErrorMessage(data, "Failed to load business profile"));
   return data as BusinessProfileRecord;
+}
+
+export async function getMyBusinessPhotos(token: string) {
+  return requestJson<BusinessPhotoRecord[]>(`${BASE_URL}/business-profile/me/photos`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }
 
 export async function createBusinessProfile(token: string, input: BusinessProfileFormInput) {
@@ -401,6 +433,32 @@ export async function deleteBusinessSupportingDocument(
       },
     },
   );
+}
+
+export async function uploadBusinessPhotos(
+  token: string,
+  input: BusinessPhotoUploadInput,
+) {
+  const res = await fetch(`${BASE_URL}/business-profile/me/photos`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildBusinessPhotosFormData(input),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to upload business photos"));
+  return data as BusinessPhotoRecord[];
+}
+
+export async function deleteBusinessPhoto(token: string, photoId: number) {
+  return requestJson<BusinessPhotoRecord[]>(`${BASE_URL}/business-profile/me/photos/${photoId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }
 
 function buildSupportingDocumentsFormData(input: SupportingDocumentInput[]) {
