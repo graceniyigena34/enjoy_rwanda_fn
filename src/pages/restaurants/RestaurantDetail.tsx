@@ -945,25 +945,6 @@ export default function RestaurantDetail() {
               )}
             </div>
 
-            {restaurant.galleryPhotos.length > 1 && (
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
-                {restaurant.galleryPhotos.map((photo, index) => (
-                  <button
-                    key={`gallery-thumb-${photo.id}`}
-                    type="button"
-                    onClick={() => setCurrentGalleryPhotoIndex(index)}
-                    className={`overflow-hidden rounded-lg border transition ${index === currentGalleryPhotoIndex ? "border-[#1a1a2e] ring-2 ring-[#1a1a2e]/25" : "border-slate-200 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500"}`}
-                    aria-label={`Open gallery photo ${index + 1}`}
-                  >
-                    <img
-                      src={resolveMediaUrl(photo.image_url)}
-                      alt={photo.title || `${restaurant.name} gallery ${index + 1}`}
-                      className="h-14 w-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
