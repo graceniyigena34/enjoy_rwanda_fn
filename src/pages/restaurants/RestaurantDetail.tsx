@@ -17,7 +17,7 @@ import {
 import PhoneNumberInput, {
   splitInternationalPhone,
 } from "../../components/forms/PhoneNumberInput";
-import { parseRestaurantHours } from "../../utils/restaurantUtils";
+import { formatTimeRange } from "../../utils/restaurantUtils";
 
 type MenuItem = {
   id: number;
@@ -33,28 +33,69 @@ type BusinessDetailRecord = {
   name: string;
   description: string | null;
   location: string | null;
-  hours: string | null;
+  weekdayHours: string;
+  weekendHours: string;
+  workingDays: string[];
   image: string | null;
   cuisine: string | null;
   price_range: string | null;
   status: string;
 };
 
+function normalizeOpeningDays(value: BusinessProfileRecord["opening_days"]) {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (day): day is string => typeof day === "string" && day.trim().length > 0,
+    );
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (day): day is string =>
+            typeof day === "string" && day.trim().length > 0,
+        );
+      }
+    } catch {
+      // Fall back to comma-separated values.
+    }
+
+    return trimmed
+      .split(",")
+      .map((day) => day.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function toBusinessDetail(
   record: BusinessProfileRecord,
   fallbackId: number,
 ): BusinessDetailRecord {
-  const hours =
-    record.opening_hours && record.closing_hours
-      ? `${record.opening_hours} - ${record.closing_hours}`
-      : record.opening_hours || record.closing_hours || null;
+  const weekdayHours = formatTimeRange(
+    record.opening_hours,
+    record.closing_hours,
+  );
+  const weekendHours = formatTimeRange(
+    record.weekend_opening_hours,
+    record.weekend_closing_hours,
+  );
 
   return {
     id: record.business_id ?? fallbackId,
     name: record.business_name,
     description: record.business_description,
     location: record.location,
-    hours,
+    weekdayHours,
+    weekendHours:
+      weekendHours === "Not set" ? "Same as weekdays" : weekendHours,
+    workingDays: normalizeOpeningDays(record.opening_days),
     image: record.business_profile_image,
     cuisine: record.business_type,
     price_range: null,
@@ -572,9 +613,37 @@ export default function RestaurantDetail() {
           <p className="text-gray-600 dark:text-gray-400 mb-3">
             {restaurant.description}
           </p>
-          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
+          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-400 flex-wrap mb-3">
             <span>📍 {restaurant.location || "Location TBA"}</span>
-            <span>🕐 {parseRestaurantHours(restaurant.hours).displayText}</span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/40">
+            <div className="text-xs text-slate-700 dark:text-slate-300 mb-1">
+              <span className="font-semibold">Weekdays:</span>{" "}
+              {restaurant.weekdayHours}
+            </div>
+            <div className="text-xs text-slate-700 dark:text-slate-300 mb-2">
+              <span className="font-semibold">Weekends:</span>{" "}
+              {restaurant.weekendHours}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Working days:
+              </span>
+              {restaurant.workingDays.length > 0 ? (
+                restaurant.workingDays.map((day) => (
+                  <span
+                    key={`${restaurant.id}-${day}`}
+                    className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
+                  >
+                    {day}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Not set
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
