@@ -53,6 +53,7 @@ export default function Navbar() {
         className={`${menuOpen ? "flex" : "hidden"} md:flex flex-col md:flex-row absolute md:static top-[76px] left-0 right-0 border-b border-white/70 bg-white/95 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl list-none m-0 p-0 gap-0 md:gap-8 z-40 dark:border-white/10 dark:bg-slate-950/95 md:border-0 md:bg-transparent md:shadow-none md:backdrop-blur-0`}
       >
         {[
+          ["Home", "/"],
           ["Shop", "/shops"],
           ["Restaurants", "/restaurants"],
           ["About", "/about"],
