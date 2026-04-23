@@ -409,17 +409,23 @@ export default function RestaurantDetail() {
           menuId,
         });
 
+        const reservationAmount = Number(matchedTable?.price) || 0;
+
         localStorage.setItem(
           "enjoy-rwanda.pendingBookingContext",
           JSON.stringify({
             bookingId: created.id,
             email: normalizedEmail,
             restaurantName: restaurant.name,
+            reservationAmount,
             menuItems: orderList.map((item) => ({
               name: item.name,
               price: item.price,
             })),
             menuTotal: orderTotal,
+            numberOfPeople: peopleCount,
+            date: bookingDate,
+            time: bookingTime,
             createdAt: Date.now(),
           }),
         );
@@ -429,6 +435,15 @@ export default function RestaurantDetail() {
             bookingId: created.id,
             email: normalizedEmail,
             restaurantName: restaurant.name,
+            reservationAmount,
+            menuItems: orderList.map((item) => ({
+              name: item.name,
+              price: item.price,
+            })),
+            menuTotal: orderTotal,
+            numberOfPeople: peopleCount,
+            date: bookingDate,
+            time: bookingTime,
           },
         });
       } catch (error) {
@@ -962,12 +977,21 @@ export default function RestaurantDetail() {
                               businessId: Number(restaurant.id),
                             });
 
+                            const reservationAmount =
+                              Number(matchedTable?.price) || 0;
+
                             localStorage.setItem(
                               "enjoy-rwanda.pendingBookingContext",
                               JSON.stringify({
                                 bookingId: created.id,
                                 email: normalizedEmail,
                                 restaurantName: restaurant.name,
+                                reservationAmount,
+                                menuItems: [],
+                                menuTotal: 0,
+                                numberOfPeople: peopleCount,
+                                date: bookingDate,
+                                time: bookingTime,
                                 createdAt: Date.now(),
                               }),
                             );
@@ -977,6 +1001,12 @@ export default function RestaurantDetail() {
                                 bookingId: created.id,
                                 email: normalizedEmail,
                                 restaurantName: restaurant.name,
+                                reservationAmount,
+                                menuItems: [],
+                                menuTotal: 0,
+                                numberOfPeople: peopleCount,
+                                date: bookingDate,
+                                time: bookingTime,
                               },
                             });
                           } catch (error) {
@@ -1296,17 +1326,23 @@ export default function RestaurantDetail() {
                       businessId: Number(restaurant.id),
                       menuId,
                     });
+
+                    const reservationAmount = Number(matchedTable?.price) || 0;
                     localStorage.setItem(
                       "enjoy-rwanda.pendingBookingContext",
                       JSON.stringify({
                         bookingId: created.id,
                         email: normalizedEmail,
                         restaurantName: restaurant.name,
+                        reservationAmount,
                         menuItems: orderList.map((item) => ({
                           name: item.name,
                           price: item.price,
                         })),
                         menuTotal: orderTotal,
+                        numberOfPeople: peopleCount,
+                        date: bookingDate,
+                        time: bookingTime,
                         createdAt: Date.now(),
                       }),
                     );
@@ -1315,6 +1351,15 @@ export default function RestaurantDetail() {
                         bookingId: created.id,
                         email: normalizedEmail,
                         restaurantName: restaurant.name,
+                        reservationAmount,
+                        menuItems: orderList.map((item) => ({
+                          name: item.name,
+                          price: item.price,
+                        })),
+                        menuTotal: orderTotal,
+                        numberOfPeople: peopleCount,
+                        date: bookingDate,
+                        time: bookingTime,
                       },
                     });
                   } catch (error) {

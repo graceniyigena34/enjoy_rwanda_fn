@@ -4,6 +4,24 @@ import { getBookingPublicStatus } from "../../utils/api";
 
 const TOTAL_SECONDS = 180;
 const CONTEXT_KEY = "enjoy-rwanda.pendingBookingContext";
+const PAYMENT_CONTEXT_KEY = "enjoy-rwanda.paymentContext";
+
+type PendingMenuItem = {
+  name: string;
+  price: number;
+};
+
+type PendingBookingContext = {
+  bookingId: number;
+  email: string;
+  restaurantName: string;
+  reservationAmount?: number;
+  menuItems?: PendingMenuItem[];
+  menuTotal?: number;
+  numberOfPeople?: number;
+  date?: string;
+  time?: string;
+};
 
 type WaitingStatus = "pending" | "confirmed" | "cancelled";
 
@@ -13,38 +31,81 @@ export default function BookingConfirming() {
   const [dismissed, setDismissed] = useState(false);
 
   const context = useMemo(() => {
-    const state = (location.state || {}) as {
-      bookingId?: number;
-      email?: string;
-      restaurantName?: string;
-    };
+    const raw = localStorage.getItem(CONTEXT_KEY);
+    let fromStorage: PendingBookingContext | null = null;
+    try {
+      if (raw) {
+        const parsed = JSON.parse(raw) as PendingBookingContext;
+        if (parsed.bookingId && parsed.email) {
+          fromStorage = {
+            bookingId: Number(parsed.bookingId),
+            email: String(parsed.email),
+            restaurantName: String(parsed.restaurantName || "Restaurant"),
+            reservationAmount: Number(parsed.reservationAmount || 0),
+            menuItems: Array.isArray(parsed.menuItems)
+              ? parsed.menuItems.filter(
+                  (item) =>
+                    typeof item?.name === "string" &&
+                    Number.isFinite(Number(item?.price)),
+                )
+              : [],
+            menuTotal: Number(parsed.menuTotal || 0),
+            numberOfPeople: Number(parsed.numberOfPeople || 0),
+            date: parsed.date ? String(parsed.date) : "",
+            time: parsed.time ? String(parsed.time) : "",
+          };
+        }
+      }
+    } catch {
+      fromStorage = null;
+    }
+
+    const state = (location.state || {}) as PendingBookingContext;
     if (state.bookingId && state.email) {
-      return {
+      const fromState = {
         bookingId: Number(state.bookingId),
         email: String(state.email),
         restaurantName: String(state.restaurantName || "Restaurant"),
+        reservationAmount: Number(state.reservationAmount || 0),
+        menuItems: Array.isArray(state.menuItems)
+          ? state.menuItems.filter(
+              (item) =>
+                typeof item?.name === "string" &&
+                Number.isFinite(Number(item?.price)),
+            )
+          : [],
+        menuTotal: Number(state.menuTotal || 0),
+        numberOfPeople: Number(state.numberOfPeople || 0),
+        date: state.date ? String(state.date) : "",
+        time: state.time ? String(state.time) : "",
       };
-    }
 
-    const raw = localStorage.getItem(CONTEXT_KEY);
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw) as {
-        bookingId?: number;
-        email?: string;
-        restaurantName?: string;
-      };
-      if (parsed.bookingId && parsed.email) {
+      if (
+        fromStorage &&
+        Number(fromStorage.bookingId) === Number(fromState.bookingId)
+      ) {
         return {
-          bookingId: Number(parsed.bookingId),
-          email: String(parsed.email),
-          restaurantName: String(parsed.restaurantName || "Restaurant"),
+          ...fromStorage,
+          ...fromState,
+          reservationAmount:
+            fromState.reservationAmount > 0
+              ? fromState.reservationAmount
+              : Number(fromStorage.reservationAmount || 0),
+          menuItems:
+            fromState.menuItems.length > 0
+              ? fromState.menuItems
+              : fromStorage.menuItems || [],
+          menuTotal:
+            fromState.menuTotal > 0
+              ? fromState.menuTotal
+              : Number(fromStorage.menuTotal || 0),
         };
       }
-    } catch {
-      return null;
+
+      return fromState;
     }
-    return null;
+
+    return fromStorage;
   }, [location.state]);
 
   const [countdown, setCountdown] = useState(TOTAL_SECONDS);
@@ -81,6 +142,23 @@ export default function BookingConfirming() {
       setLastCheckedAt(new Date().toLocaleTimeString());
       if (res.status === "confirmed") {
         setStatus("confirmed");
+        localStorage.setItem(
+          PAYMENT_CONTEXT_KEY,
+          JSON.stringify({
+            bookingId: context.bookingId,
+            email: context.email,
+            restaurantName: context.restaurantName,
+            reservationAmount: Number(context.reservationAmount || 0),
+            menuItems: Array.isArray(context.menuItems)
+              ? context.menuItems
+              : [],
+            menuTotal: Number(context.menuTotal || 0),
+            numberOfPeople: Number(context.numberOfPeople || 0),
+            date: context.date || "",
+            time: context.time || "",
+            approvedAt: Date.now(),
+          }),
+        );
         localStorage.removeItem(CONTEXT_KEY);
         navigate("/payment", { replace: true });
         return;
