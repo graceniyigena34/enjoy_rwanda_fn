@@ -374,10 +374,6 @@ export async function getBusinessProfileById(token: string, businessId: number) 
   });
 }
 
-export async function getPublicBusinessProfileById(businessId: number) {
-  return requestJson<BusinessProfileRecord>(`${BASE_URL}/business-profile/public/${businessId}`);
-}
-
 export async function setBusinessVerification(
   token: string,
   businessId: number,

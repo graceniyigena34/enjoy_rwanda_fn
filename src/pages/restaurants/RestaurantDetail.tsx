@@ -8,7 +8,6 @@ import {
 import {
   createBooking,
   getBusinessProfiles,
-  getPublicBusinessProfileById,
   getMenuItems,
   getTableConfigurations,
   type MenuItemRecord,
@@ -41,11 +40,6 @@ type BusinessDetailRecord = {
   cuisine: string | null;
   price_range: string | null;
   status: string;
-  galleryPhotos: Array<{
-    id: number;
-    url: string;
-    title: string | null;
-  }>;
 };
 
 function normalizeOpeningDays(value: BusinessProfileRecord["opening_days"]) {
@@ -106,17 +100,6 @@ function toBusinessDetail(
     cuisine: record.business_type,
     price_range: null,
     status: record.is_verified ? "Open" : "Pending",
-    galleryPhotos: (record.business_photos ?? [])
-      .filter(
-        (photo) =>
-          typeof photo?.image_url === "string" &&
-          photo.image_url.trim().length > 0,
-      )
-      .map((photo) => ({
-        id: photo.id,
-        url: photo.image_url,
-        title: photo.title,
-      })),
   };
 }
 
@@ -147,18 +130,10 @@ export default function RestaurantDetail() {
 
       try {
         setRestaurantLoading(true);
-        let matched = null as BusinessProfileRecord | null;
-
-        try {
-          matched = await getPublicBusinessProfileById(businessId);
-        } catch {
-          const allBusinesses = await getBusinessProfiles();
-          matched =
-            allBusinesses.find(
-              (item) => Number(item.business_id ?? item.user_id) === businessId,
-            ) ?? null;
-        }
-
+        const data = await getBusinessProfiles();
+        const matched = (data || []).find(
+          (item) => Number(item.business_id ?? item.user_id) === businessId,
+        );
         if (active) {
           if (matched) {
             setRestaurant(toBusinessDetail(matched, businessId));
@@ -219,38 +194,6 @@ export default function RestaurantDetail() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState("");
   const [tableOptionQuery, setTableOptionQuery] = useState("");
-  const [currentHeroPhotoIndex, setCurrentHeroPhotoIndex] = useState(0);
-
-  const heroPhotos = useMemo(() => {
-    if (!restaurant) return [] as Array<{ id: number; url: string; title: string | null }>;
-    if (restaurant.galleryPhotos.length > 0) return restaurant.galleryPhotos;
-    if (restaurant.image) {
-      return [
-        {
-          id: -1,
-          url: restaurant.image,
-          title: restaurant.name,
-        },
-      ];
-    }
-    return [] as Array<{ id: number; url: string; title: string | null }>;
-  }, [restaurant]);
-
-  useEffect(() => {
-    setCurrentHeroPhotoIndex(0);
-  }, [restaurant?.id]);
-
-  useEffect(() => {
-    if (heroPhotos.length <= 1) return;
-
-    const intervalId = window.setInterval(() => {
-      setCurrentHeroPhotoIndex((prev) => (prev + 1) % heroPhotos.length);
-    }, 3200);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [heroPhotos]);
 
   const parsePeopleCount = (value: string) => {
     const trimmed = value.trim();
@@ -672,30 +615,12 @@ export default function RestaurantDetail() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
-        {heroPhotos.length > 0 ? (
-          <div className="relative w-full md:w-72 h-48 sm:h-56 overflow-hidden rounded-2xl bg-slate-100">
-            {heroPhotos.map((photo, index) => (
-              <img
-                key={photo.id}
-                src={photo.url}
-                alt={photo.title || restaurant.name}
-                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${index === currentHeroPhotoIndex ? "opacity-100" : "opacity-0"}`}
-              />
-            ))}
-            {heroPhotos.length > 1 && (
-              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/30 px-2 py-1">
-                {heroPhotos.map((photo, index) => (
-                  <button
-                    key={`dot-${photo.id}`}
-                    type="button"
-                    onClick={() => setCurrentHeroPhotoIndex(index)}
-                    aria-label={`View photo ${index + 1}`}
-                    className={`h-1.5 w-1.5 rounded-full transition ${index === currentHeroPhotoIndex ? "bg-white" : "bg-white/50"}`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        {restaurant.image ? (
+          <img
+            src={restaurant.image}
+            alt={restaurant.name}
+            className="w-full md:w-72 h-48 sm:h-56 object-cover rounded-2xl"
+          />
         ) : (
           <div className="w-full md:w-72 h-48 sm:h-56 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-2xl flex items-center justify-center">
             <svg
