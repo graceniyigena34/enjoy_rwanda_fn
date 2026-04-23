@@ -9,10 +9,10 @@ export default function Navbar() {
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-8 h-[70px] transition-colors">
+    <nav className="sticky top-0 z-50 flex h-[76px] items-center justify-between border-b border-white/70 bg-white/85 px-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-slate-950/80 sm:px-8">
       {/* Brand */}
-      <Link to="/" className="flex items-center gap-2 no-underline">
-        <svg viewBox="0 0 44 44" width="44" height="44">
+      <Link to="/" className="flex items-center gap-3 no-underline">
+        <svg viewBox="0 0 44 44" width="44" height="44" className="shrink-0">
           <path
             d="M22 38 C22 38 6 27 6 16 C6 10.477 10.477 6 16 6 C18.9 6 21.5 7.3 22 8 C22.5 7.3 25.1 6 28 6 C33.523 6 38 10.477 38 16 C38 27 22 38 22 38Z"
             fill="#1a1a2e"
@@ -31,10 +31,10 @@ export default function Navbar() {
           </text>
         </svg>
         <div className="flex flex-col leading-tight">
-          <span className="text-base font-bold text-gray-900 dark:text-white">
+          <span className="text-[0.95rem] font-black tracking-wide text-slate-950 dark:text-white">
             Enjoy
           </span>
-          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          <span className="text-[0.72rem] font-black uppercase tracking-[0.22em] text-orange-500 dark:text-orange-300">
             Rwanda
           </span>
         </div>
@@ -50,7 +50,7 @@ export default function Navbar() {
 
       {/* Mobile actions inside menu */}
       <ul
-        className={`${menuOpen ? "flex" : "hidden"} md:flex flex-col md:flex-row absolute md:static top-[70px] left-0 right-0 bg-white dark:bg-gray-900 md:bg-transparent md:dark:bg-transparent border-b md:border-0 border-gray-200 dark:border-gray-700 shadow-md md:shadow-none list-none m-0 p-0 gap-0 md:gap-8 z-40`}
+        className={`${menuOpen ? "flex" : "hidden"} md:flex flex-col md:flex-row absolute md:static top-[76px] left-0 right-0 border-b border-white/70 bg-white/95 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl list-none m-0 p-0 gap-0 md:gap-8 z-40 dark:border-white/10 dark:bg-slate-950/95 md:border-0 md:bg-transparent md:shadow-none md:backdrop-blur-0`}
       >
         {[
           ["Shop", "/shops"],
@@ -61,7 +61,7 @@ export default function Navbar() {
             <Link
               to={path}
               onClick={() => setMenuOpen(false)}
-              className="block px-8 md:px-0 py-3 md:py-0 text-[0.95rem] font-medium text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b md:border-0 border-gray-100 dark:border-gray-700 transition-colors"
+              className="block border-b border-gray-100 px-8 py-3 text-[0.95rem] font-semibold text-slate-600 transition-colors hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white md:border-0 md:px-0 md:py-0"
             >
               {label}
             </Link>
@@ -93,7 +93,7 @@ export default function Navbar() {
         <li className="md:hidden flex items-center gap-3 px-8 py-3 border-t border-gray-100 dark:border-gray-700">
           <button
             onClick={toggleDark}
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-none bg-transparent"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
           >
             {darkMode ? (
               <svg
@@ -130,7 +130,7 @@ export default function Navbar() {
           <Link
             to="/cart"
             onClick={() => setMenuOpen(false)}
-            className="relative flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300"
+            className="relative flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
           >
             <svg
               width="22"
@@ -157,7 +157,7 @@ export default function Navbar() {
                 navigate("/");
                 setMenuOpen(false);
               }}
-              className="bg-[#1a1a2e] !text-white px-4 py-2 rounded-lg text-sm font-semibold"
+              className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-black text-white transition-colors hover:bg-[#2d2d4e]"
             >
               Sign Out
             </button>
@@ -165,7 +165,7 @@ export default function Navbar() {
             <Link
               to="/login"
               onClick={() => setMenuOpen(false)}
-              className="bg-[#1a1a2e] !text-white px-4 py-2 rounded-lg text-sm font-semibold"
+              className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-black text-white transition-colors hover:bg-[#2d2d4e]"
             >
               Sign In
             </Link>
@@ -216,7 +216,7 @@ export default function Navbar() {
 
         <Link
           to="/cart"
-          className="relative flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          className="relative flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
         >
           <svg
             width="22"
@@ -261,7 +261,7 @@ export default function Navbar() {
                 logout();
                 navigate("/");
               }}
-              className="bg-[#1a1a2e] !text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-[#2d2d4e] transition-colors border-none"
+              className="rounded-xl bg-[#1a1a2e] px-5 py-2 text-sm font-black text-white transition-colors hover:bg-[#2d2d4e]"
             >
               Sign Out
             </button>
@@ -270,7 +270,7 @@ export default function Navbar() {
           <>
             <Link
               to="/login"
-              className="flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
             >
               <svg
                 width="22"
