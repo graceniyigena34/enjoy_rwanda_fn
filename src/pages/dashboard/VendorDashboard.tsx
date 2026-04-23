@@ -1603,7 +1603,7 @@ export default function VendorDashboard() {
     setBusinessGalleryFiles(nextFiles);
     setBusinessGalleryMessageType("success");
     setBusinessGalleryMessage(
-      `${nextFiles.length} image${nextFiles.length === 1 ? "" : "s"} selected.`,
+      `${nextFiles.length} image${nextFiles.length === 1 ? "" : "s"} selected. Click Save photos to store them.`,
     );
   };
 
@@ -1632,7 +1632,7 @@ export default function VendorDashboard() {
       setBusinessGallery(uploaded);
       setBusinessGalleryMessageType("success");
       setBusinessGalleryMessage(
-        `${uploaded.length} business image${uploaded.length === 1 ? "" : "s"} uploaded successfully.`,
+        `${uploaded.length} business image${uploaded.length === 1 ? "" : "s"} saved successfully.`,
       );
       resetBusinessGalleryDraft();
     } catch (error) {
@@ -3886,7 +3886,7 @@ export default function VendorDashboard() {
 
                 <SectionCard
                   title="Business image gallery"
-                  subtitle="Upload more images so customers can see your place, products, and atmosphere."
+                  subtitle="Choose your photos first, then click Save photos to store them in your business gallery."
                 >
                   <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                     <div className="space-y-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-5 dark:border-white/15 dark:bg-white/5">
@@ -3945,8 +3945,8 @@ export default function VendorDashboard() {
                           className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {businessGallerySubmitting
-                            ? "Uploading..."
-                            : "Add images"}
+                            ? "Saving..."
+                            : "Save photos"}
                         </button>
                         <button
                           type="button"
@@ -3959,7 +3959,7 @@ export default function VendorDashboard() {
 
                       <div className="rounded-2xl bg-[#1a1a2e]/10 px-4 py-3 text-sm text-[#1a1a2e] dark:text-[#1a1a2e]">
                         {businessGalleryFiles.length > 0
-                          ? `${businessGalleryFiles.length} image${businessGalleryFiles.length === 1 ? "" : "s"} ready to upload.`
+                          ? `${businessGalleryFiles.length} image${businessGalleryFiles.length === 1 ? "" : "s"} ready to save.`
                           : "No images selected yet."}
                       </div>
 
