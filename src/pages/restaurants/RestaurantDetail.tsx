@@ -1160,61 +1160,182 @@ export default function RestaurantDetail() {
               )}
           </div>
 
-          {/* Order Summary */}
-          <div className="lg:w-72 shrink-0 order-first lg:order-last">
-            <div className="sticky top-24 border border-gray-200 rounded-2xl p-5 bg-gray-50">
-              <h2 className="font-bold text-gray-900 mb-4">
-                🧾 Your Pre-Order
-              </h2>
-              {orderList.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-6">
-                  No items added yet.
-                  <br />
-                  <span className="text-xs">Click + Add on any item</span>
-                </p>
-              ) : (
-                <>
-                  <ul className="flex flex-col gap-2 mb-4 max-h-64 overflow-y-auto">
-                    {orderList.map((item, i) => (
-                      <li
-                        key={i}
-                        className="flex justify-between items-start text-sm"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-800 truncate">
-                            {item.name}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {item.category}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2 shrink-0">
-                          <span className="font-semibold text-gray-900 text-xs">
-                            {item.price.toLocaleString()}
-                          </span>
-                          <button
-                            onClick={() => handleRemoveFromOrder(i)}
-                            className="text-red-400 hover:text-red-600 text-xs"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="border-t border-gray-200 pt-3 flex justify-between font-bold text-gray-900 mb-4">
-                    <span>Total</span>
-                    <span>{orderTotal.toLocaleString()} RWF</span>
-                  </div>
-                </>
+          {/* Order Summary & Confirm Booking */}
+          <div className="lg:w-80 shrink-0 order-first lg:order-last">
+            <div className="sticky top-24 border border-green-200 rounded-2xl p-5 bg-green-50">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-bold text-gray-900 text-lg">
+                  🧾 Order Summary
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("book")}
+                  className="text-xs text-gray-500 underline"
+                >
+                  Change
+                </button>
+              </div>
+              <div className="space-y-2 mb-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Reservation:</span>
+                  <span className="font-semibold">
+                    {matchedTable
+                      ? formatReservationAmount(Number(matchedTable.price))
+                      : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Menu Items:</span>
+                  <span className="font-semibold">
+                    {orderTotal > 0
+                      ? `${orderTotal.toLocaleString()} RWF`
+                      : "None"}
+                  </span>
+                </div>
+                <div className="border-t border-green-200 pt-2 flex justify-between font-bold">
+                  <span>Total to Pay:</span>
+                  <span className="text-green-700">
+                    {(
+                      (Number(matchedTable?.price) || 0) + orderTotal
+                    ).toLocaleString()}{" "}
+                    RWF
+                  </span>
+                </div>
+              </div>
+              {/* Menu Items List */}
+              {orderList.length > 0 && (
+                <ul className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto">
+                  {orderList.map((item, i) => (
+                    <li
+                      key={i}
+                      className="flex justify-between items-start text-xs"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-800 truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          {item.category}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        <span className="font-semibold text-gray-900 text-xs">
+                          {item.price.toLocaleString()}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveFromOrder(i)}
+                          className="text-red-400 hover:text-red-600 text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
+              {/* Confirm Booking Button */}
               <button
                 type="button"
-                disabled
-                className="w-full bg-gray-400 !text-white py-3 rounded-xl font-semibold cursor-not-allowed text-sm"
+                disabled={
+                  !matchedTable ||
+                  !guestName.trim() ||
+                  !email.trim() ||
+                  !telephone.trim() ||
+                  !bookingDate ||
+                  !bookingTime ||
+                  bookingSubmitting
+                }
+                className={`w-full bg-green-600 !text-white py-3 rounded-xl font-semibold text-base mt-2 transition-colors ${
+                  !matchedTable ||
+                  !guestName.trim() ||
+                  !email.trim() ||
+                  !telephone.trim() ||
+                  !bookingDate ||
+                  !bookingTime ||
+                  bookingSubmitting
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:bg-green-700"
+                }`}
+                onClick={async () => {
+                  if (
+                    !matchedTable ||
+                    !guestName.trim() ||
+                    !email.trim() ||
+                    !telephone.trim() ||
+                    !bookingDate ||
+                    !bookingTime
+                  ) {
+                    setActiveTab("book");
+                    return;
+                  }
+                  setBookingSubmitting(true);
+                  setBookingError("");
+                  try {
+                    const normalizedName = guestName.trim();
+                    const normalizedEmail = email.trim().toLowerCase();
+                    const parsedPhone = splitInternationalPhone(telephone);
+                    const normalizedPhone = parsedPhone.localNumber;
+                    const normalizedPhoneWithCode = normalizedPhone
+                      ? `${parsedPhone.countryCode}${normalizedPhone}`
+                      : "";
+                    const peopleCount = matchedTable
+                      ? parsePeopleCount(String(matchedTable.table_of_people))
+                      : parsePeopleCount(tableSearch);
+                    const menuId =
+                      orderList.length > 0 ? orderList[0].id : undefined;
+                    const created = await createBooking({
+                      tableId: matchedTable.id ?? null,
+                      visitorName: normalizedName,
+                      fullnames: normalizedName,
+                      email: normalizedEmail,
+                      telephone: normalizedPhoneWithCode,
+                      numberOfPeople: peopleCount,
+                      specialRequest: specialRequests.trim(),
+                      date: bookingDate,
+                      time: bookingTime,
+                      businessId: Number(restaurant.id),
+                      menuId,
+                    });
+                    localStorage.setItem(
+                      "enjoy-rwanda.pendingBookingContext",
+                      JSON.stringify({
+                        bookingId: created.id,
+                        email: normalizedEmail,
+                        restaurantName: restaurant.name,
+                        menuItems: orderList.map((item) => ({
+                          name: item.name,
+                          price: item.price,
+                        })),
+                        menuTotal: orderTotal,
+                        createdAt: Date.now(),
+                      }),
+                    );
+                    navigate("/booking-confirming", {
+                      state: {
+                        bookingId: created.id,
+                        email: normalizedEmail,
+                        restaurantName: restaurant.name,
+                      },
+                    });
+                  } catch (error) {
+                    setBookingError(
+                      error instanceof Error
+                        ? error.message
+                        : "Failed to create booking.",
+                    );
+                  } finally {
+                    setBookingSubmitting(false);
+                  }
+                }}
               >
-                Book table from the Book tab
+                {bookingSubmitting ? "Booking..." : "Confirm Booking"}
               </button>
+              {/* Show error if any */}
+              {bookingError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-3">
+                  {bookingError}
+                </div>
+              )}
             </div>
           </div>
         </div>
