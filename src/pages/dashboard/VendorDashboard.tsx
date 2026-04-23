@@ -553,6 +553,11 @@ export default function VendorDashboard() {
   const [managersLoading, setManagersLoading] = useState(false);
   const [managerSubmitting, setManagerSubmitting] = useState(false);
   const [editingManagerId, setEditingManagerId] = useState<number | null>(null);
+  const [settingsSubmitting, setSettingsSubmitting] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [managerForm, setManagerForm] = useState({
     name: "",
     email: "",
@@ -828,6 +833,42 @@ export default function VendorDashboard() {
     return [];
   };
 
+  const firstNonEmpty = (...values: Array<string | null | undefined>) => {
+    for (const value of values) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+    return "";
+  };
+
+  const formatTimeValue = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Not set";
+
+    const [hourText, minuteText = "00"] = trimmed.split(":");
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+      return trimmed;
+    }
+
+    const period = hour >= 12 ? "PM" : "AM";
+    const normalizedHour = hour % 12 || 12;
+    const normalizedMinute = String(minute).padStart(2, "0");
+    return `${normalizedHour}:${normalizedMinute} ${period}`;
+  };
+
+  const formatTimeRange = (start: string, end: string) => {
+    const startLabel = formatTimeValue(start);
+    const endLabel = formatTimeValue(end);
+    if (startLabel === "Not set" || endLabel === "Not set") {
+      return "Not set";
+    }
+    return `${startLabel} - ${endLabel}`;
+  };
+
   const resolveMediaUrl = (value: string | null | undefined) => {
     if (!value) return undefined;
     const trimmed = value.trim();
@@ -865,69 +906,95 @@ export default function VendorDashboard() {
     };
   };
 
-  const applyBusinessProfile = useCallback((record: BusinessProfileRecord) => {
-    const businessType =
-      record.business_type === "Shop" ? "Shop" : "Restaurant";
-    const nextBusinessId = Number(record.business_id);
-    const seed = buildBusinessSeed(businessType);
+  const applyBusinessProfile = useCallback(
+    (record: BusinessProfileRecord) => {
+      const businessType =
+        record.business_type === "Shop" ? "Shop" : "Restaurant";
+      const nextBusinessId = Number(record.business_id);
+      const seed = buildBusinessSeed(businessType);
 
-    setBusinessId(Number.isFinite(nextBusinessId) ? nextBusinessId : null);
+      setBusinessId(Number.isFinite(nextBusinessId) ? nextBusinessId : null);
 
-    setProfile(seed.profile);
-    setBusiness({
-      ...seed.business,
-      businessName: record.business_name || seed.business.businessName,
-      businessType,
-      location: record.location || seed.business.location,
-      openingHours: record.opening_hours || seed.business.openingHours,
-      closingHours: record.closing_hours || seed.business.closingHours,
-      weekendOpeningHours:
-        record.weekend_opening_hours || seed.business.weekendOpeningHours,
-      weekendClosingHours:
-        record.weekend_closing_hours || seed.business.weekendClosingHours,
-      openingDays: normalizeOpeningDays(record.opening_days),
-      businessPhone: record.business_phone || "",
-      businessEmail: record.business_email || "",
-      managerName: record.manager_name || "",
-      managerEmail: record.manager_email || "",
-      description: record.business_description || seed.business.description,
-      businessProfileImage: record.business_profile_image
-        ? {
-            name: getFileNameFromUrl(record.business_profile_image),
-            type: "image/*",
-            size: 0,
-            previewUrl: resolveMediaUrl(record.business_profile_image),
-          }
-        : undefined,
-      rdbCertificate: record.rdb_certificate
-        ? {
-            name: getFileNameFromUrl(record.rdb_certificate),
-            type: "application/octet-stream",
-            size: 0,
-            previewUrl: resolveMediaUrl(record.rdb_certificate),
-          }
-        : undefined,
-    });
-    setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
-    setSupportingDocuments([]);
-    setSavedSupportingDocuments(
-      Array.isArray(record.supporting_documents)
-        ? record.supporting_documents
-        : [],
-    );
-    setCatalogItems(seed.catalogItems);
-    setBookings(seed.bookings);
-    setOrders(seed.orders);
-    setNotifications(seed.notifications);
-    setAvailabilityByItemId(
-      Object.fromEntries(
-        seed.catalogItems.map((item) => [
-          item.id,
-          !item.status.toLowerCase().includes("low"),
-        ]),
-      ),
-    );
-  }, []);
+      setProfile((current) => ({
+        ownerName: firstNonEmpty(
+          record.owner_name,
+          current.ownerName,
+          user?.name,
+        ),
+        email: firstNonEmpty(record.owner_email, current.email, user?.email),
+        phone: firstNonEmpty(
+          record.owner_phone,
+          record.business_phone,
+          current.phone,
+        ),
+      }));
+
+      setBusiness({
+        ...seed.business,
+        businessName: record.business_name || seed.business.businessName,
+        businessType,
+        location: record.location || seed.business.location,
+        openingHours: record.opening_hours || seed.business.openingHours,
+        closingHours: record.closing_hours || seed.business.closingHours,
+        weekendOpeningHours:
+          record.weekend_opening_hours || seed.business.weekendOpeningHours,
+        weekendClosingHours:
+          record.weekend_closing_hours || seed.business.weekendClosingHours,
+        openingDays: normalizeOpeningDays(record.opening_days),
+        businessPhone: record.business_phone || "",
+        businessEmail: record.business_email || "",
+        managerName: record.manager_name || "",
+        managerEmail: record.manager_email || "",
+        description: record.business_description || seed.business.description,
+        businessProfileImage: record.business_profile_image
+          ? {
+              name: getFileNameFromUrl(record.business_profile_image),
+              type: "image/*",
+              size: 0,
+              previewUrl: resolveMediaUrl(record.business_profile_image),
+            }
+          : undefined,
+        rdbCertificate: record.rdb_certificate
+          ? {
+              name: getFileNameFromUrl(record.rdb_certificate),
+              type: "application/octet-stream",
+              size: 0,
+              previewUrl: resolveMediaUrl(record.rdb_certificate),
+            }
+          : undefined,
+      });
+      setBusinessFiles({ businessProfileImage: null, rdbCertificate: null });
+      setSupportingDocuments([]);
+      setSavedSupportingDocuments(
+        Array.isArray(record.supporting_documents)
+          ? record.supporting_documents
+          : [],
+      );
+      setCatalogItems(seed.catalogItems);
+      setBookings(seed.bookings);
+      setOrders(seed.orders);
+      setNotifications(seed.notifications);
+      setAvailabilityByItemId(
+        Object.fromEntries(
+          seed.catalogItems.map((item) => [
+            item.id,
+            !item.status.toLowerCase().includes("low"),
+          ]),
+        ),
+      );
+    },
+    [user?.email, user?.name],
+  );
+
+  useEffect(() => {
+    if (!user) return;
+
+    setProfile((current) => ({
+      ownerName: firstNonEmpty(current.ownerName, user.name),
+      email: firstNonEmpty(current.email, user.email),
+      phone: firstNonEmpty(current.phone, business.businessPhone),
+    }));
+  }, [business.businessPhone, user]);
 
   const isShop = business.businessType === "Shop";
   const mapMenuRecordToCatalogItem = useCallback(
@@ -1707,6 +1774,77 @@ export default function VendorDashboard() {
       });
     } finally {
       setSupportingDocsSubmitting(false);
+    }
+  };
+
+  const handleSaveBusinessSettings = async () => {
+    if (!token) {
+      setSettingsMessage({
+        type: "error",
+        text: "You must be signed in to save business details.",
+      });
+      return;
+    }
+
+    if (
+      !business.businessName.trim() ||
+      !business.location.trim() ||
+      !business.businessPhone.trim() ||
+      !business.businessEmail.trim() ||
+      !business.managerName.trim() ||
+      !business.managerEmail.trim()
+    ) {
+      setSettingsMessage({
+        type: "error",
+        text: "Please complete all required business contact fields before saving.",
+      });
+      return;
+    }
+
+    setSettingsSubmitting(true);
+    setSettingsMessage(null);
+
+    try {
+      const payload = {
+        businessName: business.businessName.trim(),
+        businessType: business.businessType,
+        businessDescription: business.description.trim(),
+        location: business.location.trim(),
+        businessPhone: business.businessPhone.trim(),
+        businessEmail: business.businessEmail.trim(),
+        openingHours: business.openingHours.trim(),
+        closingHours: business.closingHours.trim(),
+        weekendOpeningHours: business.weekendOpeningHours.trim(),
+        weekendClosingHours: business.weekendClosingHours.trim(),
+        openingDays: business.openingDays,
+        managerName: business.managerName.trim(),
+        managerEmail: business.managerEmail.trim(),
+        businessProfileImageFile: businessFiles.businessProfileImage,
+        rdbCertificateFile: businessFiles.rdbCertificate,
+        additionalDocuments: [],
+      };
+
+      const result = hasRemoteBusinessProfile
+        ? await updateMyBusinessProfile(token, payload)
+        : await createBusinessProfile(token, payload);
+
+      applyBusinessProfile(result);
+      setOnboardingComplete(true);
+      setHasRemoteBusinessProfile(true);
+      setSettingsMessage({
+        type: "success",
+        text: "Business details updated successfully.",
+      });
+    } catch (error) {
+      setSettingsMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Unable to update business details.",
+      });
+    } finally {
+      setSettingsSubmitting(false);
     }
   };
 
@@ -4428,6 +4566,70 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Business phone
+                      </span>
+                      <PhoneNumberInput
+                        value={business.businessPhone}
+                        onChange={(value) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessPhone: value,
+                          }))
+                        }
+                        defaultCountryIso2="RW"
+                        placeholder="7XXXXXXXX"
+                        className="grid grid-cols-1 gap-2"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Business email
+                      </span>
+                      <input
+                        type="email"
+                        value={business.businessEmail}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            businessEmail: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Manager name
+                      </span>
+                      <input
+                        value={business.managerName}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            managerName: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Manager email
+                      </span>
+                      <input
+                        type="email"
+                        value={business.managerEmail}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            managerEmail: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
                         Weekday opening hour
                       </span>
                       <input
@@ -4490,6 +4692,26 @@ export default function VendorDashboard() {
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
                     </label>
+                    <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Working days
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {WEEK_DAYS.map((day) => {
+                          const selected = business.openingDays.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => toggleOpeningDay(day)}
+                              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${selected ? "border-[#1a1a2e] bg-[#1a1a2e]/10 text-[#1a1a2e]" : "border-slate-200 bg-white text-slate-600 hover:border-[#1a1a2e]/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"}`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
                         Description
@@ -4530,17 +4752,65 @@ export default function VendorDashboard() {
                     >
                       Toggle theme
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveBusinessSettings()}
+                      disabled={settingsSubmitting}
+                      className="rounded-full bg-[#1a1a2e] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {settingsSubmitting
+                        ? "Saving..."
+                        : "Save business details"}
+                    </button>
                   </div>
+
+                  {settingsMessage && (
+                    <p
+                      className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${
+                        settingsMessage.type === "success"
+                          ? "bg-[#1a1a2e]/10 text-[#1a1a2e] dark:text-[#1a1a2e]"
+                          : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                      }`}
+                    >
+                      {settingsMessage.text}
+                    </p>
+                  )}
                 </SectionCard>
 
                 <SectionCard
-                  title="Realtime summary"
-                  subtitle="A compact readout of the current dashboard state"
+                  title="Business overview"
+                  subtitle="Core profile details with clear status when a value is not yet set"
                 >
                   <div className="space-y-4">
                     <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                        Mode
+                        Owner
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                        {profile.ownerName.trim() || user?.name || "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Email
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                        {profile.email.trim() || user?.email || "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Phone
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                        {profile.phone.trim() ||
+                          business.businessPhone ||
+                          "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Business type
                       </p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                         {business.businessType} vendor
@@ -4548,19 +4818,61 @@ export default function VendorDashboard() {
                     </div>
                     <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                        Live notifications
+                        Profile completion
                       </p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
-                        {notificationCount} unread
+                        {onboardingReady ? "Complete" : "Incomplete"}
                       </p>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-white/10 dark:bg-white/5">
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                        Search
+                        Operating hours
                       </p>
-                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
-                        {searchQuery || "Nothing filtered"}
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
+                          <span className="font-medium text-slate-500 dark:text-slate-400">
+                            Weekdays
+                          </span>
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {formatTimeRange(
+                              business.openingHours,
+                              business.closingHours,
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
+                          <span className="font-medium text-slate-500 dark:text-slate-400">
+                            Weekends
+                          </span>
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {formatTimeRange(
+                              business.weekendOpeningHours,
+                              business.weekendClosingHours,
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        Working days
                       </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {business.openingDays.length > 0 ? (
+                          business.openingDays.map((day) => (
+                            <span
+                              key={day}
+                              className="rounded-full bg-[#1a1a2e]/10 px-3 py-1 text-xs font-semibold text-[#1a1a2e]"
+                            >
+                              {day}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Not set
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </SectionCard>
