@@ -7,7 +7,7 @@ import {
   type BusinessProfileRecord,
 } from "../../utils/api";
 
-type SearchTab = "Shop" | "Restaurants" | "Events";
+type SearchTab = "Shop" | "Restaurants";
 
 type HomeRestaurant = {
   id: number;
@@ -145,6 +145,61 @@ export default function Home() {
     [cuisineFilter, restaurants],
   );
 
+  const featuredHighlights = [
+    {
+      title: "Curated restaurants",
+      description:
+        "Verified dining spots with real photos, live details, and flexible booking.",
+      icon: "🍽️",
+    },
+    {
+      title: "Authentic local shopping",
+      description:
+        "Discover handmade products, gifts, and essentials from trusted vendors.",
+      icon: "🛍️",
+    },
+    {
+      title: "Fast reservations",
+      description:
+        "Book in a few taps and secure your table with a consumable deposit.",
+      icon: "⚡",
+    },
+    {
+      title: "Made for visitors",
+      description:
+        "Built to help travelers explore Rwanda with less friction and more confidence.",
+      icon: "🇷🇼",
+    },
+  ];
+
+  const howItWorks = [
+    {
+      step: "01",
+      title: "Choose where to go",
+      description:
+        "Search restaurants or shops by location and browse verified listings.",
+    },
+    {
+      step: "02",
+      title: "Review the details",
+      description:
+        "Check photos, hours, ratings, deposits, and availability before you book.",
+    },
+    {
+      step: "03",
+      title: "Reserve or shop",
+      description:
+        "Confirm your reservation or start shopping and pay when you are ready.",
+    },
+  ];
+
+  const travelerTips = [
+    "Plan dinner early on weekends for better availability.",
+    "Use the restaurant filters to find the cuisine that fits your mood.",
+    "Open the shop section for gifts, essentials, and local products.",
+    "Reserve ahead if you are traveling with a group or family.",
+  ];
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTab === "Shop") navigate("/shops");
@@ -192,7 +247,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl mx-auto px-4 sm:px-8 pb-6">
             {/* Tabs */}
             <div className="flex border-b border-gray-200 mb-5 overflow-x-auto">
-              {(["Shop", "Restaurants", "Events"] as SearchTab[]).map((tab) => (
+              {(["Shop", "Restaurants"] as SearchTab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setSearchTab(tab)}
@@ -225,21 +280,6 @@ export default function Home() {
                       <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2" />
                       <path d="M7 2v20" />
                       <path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7" />
-                    </svg>
-                  )}
-                  {tab === "Events" && (
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
                     </svg>
                   )}
                   {tab}
@@ -299,6 +339,21 @@ export default function Home() {
               <span>20,000 RWF Consumable Deposit</span>
               <span className="w-2 h-2 rounded-full bg-amber-400 inline-block ml-2" />
               <span>Authentic Local Products</span>
+            </div>
+
+            <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                to="/restaurants"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#1a1a2e] px-6 py-3 text-sm font-bold text-[#1a1a2e] transition-colors hover:bg-gray-50 dark:border-white dark:text-white dark:hover:bg-white/5"
+              >
+                Explore Restaurants
+              </Link>
+              <Link
+                to="/shops"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#1a1a2e] px-6 py-3 text-sm font-bold text-[#1a1a2e] transition-colors hover:bg-gray-50 dark:border-white dark:text-white dark:hover:bg-white/5"
+              >
+                Explore Shops
+              </Link>
             </div>
           </div>
         </div>
@@ -451,6 +506,138 @@ export default function Home() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Featured Highlights ── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {featuredHighlights.map((item) => (
+            <div
+              key={item.title}
+              className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm hover:shadow-xl transition-all"
+            >
+              <div className="text-2xl mb-3">{item.icon}</div>
+              <h3 className="text-base font-black text-gray-900 dark:text-white mb-2">
+                {item.title}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
+        <div className="flex items-end justify-between gap-4 flex-wrap mb-8">
+          <div>
+            <h2 className="text-[2rem] font-black text-gray-900 dark:text-white tracking-tight mb-1">
+              How Enjoy Rwanda Works
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              A simple flow for visitors, locals, and business owners.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {howItWorks.map((item) => (
+            <div
+              key={item.step}
+              className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm"
+            >
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#1a1a2e] text-white font-black mb-4">
+                {item.step}
+              </div>
+              <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">
+                {item.title}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Rwanda Experience ── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 sm:p-8 shadow-sm">
+            <h2 className="text-[2rem] font-black text-gray-900 dark:text-white tracking-tight mb-3">
+              More than a booking site
+            </h2>
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 leading-7 mb-6">
+              Enjoy Rwanda is designed to help you explore, reserve, and buy
+              with confidence. We combine restaurants, shops, and local travel
+              guidance in one place so you spend less time searching and more
+              time enjoying the experience.
+            </p>
+            <div className="space-y-3">
+              {travelerTips.map((tip) => (
+                <div
+                  key={tip}
+                  className="flex items-start gap-3 rounded-2xl bg-gray-50 dark:bg-gray-700/60 px-4 py-3"
+                >
+                  <span className="mt-0.5 text-[#1a1a2e] dark:text-white">•</span>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">{tip}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gradient-to-br from-[#1a1a2e] to-[#2d2d4e] p-6 sm:p-8 shadow-xl text-white">
+            <p className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">
+              Missing features added
+            </p>
+            <h3 className="text-2xl font-black mb-4">Everything you expect in one place</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                ["Verified listings", `${restaurants.length}+`],
+                ["Open today", `${restaurants.filter((r) => r.status === "Open").length}+`],
+                ["Deposit booking", "Available"],
+                ["Shop catalog", "Live"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/60 mb-1">{label}</p>
+                  <p className="text-lg font-black">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Trust / CTA ── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12 pb-16">
+        <div className="rounded-[2rem] border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="max-w-2xl">
+              <h2 className="text-[2rem] font-black text-gray-900 dark:text-white tracking-tight mb-2">
+                Ready to explore Rwanda?
+              </h2>
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 leading-7">
+                Use the search above to find restaurants, reserve a table, or
+                explore shops. More categories and experiences can be added
+                here later without changing the current landing page design.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/restaurants"
+                className="rounded-xl border-2 border-[#1a1a2e] px-6 py-3 text-sm font-bold text-[#1a1a2e] transition-colors hover:bg-gray-50 dark:border-white dark:text-white dark:hover:bg-white/5"
+              >
+                Explore Restaurants
+              </Link>
+              <Link
+                to="/shops"
+                className="rounded-xl border-2 border-[#1a1a2e] px-6 py-3 text-sm font-bold text-[#1a1a2e] transition-colors hover:bg-gray-50 dark:border-white dark:text-white dark:hover:bg-white/5"
+              >
+                Explore Shops
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </div>
