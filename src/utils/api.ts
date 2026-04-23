@@ -26,6 +26,7 @@ export interface BusinessProfileRecord {
   location: string | null;
   business_phone: string | null;
   business_email: string | null;
+  business_website_url?: string | null;
   opening_hours: string | null;
   closing_hours?: string | null;
   weekend_opening_hours?: string | null;
@@ -77,6 +78,7 @@ export type BusinessProfileFormInput = {
   location: string;
   businessPhone: string;
   businessEmail: string;
+  businessWebsiteUrl?: string;
   openingHours: string;
   closingHours?: string;
   weekendOpeningHours?: string;
