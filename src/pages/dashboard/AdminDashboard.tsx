@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp, hasRole } from "../../context/AppContext";
 import {
@@ -35,12 +35,90 @@ type SupportingDocumentDraft = {
 
 type Tab = "overview" | "users" | "vendors" | "documents" | "reports";
 
+// SVG Icon Component
+const IconComponent = ({ name, size = "w-5 h-5" }: { name: string; size?: string }) => {
+  const icons: Record<string, ReactElement> = {
+    overview: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+        <rect x="14" y="3" width="7" height="4" rx="1"></rect>
+        <rect x="14" y="10" width="7" height="11" rx="1"></rect>
+        <rect x="3" y="13" width="7" height="8" rx="1"></rect>
+      </svg>
+    ),
+    users: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+    ),
+    vendors: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M6 9L12 5.5L18 9M6 9V19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V9M9 13H15"></path>
+      </svg>
+    ),
+    documents: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+        <polyline points="13 2 13 9 20 9"></polyline>
+      </svg>
+    ),
+    reports: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="18" y1="20" x2="18" y2="10"></line>
+        <line x1="12" y1="20" x2="12" y2="4"></line>
+        <line x1="6" y1="20" x2="6" y2="14"></line>
+      </svg>
+    ),
+    user: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+    ),
+    shopping: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="21" r="1"></circle>
+        <circle cx="20" cy="21" r="1"></circle>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+      </svg>
+    ),
+    clock: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+    ),
+    calendar: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+    ),
+    checkmark: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    ),
+    message: (
+      <svg className={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    ),
+  };
+  return icons[name] || <span>{name}</span>;
+};
+
 const navItems: { tab: Tab; icon: string; label: string }[] = [
-  { tab: "overview", icon: "📊", label: "Overview" },
-  { tab: "users", icon: "👥", label: "Users" },
-  { tab: "vendors", icon: "🏪", label: "Vendors" },
-  { tab: "documents", icon: "📁", label: "Documents" },
-  { tab: "reports", icon: "📈", label: "Reports" },
+  { tab: "overview", icon: "overview", label: "Overview" },
+  { tab: "users", icon: "users", label: "Users" },
+  { tab: "vendors", icon: "vendors", label: "Vendors" },
+  { tab: "documents", icon: "documents", label: "Documents" },
+  { tab: "reports", icon: "reports", label: "Reports" },
 ];
 
 export default function AdminDashboard() {
@@ -742,7 +820,7 @@ export default function AdminDashboard() {
                   : "text-white/60 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <span className="text-base shrink-0">{icon}</span>
+              <IconComponent name={icon} size="w-5 h-5" />
               {sidebarOpen && <span>{label}</span>}
               {sidebarOpen && t === "vendors" && pendingApprovals > 0 && (
                 <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full">
@@ -771,7 +849,7 @@ export default function AdminDashboard() {
               aria-label="Sign out"
               title="Sign out"
             >
-              {sidebarOpen ? "Sign out" : "⎋"}
+              {sidebarOpen ? "Sign out" : "✕"}
             </button>
           </div>
         </div>
@@ -800,8 +878,8 @@ export default function AdminDashboard() {
               </svg>
             </button>
             <div>
-              <h1 className="text-lg font-black text-slate-900">
-                {navItems.find((n) => n.tab === tab)?.icon}{" "}
+              <h1 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <IconComponent name={navItems.find((n) => n.tab === tab)?.icon || "overview"} size="w-6 h-6" />
                 {navItems.find((n) => n.tab === tab)?.label}
               </h1>
               <p className="text-xs text-slate-400">
@@ -816,8 +894,8 @@ export default function AdminDashboard() {
                 {pendingApprovals > 1 ? "s" : ""}
               </span>
             )}
-            <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">
-              ● Live
+            <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live
             </span>
           </div>
         </header>
@@ -844,25 +922,25 @@ export default function AdminDashboard() {
                   {
                     label: "Total Users",
                     value: users.length,
-                    icon: "👥",
+                    icon: "user",
                     color: "bg-blue-50 text-blue-700",
                   },
                   {
                     label: "Approved Vendors",
                     value: approvedVendors,
-                    icon: "🏪",
+                    icon: "vendors",
                     color: "bg-green-50 text-green-700",
                   },
                   {
                     label: "Total Orders",
                     value: 40,
-                    icon: "🛒",
+                    icon: "shopping",
                     color: "bg-purple-50 text-purple-700",
                   },
                   {
                     label: "Pending Approvals",
                     value: pendingApprovals,
-                    icon: "⏳",
+                    icon: "clock",
                     color: "bg-yellow-50 text-yellow-700",
                   },
                 ].map((item) => (
@@ -876,7 +954,9 @@ export default function AdminDashboard() {
                       >
                         {item.label}
                       </span>
-                      <span className="text-xl">{item.icon}</span>
+                      <span className={item.color}>
+                        <IconComponent name={item.icon} size="w-6 h-6" />
+                      </span>
                     </div>
                     <p className="text-4xl font-black text-slate-900">
                       {item.value}
@@ -895,28 +975,30 @@ export default function AdminDashboard() {
                   <ul className="space-y-3">
                     {[
                       {
-                        icon: "📅",
+                        icon: "calendar",
                         title: "New booking from Alice Uwase",
                         time: "2 min ago",
                       },
                       {
-                        icon: "🛒",
+                        icon: "shopping",
                         title: "New order ORD-011 received",
                         time: "15 min ago",
                       },
                       {
-                        icon: "🏪",
+                        icon: "vendors",
                         title: "Vendor Diane Uwimana registered",
                         time: "1 hr ago",
                       },
                       {
-                        icon: "💬",
+                        icon: "message",
                         title: "Support ticket from Jean Pierre",
                         time: "3 hr ago",
                       },
                     ].map((a, i) => (
                       <li key={i} className="flex items-start gap-3 text-sm">
-                        <span className="text-base mt-0.5">{a.icon}</span>
+                        <span className="text-slate-600 mt-0.5 flex-shrink-0">
+                          <IconComponent name={a.icon} size="w-5 h-5" />
+                        </span>
                         <div className="flex-1">
                           <p className="text-slate-800 font-medium">
                             {a.title}
@@ -935,8 +1017,8 @@ export default function AdminDashboard() {
                   </h3>
                   {vendorApplications.filter((app) => app.status === "pending")
                     .length === 0 ? (
-                    <p className="text-slate-400 text-sm text-center py-6">
-                      All vendors approved ✅
+                    <p className="text-slate-400 text-sm text-center py-6 flex items-center justify-center gap-2">
+                      All vendors approved <IconComponent name="checkmark" size="w-4 h-4" />
                     </p>
                   ) : (
                     <ul className="space-y-3">
@@ -2464,25 +2546,25 @@ export default function AdminDashboard() {
                     title: "Orders This Month",
                     value: "40",
                     detail: "+12% from last month",
-                    icon: "📦",
+                    icon: "shopping",
                   },
                   {
                     title: "Revenue",
                     value: "580,000 RWF",
                     detail: "+8% from last month",
-                    icon: "💰",
+                    icon: "shopping",
                   },
                   {
                     title: "Bookings",
                     value: "18",
                     detail: "+5% from last month",
-                    icon: "📅",
+                    icon: "calendar",
                   },
                   {
                     title: "Complaints",
                     value: "2",
                     detail: "1 resolved, 1 pending",
-                    icon: "💬",
+                    icon: "message",
                   },
                 ].map((item) => (
                   <div
@@ -2490,7 +2572,9 @@ export default function AdminDashboard() {
                     className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xl">{item.icon}</span>
+                      <span className="text-slate-600">
+                        <IconComponent name={item.icon} size="w-6 h-6" />
+                      </span>
                       <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
                         This month
                       </span>
@@ -2512,31 +2596,33 @@ export default function AdminDashboard() {
                     {
                       label: "Total Revenue",
                       value: "2,450,000 RWF",
-                      icon: "💰",
+                      icon: "shopping",
                     },
-                    { label: "Total Bookings", value: "86", icon: "📅" },
+                    { label: "Total Bookings", value: "86", icon: "calendar" },
                     {
                       label: "Active Vendors",
                       value: approvedVendors.toString(),
-                      icon: "🏪",
+                      icon: "vendors",
                     },
                     {
                       label: "Registered Users",
                       value: users.length.toString(),
-                      icon: "👥",
+                      icon: "users",
                     },
                     {
                       label: "Avg Order Value",
                       value: "14,500 RWF",
-                      icon: "🛒",
+                      icon: "shopping",
                     },
-                    { label: "Satisfaction Rate", value: "94%", icon: "⭐" },
+                    { label: "Satisfaction Rate", value: "94%", icon: "checkmark" },
                   ].map((item) => (
                     <div
                       key={item.label}
                       className="flex items-center gap-3 border border-slate-100 rounded-xl p-4"
                     >
-                      <span className="text-2xl">{item.icon}</span>
+                      <span className="text-slate-600">
+                        <IconComponent name={item.icon} size="w-6 h-6" />
+                      </span>
                       <div>
                         <p className="font-bold text-slate-900">{item.value}</p>
                         <p className="text-xs text-slate-400">{item.label}</p>
