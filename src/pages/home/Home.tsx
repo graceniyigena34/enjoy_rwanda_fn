@@ -6,6 +6,7 @@ import {
   getBusinessProfiles,
   type BusinessProfileRecord,
 } from "../../utils/api";
+import { formatTimeRange } from "../../utils/restaurantUtils";
 
 type SearchTab = "Shop" | "Restaurants";
 
@@ -13,7 +14,9 @@ type HomeRestaurant = {
   id: number;
   name: string;
   location: string;
-  hours: string;
+  weekdayHours: string;
+  weekendHours: string;
+  workingDays: string[];
   image: string;
   cuisine: string;
   priceRange: string;
@@ -53,15 +56,59 @@ function inferCuisine(record: BusinessProfileRecord) {
   return "International";
 }
 
+function normalizeOpeningDays(value: BusinessProfileRecord["opening_days"]) {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (day): day is string => typeof day === "string" && day.trim().length > 0,
+    );
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (day): day is string =>
+            typeof day === "string" && day.trim().length > 0,
+        );
+      }
+    } catch {
+      // fall through to comma parsing
+    }
+
+    return trimmed
+      .split(",")
+      .map((day) => day.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function toHomeRestaurant(
   record: BusinessProfileRecord,
   index: number,
 ): HomeRestaurant {
+  const weekdayHours = formatTimeRange(
+    record.opening_hours,
+    record.closing_hours,
+  );
+  const weekendHours = formatTimeRange(
+    record.weekend_opening_hours,
+    record.weekend_closing_hours,
+  );
+
   return {
     id: record.business_id ?? record.user_id ?? index + 1,
     name: record.business_name,
     location: record.location?.trim() || "Kigali, Rwanda",
-    hours: record.opening_hours?.trim() || "08:00 - 22:00",
+    weekdayHours,
+    weekendHours:
+      weekendHours === "Not set" ? "Same as weekdays" : weekendHours,
+    workingDays: normalizeOpeningDays(record.opening_days),
     image: resolveBusinessImage(record.business_profile_image),
     cuisine: inferCuisine(record),
     priceRange: "$$$",
@@ -452,22 +499,8 @@ export default function Home() {
                     <strong>{r.rating}</strong>
                     <span className="text-gray-400">({r.reviews})</span>
                   </span>
-                  <span className="flex items-center gap-1 text-sm text-gray-500">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#888"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    {r.hours}
-                  </span>
                 </div>
-                <div className="flex items-center gap-1 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
                   <svg
                     width="13"
                     height="13"
@@ -480,6 +513,57 @@ export default function Home() {
                     <circle cx="12" cy="10" r="3" />
                   </svg>
                   {r.location}
+                </div>
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 mb-1">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#888"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span className="font-semibold">Weekdays:</span>
+                    <span>{r.weekdayHours}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 mb-2">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#888"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span className="font-semibold">Weekends:</span>
+                    <span>{r.weekendHours}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                      Working days:
+                    </span>
+                    {r.workingDays.length > 0 ? (
+                      r.workingDays.map((day) => (
+                        <span
+                          key={`${r.id}-${day}`}
+                          className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-gray-200 dark:ring-slate-600"
+                        >
+                          {day}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                        Not set
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mb-4">
                   <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -580,8 +664,12 @@ export default function Home() {
                   key={tip}
                   className="flex items-start gap-3 rounded-2xl bg-gray-50 dark:bg-gray-700/60 px-4 py-3"
                 >
-                  <span className="mt-0.5 text-[#1a1a2e] dark:text-white">•</span>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">{tip}</p>
+                  <span className="mt-0.5 text-[#1a1a2e] dark:text-white">
+                    •
+                  </span>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {tip}
+                  </p>
                 </div>
               ))}
             </div>
@@ -591,16 +679,26 @@ export default function Home() {
             <p className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">
               Missing features added
             </p>
-            <h3 className="text-2xl font-black mb-4">Everything you expect in one place</h3>
+            <h3 className="text-2xl font-black mb-4">
+              Everything you expect in one place
+            </h3>
             <div className="grid grid-cols-2 gap-4">
               {[
                 ["Verified listings", `${restaurants.length}+`],
-                ["Open today", `${restaurants.filter((r) => r.status === "Open").length}+`],
+                [
+                  "Open today",
+                  `${restaurants.filter((r) => r.status === "Open").length}+`,
+                ],
                 ["Deposit booking", "Available"],
                 ["Shop catalog", "Live"],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                  <p className="text-xs uppercase tracking-[0.18em] text-white/60 mb-1">{label}</p>
+                <div
+                  key={label}
+                  className="rounded-2xl bg-white/10 p-4 backdrop-blur"
+                >
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/60 mb-1">
+                    {label}
+                  </p>
                   <p className="text-lg font-black">{value}</p>
                 </div>
               ))}
@@ -619,8 +717,8 @@ export default function Home() {
               </h2>
               <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 leading-7">
                 Use the search above to find restaurants, reserve a table, or
-                explore shops. More categories and experiences can be added
-                here later without changing the current landing page design.
+                explore shops. More categories and experiences can be added here
+                later without changing the current landing page design.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
