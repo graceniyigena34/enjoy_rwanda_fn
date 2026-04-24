@@ -565,14 +565,6 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mb-4">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    Reservation deposit:{" "}
-                    <strong className="text-gray-900 dark:text-white">
-                      {r.deposit.toLocaleString()} RWF
-                    </strong>
-                  </span>
-                </div>
                 <div className="space-y-2">
                   <div className="flex gap-3">
                   <Link

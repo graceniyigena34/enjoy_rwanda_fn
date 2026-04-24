@@ -471,7 +471,9 @@ export default function VendorDashboard() {
     ...initialSeed.business,
     ...(storedState?.business ?? {}),
   }));
-  const [businessGallery, setBusinessGallery] = useState<BusinessPhotoRecord[]>([]);
+  const [businessGallery, setBusinessGallery] = useState<BusinessPhotoRecord[]>(
+    [],
+  );
   const [businessGalleryFiles, setBusinessGalleryFiles] = useState<File[]>([]);
   const [businessGalleryTitle, setBusinessGalleryTitle] = useState("");
   const [businessGallerySubmitting, setBusinessGallerySubmitting] =
@@ -1751,7 +1753,9 @@ export default function VendorDashboard() {
   const handleAddBusinessGalleryImages = async () => {
     if (!token) {
       setBusinessGalleryMessageType("error");
-      setBusinessGalleryMessage("You must be signed in to upload business photos.");
+      setBusinessGalleryMessage(
+        "You must be signed in to upload business photos.",
+      );
       return;
     }
 
@@ -1791,7 +1795,9 @@ export default function VendorDashboard() {
   const handleRemoveBusinessGalleryImage = async (imageId: number) => {
     if (!token) {
       setBusinessGalleryMessageType("error");
-      setBusinessGalleryMessage("You must be signed in to remove business photos.");
+      setBusinessGalleryMessage(
+        "You must be signed in to remove business photos.",
+      );
       return;
     }
 
@@ -1803,7 +1809,9 @@ export default function VendorDashboard() {
     } catch (error) {
       setBusinessGalleryMessageType("error");
       setBusinessGalleryMessage(
-        error instanceof Error ? error.message : "Failed to remove business photo.",
+        error instanceof Error
+          ? error.message
+          : "Failed to remove business photo.",
       );
     }
   };
@@ -2358,13 +2366,10 @@ export default function VendorDashboard() {
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100">
                 <p className="font-semibold">Account notice</p>
                 <p className="mt-1 leading-6">
-                  The manager account will automatically Created. Your initial
-                  password will be based on the business name using the format
-                  <span className="font-semibold">
-                    {" "}
-                    business_name@2026#
-                  </span>{" "}
-                  and he will login using that email.
+                  Your vendor account stays active while you complete
+                  onboarding. If you add a manager later, their initial password
+                  will be based on the business name using the format
+                  <span className="font-semibold"> business_name@2026#</span>.
                 </p>
               </div>
             </div>
@@ -3480,7 +3485,7 @@ export default function VendorDashboard() {
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"
                         />
                       </svg>
-                      Upload CSV
+                      Upload Excel sheet
                     </button>
                     <button
                       type="button"
@@ -4134,7 +4139,8 @@ export default function VendorDashboard() {
                       Business Photos
                     </h2>
                     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                      Upload more pictures of your business so customers can see your space and products.
+                      Upload more pictures of your business so customers can see
+                      your space and products.
                     </p>
                   </div>
                   <button
@@ -4256,8 +4262,12 @@ export default function VendorDashboard() {
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                           {businessGallery.map((image) => {
-                            const fileName = getFileNameFromUrl(image.image_url);
-                            const previewUrl = resolveMediaUrl(image.image_url) ?? image.image_url;
+                            const fileName = getFileNameFromUrl(
+                              image.image_url,
+                            );
+                            const previewUrl =
+                              resolveMediaUrl(image.image_url) ??
+                              image.image_url;
 
                             return (
                               <figure
@@ -4288,14 +4298,20 @@ export default function VendorDashboard() {
                                     </div>
                                     <button
                                       type="button"
-                                      onClick={() => void handleRemoveBusinessGalleryImage(image.id)}
+                                      onClick={() =>
+                                        void handleRemoveBusinessGalleryImage(
+                                          image.id,
+                                        )
+                                      }
                                       className="rounded-full border border-rose-200 px-3 py-1 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
                                     >
                                       Remove
                                     </button>
                                   </div>
                                   <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-                                    {new Date(image.created_at).toLocaleDateString()}
+                                    {new Date(
+                                      image.created_at,
+                                    ).toLocaleDateString()}
                                   </p>
                                 </figcaption>
                               </figure>
@@ -4320,7 +4336,8 @@ export default function VendorDashboard() {
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                      {selectedGalleryPhoto.title || getFileNameFromUrl(selectedGalleryPhoto.image_url)}
+                      {selectedGalleryPhoto.title ||
+                        getFileNameFromUrl(selectedGalleryPhoto.image_url)}
                     </p>
                     <button
                       type="button"

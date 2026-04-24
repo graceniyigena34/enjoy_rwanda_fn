@@ -311,18 +311,6 @@ export default function Restaurants() {
                       )}
                     </div>
 
-                    {/* Deposit Info */}
-                    {r.deposit > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          <span className="font-semibold text-gray-700 dark:text-gray-300">
-                            {new Intl.NumberFormat("en-US").format(r.deposit)}{" "}
-                            RWF
-                          </span>{" "}
-                          reservation deposit
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </Link>
               );
