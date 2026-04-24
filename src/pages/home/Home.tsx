@@ -27,8 +27,102 @@ type HomeRestaurant = {
 };
 
 const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
+const TERMS_ACCEPTANCE_KEY = "enjoy-rwanda.termsAccepted.v1";
 const FALLBACK_RESTAURANT_IMAGE =
   "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=80";
+
+const TERMS_SECTIONS = [
+  {
+    title: "1. Definitions",
+    items: [
+      '"Platform" refers to Enjoy Rwanda website and services.',
+      '"User" refers to anyone accessing or using the platform.',
+      '"Vendor" refers to restaurants or shops listing products, menus, or reservations.',
+      '"Customer" refers to users placing orders or booking tables.',
+    ],
+  },
+  {
+    title: "2. Use of the Platform",
+    intro: "You agree to:",
+    items: [
+      "Provide accurate and complete information.",
+      "Use the platform only for lawful purposes.",
+      "Not misuse, disrupt, or interfere with the platform.",
+    ],
+    outro:
+      "We reserve the right to suspend or terminate accounts that violate these Terms.",
+  },
+  {
+    title: "3. Vendor Responsibilities",
+    intro: "Vendors are responsible for:",
+    items: [
+      "Ensuring accuracy of menus, prices, product descriptions, and availability.",
+      "Honoring reservations and orders made through the platform.",
+      "Complying with all applicable laws and regulations in Rwanda.",
+    ],
+    outro:
+      "Enjoy Rwanda is not responsible for errors in listings or failure of vendors to fulfill orders.",
+  },
+  {
+    title: "4. Orders and Reservations",
+    items: [
+      "Customers can place orders or reserve tables through the platform.",
+      "Orders and reservations are subject to vendor acceptance.",
+      "Vendors may cancel or reject orders due to availability or other reasons.",
+    ],
+    outro:
+      "Enjoy Rwanda does not guarantee availability of any product or reservation.",
+  },
+  {
+    title: "5. Payments",
+    items: [
+      "Payments may be processed through third-party payment providers.",
+      "Enjoy Rwanda is not responsible for payment processing errors or failures.",
+      "Refund policies are determined by the vendor unless otherwise stated.",
+    ],
+  },
+  {
+    title: "6. Cancellations and Refunds",
+    items: [
+      "Cancellation policies vary by vendor.",
+      "Customers should review vendor-specific terms before confirming orders or bookings.",
+      "Enjoy Rwanda is not liable for disputes regarding refunds.",
+    ],
+  },
+  {
+    title: "7. User Accounts",
+    items: [
+      "You are responsible for maintaining the confidentiality of your account.",
+      "You must notify us immediately of unauthorized use.",
+      "We reserve the right to suspend or terminate accounts at our discretion.",
+    ],
+  },
+  {
+    title: "8. Intellectual Property",
+    body: "All content on Enjoy Rwanda, including logos, design, and software, is owned by or licensed to us and protected by intellectual property laws. You may not copy, reproduce, or distribute content without permission.",
+  },
+  {
+    title: "9. Limitation of Liability",
+    intro: "To the maximum extent permitted by law, Enjoy Rwanda shall not be liable for:",
+    items: [
+      "Any indirect, incidental, or consequential damages.",
+      "Losses resulting from vendor actions or service failures.",
+      "Errors, interruptions, or unavailability of the platform.",
+    ],
+  },
+  {
+    title: "10. Dispute Resolution",
+    body: "Any disputes arising from the use of the platform should first be resolved between the customer and the vendor. If unresolved, disputes will be handled in accordance with the laws of Rwanda.",
+  },
+  {
+    title: "11. Changes to Terms",
+    body: "We may update these Terms at any time. Changes will be posted on this page with an updated effective date. Continued use of the platform means you accept the revised Terms.",
+  },
+  {
+    title: "12. Contact Us",
+    items: ["Email: support@enjoyrwanda.rw", "Phone: +250 700 000 000"],
+  },
+];
 
 function resolveBusinessImage(image: string | null) {
   if (!image) return FALLBACK_RESTAURANT_IMAGE;
@@ -126,7 +220,47 @@ export default function Home() {
   const [restaurants, setRestaurants] = useState<HomeRestaurant[]>([]);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
   const [restaurantsError, setRestaurantsError] = useState("");
+  const [bookNowRestaurantId, setBookNowRestaurantId] = useState<number | null>(
+    null,
+  );
+  const [bookNowConsentChecked, setBookNowConsentChecked] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const navigate = useNavigate();
+
+  const closeBookNowModal = () => {
+    setBookNowRestaurantId(null);
+    setBookNowConsentChecked(false);
+    setShowTermsModal(false);
+  };
+
+  const openBookNowModal = (restaurantId: number) => {
+    setBookNowRestaurantId(restaurantId);
+    setBookNowConsentChecked(false);
+    setShowTermsModal(false);
+  };
+
+  const handleConsentTick = (checked: boolean) => {
+    setBookNowConsentChecked(checked);
+    if (checked) {
+      setShowTermsModal(true);
+    } else {
+      setShowTermsModal(false);
+    }
+  };
+
+  const handleDeclineTerms = () => {
+    window.sessionStorage.removeItem(TERMS_ACCEPTANCE_KEY);
+    closeBookNowModal();
+    navigate("/");
+  };
+
+  const handleAgreeTerms = () => {
+    if (!bookNowRestaurantId) return;
+    window.sessionStorage.setItem(TERMS_ACCEPTANCE_KEY, "accepted");
+    const next = `/restaurants/${bookNowRestaurantId}?entry=book`;
+    closeBookNowModal();
+    navigate(next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -587,8 +721,9 @@ export default function Home() {
                       View Details
                     </span>
                   </Link>
-                  <Link
-                    to={`/restaurants/${r.id}?entry=book`}
+                  <button
+                    type="button"
+                    onClick={() => openBookNowModal(r.id)}
                     className="group flex-1 rounded-xl bg-gradient-to-r from-[#1a1a2e] via-[#252547] to-[#2f2f55] px-3 py-2.5 text-center text-sm font-semibold !text-white shadow-[0_10px_25px_rgba(26,26,46,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(26,26,46,0.42)] no-underline"
                   >
                     <span className="inline-flex items-center justify-center gap-1.5">
@@ -608,7 +743,7 @@ export default function Home() {
                       </svg>
                       Book Now
                     </span>
-                  </Link>
+                  </button>
                 </div>
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     View Details opens gallery and menu. Book Now jumps straight to reservation.
@@ -621,6 +756,122 @@ export default function Home() {
       </section>
 
       {/* ── Featured Highlights ── */}
+      {bookNowRestaurantId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close terms consent dialog"
+            onClick={closeBookNowModal}
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+          />
+          <section className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.35)]">
+            <div className="bg-gradient-to-r from-[#1a1a2e] to-[#2f2f55] px-6 py-5 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
+                Before You Continue
+              </p>
+              <h2 className="mt-1 text-2xl font-black">Terms & Conditions Required</h2>
+              <p className="mt-2 text-sm text-slate-100">
+                To continue with booking, please review and accept Enjoy Rwanda Terms and Conditions.
+              </p>
+            </div>
+            <div className="space-y-5 px-6 py-6">
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={bookNowConsentChecked}
+                  onChange={(event) => handleConsentTick(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#1a1a2e] focus:ring-[#1a1a2e]"
+                />
+                <span>
+                  I agree to review and accept the Terms and Conditions before confirming my reservation.
+                </span>
+              </label>
+              <p className="text-xs text-slate-500">
+                Once checked, the Terms modal opens automatically.
+              </p>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeBookNowModal}
+                  className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {showTermsModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <button
+                type="button"
+                aria-label="Close terms and conditions modal"
+                onClick={closeBookNowModal}
+                className="absolute inset-0 bg-slate-950/60"
+              />
+              <section className="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.35)]">
+                <header className="border-b border-slate-200 bg-slate-50 px-6 py-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Enjoy Rwanda</p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-900">Terms and Conditions</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Please review these terms to continue your reservation.
+                  </p>
+                </header>
+
+                <div className="max-h-[58vh] space-y-4 overflow-y-auto px-6 py-5">
+                  <p className="text-sm leading-6 text-slate-600">
+                    Welcome to <strong>Enjoy Rwanda</strong>. These Terms and Conditions govern your use of our platform, including services for listings, orders, and reservations.
+                  </p>
+
+                  {TERMS_SECTIONS.map((section) => (
+                    <article key={section.title} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <h3 className="text-base font-bold text-slate-900">{section.title}</h3>
+                      {section.body && (
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{section.body}</p>
+                      )}
+                      {section.intro && (
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{section.intro}</p>
+                      )}
+                      {section.items && (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                          {section.items.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {section.outro && (
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{section.outro}</p>
+                      )}
+                    </article>
+                  ))}
+
+                  <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                    By using Enjoy Rwanda, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.
+                  </p>
+                </div>
+
+                <footer className="flex flex-col gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={handleDeclineTerms}
+                    className="rounded-xl border border-rose-300 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                  >
+                    I Do Not Agree
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAgreeTerms}
+                    className="rounded-xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2d2d4e]"
+                  >
+                    I Agree and Continue
+                  </button>
+                </footer>
+              </section>
+            </div>
+          )}
+        </div>
+      )}
+
       <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {featuredHighlights.map((item) => (

@@ -121,6 +121,7 @@ export type BookingCreateInput = {
   tableId?: number | null;
   visitorName?: string | null;
   fullnames: string;
+  organizationName?: string;
   email: string;
   telephone: string;
   numberOfPeople: number;
@@ -146,6 +147,7 @@ export interface BookingRecord {
   table_id: number | null;
   visitor_name: string | null;
   fullnames: string;
+  organization_name?: string | null;
   email: string;
   telephone: string;
   number_of_people: number;
@@ -656,6 +658,7 @@ export async function createBooking(input: BookingCreateInput) {
     tableId: input.tableId ?? null,
     visitorName: input.visitorName ?? null,
     fullnames: input.fullnames,
+    organizationName: input.organizationName ?? "",
     email: input.email,
     telephone: input.telephone,
     numberOfPeople: input.numberOfPeople,
@@ -667,6 +670,7 @@ export async function createBooking(input: BookingCreateInput) {
     // Backward compatibility for older backend naming
     table_id: input.tableId ?? null,
     visitor_name: input.visitorName ?? null,
+    organization_name: input.organizationName ?? "",
     number_of_people: input.numberOfPeople,
     special_request: input.specialRequest ?? "",
     menu_id: input.menuId,

@@ -51,6 +51,7 @@ type BusinessDetailRecord = {
 };
 
 const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
+const TERMS_ACCEPTANCE_KEY = "enjoy-rwanda.termsAccepted.v1";
 
 const resolveMediaUrl = (value: string | null | undefined) => {
   if (!value) return "";
@@ -220,6 +221,7 @@ export default function RestaurantDetail() {
   const [bookingDate, setBookingDate] = useState(initialDate);
   const [bookingTime, setBookingTime] = useState(initialTime);
   const [guestName, setGuestName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
@@ -244,6 +246,7 @@ export default function RestaurantDetail() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState("");
   const [tableOptionQuery, setTableOptionQuery] = useState("");
+  const [peopleSelectOpen, setPeopleSelectOpen] = useState(false);
   const [currentHeroPhotoIndex, setCurrentHeroPhotoIndex] = useState(0);
   const [currentGalleryPhotoIndex, setCurrentGalleryPhotoIndex] = useState(0);
   const [showDiscoveryMode, setShowDiscoveryMode] = useState(isDetailsEntry);
@@ -251,8 +254,21 @@ export default function RestaurantDetail() {
   const menuSectionRef = useRef<HTMLDivElement | null>(null);
   const hideGalleryForBookNow = entryMode === "book" && activeTab === "book";
 
+  useEffect(() => {
+    if (entryMode !== "book") return;
+    const hasAcceptedTerms =
+      window.sessionStorage.getItem(TERMS_ACCEPTANCE_KEY) === "accepted";
+    if (hasAcceptedTerms) return;
+    navigate("/", { replace: true });
+  }, [businessId, entryMode, navigate]);
+
   const heroPhotos = useMemo(() => {
-    if (!restaurant) return [] as Array<{ id: number; image_url: string; title: string | null }>;
+    if (!restaurant)
+      return [] as Array<{
+        id: number;
+        image_url: string;
+        title: string | null;
+      }>;
     if (restaurant.galleryPhotos.length > 0) {
       return restaurant.galleryPhotos.map((photo) => ({
         id: photo.id,
@@ -304,8 +320,8 @@ export default function RestaurantDetail() {
     if (!restaurant || restaurant.galleryPhotos.length <= 1) return;
 
     const intervalId = window.setInterval(() => {
-      setCurrentGalleryPhotoIndex((prev) =>
-        (prev + 1) % restaurant.galleryPhotos.length,
+      setCurrentGalleryPhotoIndex(
+        (prev) => (prev + 1) % restaurant.galleryPhotos.length,
       );
     }, 3000);
 
@@ -495,6 +511,11 @@ export default function RestaurantDetail() {
     setTableSearch(String(peopleCount));
   }, [tableConfigs, tableOptionQuery]);
 
+  const buildSpecialRequestPayload = () => {
+    const normalizedRequest = specialRequests.trim();
+    return normalizedRequest;
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) {
@@ -535,10 +556,11 @@ export default function RestaurantDetail() {
           tableId: matchedTable?.id ?? null,
           visitorName: normalizedName,
           fullnames: normalizedName,
+          organizationName: organizationName.trim() || undefined,
           email: normalizedEmail,
           telephone: normalizedPhoneWithCode,
           numberOfPeople: peopleCount,
-          specialRequest: specialRequests.trim(),
+          specialRequest: buildSpecialRequestPayload(),
           date: bookingDate,
           time: bookingTime,
           businessId: Number(restaurant.id),
@@ -910,8 +932,8 @@ export default function RestaurantDetail() {
 
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-3 pt-10">
                   <p className="text-sm font-semibold text-white">
-                    {restaurant.galleryPhotos[currentGalleryPhotoIndex]?.title ||
-                      "Business gallery"}
+                    {restaurant.galleryPhotos[currentGalleryPhotoIndex]
+                      ?.title || "Business gallery"}
                   </p>
                 </div>
 
@@ -934,8 +956,9 @@ export default function RestaurantDetail() {
                     <button
                       type="button"
                       onClick={() =>
-                        setCurrentGalleryPhotoIndex((prev) =>
-                          (prev + 1) % restaurant.galleryPhotos.length,
+                        setCurrentGalleryPhotoIndex(
+                          (prev) =>
+                            (prev + 1) % restaurant.galleryPhotos.length,
                         )
                       }
                       aria-label="Next gallery photo"
@@ -946,7 +969,6 @@ export default function RestaurantDetail() {
                   </>
                 )}
               </div>
-
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
@@ -989,8 +1011,20 @@ export default function RestaurantDetail() {
                 <label className="text-[11px] sm:text-xs font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
-                <div className="grid grid-cols-2 gap-2 mb-1">
-                  <div className="w-full flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 focus-within:border-[#1a1a2e]">
+                <div className="relative mb-1 w-full sm:max-w-[360px]">
+                  <button
+                    type="button"
+                    onClick={() => setPeopleSelectOpen((prev) => !prev)}
+                    disabled={tableLoading || tableConfigs.length === 0}
+                    className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-left text-[11px] sm:text-xs font-semibold outline-none transition focus:border-[#1a1a2e] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <span>
+                      {tableLoading
+                        ? "Loading..."
+                        : tableSearch.trim()
+                          ? `${tableSearch} people`
+                          : "Select number of people"}
+                    </span>
                     <svg
                       width="14"
                       height="14"
@@ -998,36 +1032,65 @@ export default function RestaurantDetail() {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
-                      className="text-gray-400 shrink-0"
+                      className={`transition-transform ${peopleSelectOpen ? "rotate-180" : ""}`}
                     >
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <polyline points="6 9 12 15 18 9" />
                     </svg>
-                    <input
-                      type="text"
-                      value={tableOptionQuery}
-                      onChange={(e) => setTableOptionQuery(e.target.value)}
-                      placeholder="Search"
-                      className="w-full border-none outline-none bg-transparent text-[11px] sm:text-xs text-gray-900 placeholder:text-gray-400 p-0"
-                    />
-                  </div>
-                  <select
-                    value={tableSearch}
-                    onChange={(e) => {
-                      setTableSearch(e.target.value);
-                    }}
-                    disabled={tableLoading || tableConfigs.length === 0}
-                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
-                  >
-                    <option value="">
-                      {tableLoading ? "Loading..." : "Select number of people"}
-                    </option>
-                    {filteredPeopleOptions.map((count) => (
-                      <option key={count} value={String(count)}>
-                        {count}
-                      </option>
-                    ))}
-                  </select>
+                  </button>
+
+                  {peopleSelectOpen &&
+                    !tableLoading &&
+                    tableConfigs.length > 0 && (
+                      <div className="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                        <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 focus-within:border-[#1a1a2e]">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className="text-gray-400 shrink-0"
+                          >
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                          <input
+                            type="text"
+                            value={tableOptionQuery}
+                            onChange={(e) =>
+                              setTableOptionQuery(e.target.value)
+                            }
+                            placeholder="Search people or price"
+                            className="w-full border-none bg-transparent p-0 text-[11px] sm:text-xs text-gray-900 outline-none placeholder:text-gray-400"
+                          />
+                        </div>
+
+                        <div className="max-h-40 overflow-y-auto">
+                          {filteredPeopleOptions.length === 0 ? (
+                            <p className="px-2 py-1 text-[10px] text-gray-400">
+                              No table size matches your search.
+                            </p>
+                          ) : (
+                            filteredPeopleOptions.map((count) => (
+                              <button
+                                key={count}
+                                type="button"
+                                onClick={() => {
+                                  const value = String(count);
+                                  setTableSearch(value);
+                                  setTableOptionQuery(value);
+                                  setPeopleSelectOpen(false);
+                                }}
+                                className={`block w-full rounded-md px-2 py-1.5 text-left text-[11px] sm:text-xs transition hover:bg-gray-50 ${tableSearch === String(count) ? "bg-[#1a1a2e]/10 font-semibold text-[#1a1a2e]" : "text-gray-700"}`}
+                              >
+                                {count} people
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
                 {!tableLoading &&
                   !tableError &&
@@ -1067,7 +1130,7 @@ export default function RestaurantDetail() {
 
               {matchedTable && (
                 <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] sm:text-[11px] text-amber-800">
-                  Non-consumable. No refund.
+                  Consumable. No show No refund.
                 </div>
               )}
 
@@ -1115,6 +1178,18 @@ export default function RestaurantDetail() {
                       onChange={(e) => setGuestName(e.target.value)}
                       placeholder="John Doe"
                       required
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                      Organization Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={organizationName}
+                      onChange={(e) => setOrganizationName(e.target.value)}
+                      placeholder="Company, institution, or group"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
@@ -1192,7 +1267,7 @@ export default function RestaurantDetail() {
                   </div>
                 )}
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Non-consumable. No refund.
+                  Consumable. No Show No refund.
                 </div>
 
                 {/* Menu Prompt - Show after guest info is filled */}
@@ -1216,7 +1291,7 @@ export default function RestaurantDetail() {
                         }}
                         className="flex-1 bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors"
                       >
-                        Yes, Add Menu
+                        Yes, Add Food And Drinks
                       </button>
                       <button
                         type="button"
@@ -1243,10 +1318,12 @@ export default function RestaurantDetail() {
                               tableId: matchedTable?.id ?? null,
                               visitorName: normalizedName,
                               fullnames: normalizedName,
+                              organizationName:
+                                organizationName.trim() || undefined,
                               email: normalizedEmail,
                               telephone: normalizedPhoneWithCode,
                               numberOfPeople: peopleCount,
-                              specialRequest: specialRequests.trim(),
+                              specialRequest: buildSpecialRequestPayload(),
                               date: bookingDate,
                               time: bookingTime,
                               businessId: Number(restaurant.id),
@@ -1297,7 +1374,7 @@ export default function RestaurantDetail() {
                         disabled={bookingSubmitting}
                         className="flex-1 bg-gray-200 !text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300 transition-colors disabled:opacity-50"
                       >
-                        No, Continue
+                        No, I don't Food And Drinks
                       </button>
                     </div>
                   </div>
@@ -1360,7 +1437,7 @@ export default function RestaurantDetail() {
                     disabled={bookingSubmitting}
                     className="mx-auto block w-full sm:w-64 rounded-lg bg-[#1a1a2e] py-2.5 text-sm font-semibold !text-white transition-colors hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bookingSubmitting ? "Booking..." : "Book Now"}
+                    {bookingSubmitting ? "Booking..." : "Book "}
                   </button>
                 )}
               </form>
@@ -1592,10 +1669,11 @@ export default function RestaurantDetail() {
                       tableId: matchedTable.id ?? null,
                       visitorName: normalizedName,
                       fullnames: normalizedName,
+                      organizationName: organizationName.trim() || undefined,
                       email: normalizedEmail,
                       telephone: normalizedPhoneWithCode,
                       numberOfPeople: peopleCount,
-                      specialRequest: specialRequests.trim(),
+                      specialRequest: buildSpecialRequestPayload(),
                       date: bookingDate,
                       time: bookingTime,
                       businessId: Number(restaurant.id),

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getBookingPublicStatus } from "../../utils/api";
 
-const TOTAL_SECONDS = 180;
+const TOTAL_SECONDS = 300;
 const CONTEXT_KEY = "enjoy-rwanda.pendingBookingContext";
 const PAYMENT_CONTEXT_KEY = "enjoy-rwanda.paymentContext";
 
@@ -248,7 +248,7 @@ export default function BookingConfirming() {
             <p className="font-semibold mb-0.5">Please stay on this page</p>
             <p className="text-amber-700">
               Your request has been sent to the business. You will be updated
-              automatically within 3 minutes.
+              automatically within 5 minutes.
             </p>
           </div>
           <button
