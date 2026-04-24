@@ -51,6 +51,7 @@ type BusinessDetailRecord = {
 };
 
 const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
+const TERMS_ACCEPTANCE_KEY = "enjoy-rwanda.termsAccepted.v1";
 
 const resolveMediaUrl = (value: string | null | undefined) => {
   if (!value) return "";
@@ -251,8 +252,21 @@ export default function RestaurantDetail() {
   const menuSectionRef = useRef<HTMLDivElement | null>(null);
   const hideGalleryForBookNow = entryMode === "book" && activeTab === "book";
 
+  useEffect(() => {
+    if (entryMode !== "book") return;
+    const hasAcceptedTerms = window.sessionStorage.getItem(TERMS_ACCEPTANCE_KEY) === "accepted";
+    if (hasAcceptedTerms) return;
+    const next = `/restaurants/${businessId}?entry=book`;
+    navigate(`/terms-and-conditions?next=${encodeURIComponent(next)}`, { replace: true });
+  }, [businessId, entryMode, navigate]);
+
   const heroPhotos = useMemo(() => {
-    if (!restaurant) return [] as Array<{ id: number; image_url: string; title: string | null }>;
+    if (!restaurant)
+      return [] as Array<{
+        id: number;
+        image_url: string;
+        title: string | null;
+      }>;
     if (restaurant.galleryPhotos.length > 0) {
       return restaurant.galleryPhotos.map((photo) => ({
         id: photo.id,
@@ -304,8 +318,8 @@ export default function RestaurantDetail() {
     if (!restaurant || restaurant.galleryPhotos.length <= 1) return;
 
     const intervalId = window.setInterval(() => {
-      setCurrentGalleryPhotoIndex((prev) =>
-        (prev + 1) % restaurant.galleryPhotos.length,
+      setCurrentGalleryPhotoIndex(
+        (prev) => (prev + 1) % restaurant.galleryPhotos.length,
       );
     }, 3000);
 
@@ -910,8 +924,8 @@ export default function RestaurantDetail() {
 
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-3 pt-10">
                   <p className="text-sm font-semibold text-white">
-                    {restaurant.galleryPhotos[currentGalleryPhotoIndex]?.title ||
-                      "Business gallery"}
+                    {restaurant.galleryPhotos[currentGalleryPhotoIndex]
+                      ?.title || "Business gallery"}
                   </p>
                 </div>
 
@@ -934,8 +948,9 @@ export default function RestaurantDetail() {
                     <button
                       type="button"
                       onClick={() =>
-                        setCurrentGalleryPhotoIndex((prev) =>
-                          (prev + 1) % restaurant.galleryPhotos.length,
+                        setCurrentGalleryPhotoIndex(
+                          (prev) =>
+                            (prev + 1) % restaurant.galleryPhotos.length,
                         )
                       }
                       aria-label="Next gallery photo"
@@ -946,7 +961,6 @@ export default function RestaurantDetail() {
                   </>
                 )}
               </div>
-
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
@@ -1067,7 +1081,7 @@ export default function RestaurantDetail() {
 
               {matchedTable && (
                 <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] sm:text-[11px] text-amber-800">
-                  Non-consumable. No refund.
+                  Consumable. No show No refund.
                 </div>
               )}
 
@@ -1360,7 +1374,7 @@ export default function RestaurantDetail() {
                     disabled={bookingSubmitting}
                     className="mx-auto block w-full sm:w-64 rounded-lg bg-[#1a1a2e] py-2.5 text-sm font-semibold !text-white transition-colors hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bookingSubmitting ? "Booking..." : "Book Now"}
+                    {bookingSubmitting ? "Booking..." : "Book "}
                   </button>
                 )}
               </form>

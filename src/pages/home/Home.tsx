@@ -126,7 +126,27 @@ export default function Home() {
   const [restaurants, setRestaurants] = useState<HomeRestaurant[]>([]);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
   const [restaurantsError, setRestaurantsError] = useState("");
+  const [bookNowRestaurantId, setBookNowRestaurantId] = useState<number | null>(
+    null,
+  );
+  const [bookNowConsentChecked, setBookNowConsentChecked] = useState(false);
   const navigate = useNavigate();
+
+  const closeBookNowModal = () => {
+    setBookNowRestaurantId(null);
+    setBookNowConsentChecked(false);
+  };
+
+  const openBookNowModal = (restaurantId: number) => {
+    setBookNowRestaurantId(restaurantId);
+    setBookNowConsentChecked(false);
+  };
+
+  const continueToTerms = () => {
+    if (!bookNowRestaurantId || !bookNowConsentChecked) return;
+    const next = `/restaurants/${bookNowRestaurantId}?entry=book`;
+    navigate(`/terms-and-conditions?next=${encodeURIComponent(next)}`);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -587,8 +607,9 @@ export default function Home() {
                       View Details
                     </span>
                   </Link>
-                  <Link
-                    to={`/restaurants/${r.id}?entry=book`}
+                  <button
+                    type="button"
+                    onClick={() => openBookNowModal(r.id)}
                     className="group flex-1 rounded-xl bg-gradient-to-r from-[#1a1a2e] via-[#252547] to-[#2f2f55] px-3 py-2.5 text-center text-sm font-semibold !text-white shadow-[0_10px_25px_rgba(26,26,46,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(26,26,46,0.42)] no-underline"
                   >
                     <span className="inline-flex items-center justify-center gap-1.5">
@@ -608,7 +629,7 @@ export default function Home() {
                       </svg>
                       Book Now
                     </span>
-                  </Link>
+                  </button>
                 </div>
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     View Details opens gallery and menu. Book Now jumps straight to reservation.
@@ -621,6 +642,61 @@ export default function Home() {
       </section>
 
       {/* ── Featured Highlights ── */}
+      {bookNowRestaurantId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close terms consent dialog"
+            onClick={closeBookNowModal}
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+          />
+          <section className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.35)]">
+            <div className="bg-gradient-to-r from-[#1a1a2e] to-[#2f2f55] px-6 py-5 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
+                Before You Continue
+              </p>
+              <h2 className="mt-1 text-2xl font-black">Terms & Conditions Required</h2>
+              <p className="mt-2 text-sm text-slate-100">
+                To continue with booking, please review and accept Enjoy Rwanda Terms and Conditions.
+              </p>
+            </div>
+            <div className="space-y-5 px-6 py-6">
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={bookNowConsentChecked}
+                  onChange={(event) => setBookNowConsentChecked(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#1a1a2e] focus:ring-[#1a1a2e]"
+                />
+                <span>
+                  I agree to review and accept the Terms and Conditions before confirming my reservation.
+                </span>
+              </label>
+              <p className="text-xs text-slate-500">
+                You will be redirected to the full Terms page. If you do not agree there, you will return to the home page.
+              </p>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeBookNowModal}
+                  className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={continueToTerms}
+                  disabled={!bookNowConsentChecked}
+                  className="rounded-xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
       <section className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {featuredHighlights.map((item) => (
