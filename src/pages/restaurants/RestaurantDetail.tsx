@@ -221,6 +221,7 @@ export default function RestaurantDetail() {
   const [bookingDate, setBookingDate] = useState(initialDate);
   const [bookingTime, setBookingTime] = useState(initialTime);
   const [guestName, setGuestName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
@@ -510,6 +511,11 @@ export default function RestaurantDetail() {
     setTableSearch(String(peopleCount));
   }, [tableConfigs, tableOptionQuery]);
 
+  const buildSpecialRequestPayload = () => {
+    const normalizedRequest = specialRequests.trim();
+    return normalizedRequest;
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) {
@@ -550,10 +556,11 @@ export default function RestaurantDetail() {
           tableId: matchedTable?.id ?? null,
           visitorName: normalizedName,
           fullnames: normalizedName,
+          organizationName: organizationName.trim() || undefined,
           email: normalizedEmail,
           telephone: normalizedPhoneWithCode,
           numberOfPeople: peopleCount,
-          specialRequest: specialRequests.trim(),
+          specialRequest: buildSpecialRequestPayload(),
           date: bookingDate,
           time: bookingTime,
           businessId: Number(restaurant.id),
@@ -1176,6 +1183,18 @@ export default function RestaurantDetail() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">
+                      Organization Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={organizationName}
+                      onChange={(e) => setOrganizationName(e.target.value)}
+                      placeholder="Company, institution, or group"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
                       Email
                     </label>
                     <input
@@ -1248,7 +1267,7 @@ export default function RestaurantDetail() {
                   </div>
                 )}
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Non-consumable. No refund.
+                  Consumable. No Show No refund.
                 </div>
 
                 {/* Menu Prompt - Show after guest info is filled */}
@@ -1272,7 +1291,7 @@ export default function RestaurantDetail() {
                         }}
                         className="flex-1 bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors"
                       >
-                        Yes, Add Menu
+                        Yes, Add Food And Drinks
                       </button>
                       <button
                         type="button"
@@ -1299,10 +1318,12 @@ export default function RestaurantDetail() {
                               tableId: matchedTable?.id ?? null,
                               visitorName: normalizedName,
                               fullnames: normalizedName,
+                              organizationName:
+                                organizationName.trim() || undefined,
                               email: normalizedEmail,
                               telephone: normalizedPhoneWithCode,
                               numberOfPeople: peopleCount,
-                              specialRequest: specialRequests.trim(),
+                              specialRequest: buildSpecialRequestPayload(),
                               date: bookingDate,
                               time: bookingTime,
                               businessId: Number(restaurant.id),
@@ -1353,7 +1374,7 @@ export default function RestaurantDetail() {
                         disabled={bookingSubmitting}
                         className="flex-1 bg-gray-200 !text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300 transition-colors disabled:opacity-50"
                       >
-                        No, Continue
+                        No, I don't Food And Drinks
                       </button>
                     </div>
                   </div>
@@ -1648,10 +1669,11 @@ export default function RestaurantDetail() {
                       tableId: matchedTable.id ?? null,
                       visitorName: normalizedName,
                       fullnames: normalizedName,
+                      organizationName: organizationName.trim() || undefined,
                       email: normalizedEmail,
                       telephone: normalizedPhoneWithCode,
                       numberOfPeople: peopleCount,
-                      specialRequest: specialRequests.trim(),
+                      specialRequest: buildSpecialRequestPayload(),
                       date: bookingDate,
                       time: bookingTime,
                       businessId: Number(restaurant.id),
