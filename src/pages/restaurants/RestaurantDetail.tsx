@@ -256,8 +256,7 @@ export default function RestaurantDetail() {
     if (entryMode !== "book") return;
     const hasAcceptedTerms = window.sessionStorage.getItem(TERMS_ACCEPTANCE_KEY) === "accepted";
     if (hasAcceptedTerms) return;
-    const next = `/restaurants/${businessId}?entry=book`;
-    navigate(`/terms-and-conditions?next=${encodeURIComponent(next)}`, { replace: true });
+    navigate("/", { replace: true });
   }, [businessId, entryMode, navigate]);
 
   const heroPhotos = useMemo(() => {
