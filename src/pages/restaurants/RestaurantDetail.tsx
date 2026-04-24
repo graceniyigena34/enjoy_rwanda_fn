@@ -249,6 +249,7 @@ export default function RestaurantDetail() {
   const [showDiscoveryMode, setShowDiscoveryMode] = useState(isDetailsEntry);
   const gallerySectionRef = useRef<HTMLElement | null>(null);
   const menuSectionRef = useRef<HTMLDivElement | null>(null);
+  const hideGalleryForBookNow = entryMode === "book" && activeTab === "book";
 
   const heroPhotos = useMemo(() => {
     if (!restaurant) return [] as Array<{ id: number; image_url: string; title: string | null }>;
@@ -711,7 +712,7 @@ export default function RestaurantDetail() {
 
   if (restaurantLoading) {
     return (
-      <div className="max-w-6xl mx-auto px-8 py-10">
+      <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a1a2e] mx-auto mb-4"></div>
@@ -726,7 +727,7 @@ export default function RestaurantDetail() {
 
   if (!restaurant || restaurantError) {
     return (
-      <div className="max-w-6xl mx-auto px-8 py-10">
+      <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="p-10 text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Business not found
@@ -747,11 +748,11 @@ export default function RestaurantDetail() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+    <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-6 sm:py-10 lg:px-8">
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
         {heroPhotos.length > 0 ? (
-          <div className="relative w-full md:w-72 h-48 sm:h-56 overflow-hidden rounded-2xl bg-slate-100">
+          <div className="relative w-full md:w-[44%] h-56 overflow-hidden rounded-2xl bg-slate-100 sm:h-72 lg:h-[26rem]">
             {heroPhotos.map((photo, index) => (
               <img
                 key={photo.id}
@@ -775,7 +776,7 @@ export default function RestaurantDetail() {
             )}
           </div>
         ) : (
-          <div className="w-full md:w-72 h-48 sm:h-56 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-2xl flex items-center justify-center">
+          <div className="w-full md:w-[44%] h-56 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 rounded-2xl flex items-center justify-center sm:h-72 lg:h-[26rem]">
             <svg
               width="48"
               height="48"
@@ -789,7 +790,7 @@ export default function RestaurantDetail() {
             </svg>
           </div>
         )}
-        <div className="flex flex-col justify-center">
+        <div className="flex flex-col justify-center md:w-[56%]">
           <span className="text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium w-fit mb-2">
             {restaurant.cuisine || "Business"}
           </span>
@@ -883,75 +884,77 @@ export default function RestaurantDetail() {
         </section>
       )}
 
-      <section ref={gallerySectionRef} className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-black text-gray-900 dark:text-white">
-            Business Gallery
-          </h2>
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            {restaurant.galleryPhotos.length} photo
-            {restaurant.galleryPhotos.length === 1 ? "" : "s"}
-          </span>
-        </div>
+      {!hideGalleryForBookNow && (
+        <section ref={gallerySectionRef} className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-black text-gray-900 dark:text-white">
+              Business Gallery
+            </h2>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {restaurant.galleryPhotos.length} photo
+              {restaurant.galleryPhotos.length === 1 ? "" : "s"}
+            </span>
+          </div>
 
-        {restaurant.galleryPhotos.length > 0 ? (
-          <div className="space-y-3">
-            <div className="relative h-56 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-72 dark:border-slate-700 dark:bg-slate-900/40">
-              {restaurant.galleryPhotos.map((photo, index) => (
-                <img
-                  key={`gallery-slide-${photo.id}`}
-                  src={resolveMediaUrl(photo.image_url)}
-                  alt={photo.title || restaurant.name}
-                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ${index === currentGalleryPhotoIndex ? "translate-x-0 opacity-100 scale-100" : index < currentGalleryPhotoIndex ? "-translate-x-8 opacity-0 scale-[1.02]" : "translate-x-8 opacity-0 scale-[1.02]"}`}
-                />
-              ))}
+          {restaurant.galleryPhotos.length > 0 ? (
+            <div className="space-y-3">
+              <div className="relative h-64 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-80 lg:h-[30rem] dark:border-slate-700 dark:bg-slate-900/40">
+                {restaurant.galleryPhotos.map((photo, index) => (
+                  <img
+                    key={`gallery-slide-${photo.id}`}
+                    src={resolveMediaUrl(photo.image_url)}
+                    alt={photo.title || restaurant.name}
+                    className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ${index === currentGalleryPhotoIndex ? "translate-x-0 opacity-100 scale-100" : index < currentGalleryPhotoIndex ? "-translate-x-8 opacity-0 scale-[1.02]" : "translate-x-8 opacity-0 scale-[1.02]"}`}
+                  />
+                ))}
 
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-3 pt-10">
-                <p className="text-sm font-semibold text-white">
-                  {restaurant.galleryPhotos[currentGalleryPhotoIndex]?.title ||
-                    "Business gallery"}
-                </p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-3 pt-10">
+                  <p className="text-sm font-semibold text-white">
+                    {restaurant.galleryPhotos[currentGalleryPhotoIndex]?.title ||
+                      "Business gallery"}
+                  </p>
+                </div>
+
+                {restaurant.galleryPhotos.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentGalleryPhotoIndex((prev) =>
+                          prev === 0
+                            ? restaurant.galleryPhotos.length - 1
+                            : prev - 1,
+                        )
+                      }
+                      aria-label="Previous gallery photo"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentGalleryPhotoIndex((prev) =>
+                          (prev + 1) % restaurant.galleryPhotos.length,
+                        )
+                      }
+                      aria-label="Next gallery photo"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
+                    >
+                      &gt;
+                    </button>
+                  </>
+                )}
               </div>
 
-              {restaurant.galleryPhotos.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentGalleryPhotoIndex((prev) =>
-                        prev === 0
-                          ? restaurant.galleryPhotos.length - 1
-                          : prev - 1,
-                      )
-                    }
-                    aria-label="Previous gallery photo"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
-                  >
-                    &lt;
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentGalleryPhotoIndex((prev) =>
-                        (prev + 1) % restaurant.galleryPhotos.length,
-                      )
-                    }
-                    aria-label="Next gallery photo"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-2.5 py-1.5 text-white backdrop-blur transition hover:bg-black/65"
-                  >
-                    &gt;
-                  </button>
-                </>
-              )}
             </div>
-
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
-            No gallery photos uploaded yet for this business.
-          </div>
-        )}
-      </section>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
+              No gallery photos uploaded yet for this business.
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 mb-6 overflow-x-auto">
@@ -971,7 +974,7 @@ export default function RestaurantDetail() {
         <div>
           {!tableStep ? (
             /* Step 1: Search for table size → price shows automatically */
-            <div className="max-w-[260px] sm:max-w-sm mx-auto px-0 sm:px-0 border border-gray-200 rounded-xl bg-white p-2 sm:p-0 sm:border-0 sm:bg-transparent">
+            <div className="mx-auto w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-3 sm:p-5">
               <div className="mb-3 sm:mb-6 text-left">
                 <h2 className="text-base sm:text-xl font-black text-gray-900">
                   Reserve a Table
@@ -1074,14 +1077,14 @@ export default function RestaurantDetail() {
                 onClick={() => {
                   setTableStep(true);
                 }}
-                className="w-[125px] sm:w-[155px] mx-auto block bg-[#1a1a2e] !text-white py-1.5 rounded-md font-bold text-[10px] sm:text-[11px] hover:bg-[#2d2d4e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                className="mx-auto block w-full max-w-xs rounded-md bg-[#1a1a2e] py-2.5 text-sm font-bold !text-white shadow-sm transition-colors hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Continue to Booking &rarr;
               </button>
             </div>
           ) : (
             /* Step 2: Booking form */
-            <div className="max-w-[320px] sm:max-w-2xl mx-auto border border-gray-200 rounded-xl bg-white p-3 sm:p-5">
+            <div className="mx-auto w-full max-w-4xl rounded-xl border border-gray-200 bg-white p-3 sm:p-5">
               <div className="mb-4 w-full mx-auto flex items-center justify-between gap-2 rounded-lg border border-[#1a1a2e]/15 bg-[#1a1a2e]/5 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <p className="text-[10px] uppercase tracking-widest text-gray-400">
@@ -1355,7 +1358,7 @@ export default function RestaurantDetail() {
                   <button
                     type="submit"
                     disabled={bookingSubmitting}
-                    className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mx-auto block w-full sm:w-64 rounded-lg bg-[#1a1a2e] py-2.5 text-sm font-semibold !text-white transition-colors hover:bg-[#2d2d4e] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {bookingSubmitting ? "Booking..." : "Book Now"}
                   </button>
@@ -1463,7 +1466,7 @@ export default function RestaurantDetail() {
           </div>
 
           {/* Order Summary & Confirm Booking */}
-          <div className="lg:w-80 shrink-0 order-first lg:order-last">
+          <div className="order-first shrink-0 lg:order-last lg:w-[22rem] xl:w-96">
             <div className="sticky top-24 border border-green-200 rounded-2xl p-5 bg-green-50">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-bold text-gray-900 text-lg">
