@@ -245,6 +245,7 @@ export default function RestaurantDetail() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState("");
   const [tableOptionQuery, setTableOptionQuery] = useState("");
+  const [peopleSelectOpen, setPeopleSelectOpen] = useState(false);
   const [currentHeroPhotoIndex, setCurrentHeroPhotoIndex] = useState(0);
   const [currentGalleryPhotoIndex, setCurrentGalleryPhotoIndex] = useState(0);
   const [showDiscoveryMode, setShowDiscoveryMode] = useState(isDetailsEntry);
@@ -254,7 +255,8 @@ export default function RestaurantDetail() {
 
   useEffect(() => {
     if (entryMode !== "book") return;
-    const hasAcceptedTerms = window.sessionStorage.getItem(TERMS_ACCEPTANCE_KEY) === "accepted";
+    const hasAcceptedTerms =
+      window.sessionStorage.getItem(TERMS_ACCEPTANCE_KEY) === "accepted";
     if (hasAcceptedTerms) return;
     navigate("/", { replace: true });
   }, [businessId, entryMode, navigate]);
@@ -1002,8 +1004,20 @@ export default function RestaurantDetail() {
                 <label className="text-[11px] sm:text-xs font-medium text-gray-700 block mb-1">
                   Number of People
                 </label>
-                <div className="grid grid-cols-2 gap-2 mb-1">
-                  <div className="w-full flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 focus-within:border-[#1a1a2e]">
+                <div className="relative mb-1 w-full sm:max-w-[360px]">
+                  <button
+                    type="button"
+                    onClick={() => setPeopleSelectOpen((prev) => !prev)}
+                    disabled={tableLoading || tableConfigs.length === 0}
+                    className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-left text-[11px] sm:text-xs font-semibold outline-none transition focus:border-[#1a1a2e] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <span>
+                      {tableLoading
+                        ? "Loading..."
+                        : tableSearch.trim()
+                          ? `${tableSearch} people`
+                          : "Select number of people"}
+                    </span>
                     <svg
                       width="14"
                       height="14"
@@ -1011,36 +1025,65 @@ export default function RestaurantDetail() {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
-                      className="text-gray-400 shrink-0"
+                      className={`transition-transform ${peopleSelectOpen ? "rotate-180" : ""}`}
                     >
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <polyline points="6 9 12 15 18 9" />
                     </svg>
-                    <input
-                      type="text"
-                      value={tableOptionQuery}
-                      onChange={(e) => setTableOptionQuery(e.target.value)}
-                      placeholder="Search"
-                      className="w-full border-none outline-none bg-transparent text-[11px] sm:text-xs text-gray-900 placeholder:text-gray-400 p-0"
-                    />
-                  </div>
-                  <select
-                    value={tableSearch}
-                    onChange={(e) => {
-                      setTableSearch(e.target.value);
-                    }}
-                    disabled={tableLoading || tableConfigs.length === 0}
-                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
-                  >
-                    <option value="">
-                      {tableLoading ? "Loading..." : "Select number of people"}
-                    </option>
-                    {filteredPeopleOptions.map((count) => (
-                      <option key={count} value={String(count)}>
-                        {count}
-                      </option>
-                    ))}
-                  </select>
+                  </button>
+
+                  {peopleSelectOpen &&
+                    !tableLoading &&
+                    tableConfigs.length > 0 && (
+                      <div className="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                        <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 focus-within:border-[#1a1a2e]">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className="text-gray-400 shrink-0"
+                          >
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                          <input
+                            type="text"
+                            value={tableOptionQuery}
+                            onChange={(e) =>
+                              setTableOptionQuery(e.target.value)
+                            }
+                            placeholder="Search people or price"
+                            className="w-full border-none bg-transparent p-0 text-[11px] sm:text-xs text-gray-900 outline-none placeholder:text-gray-400"
+                          />
+                        </div>
+
+                        <div className="max-h-40 overflow-y-auto">
+                          {filteredPeopleOptions.length === 0 ? (
+                            <p className="px-2 py-1 text-[10px] text-gray-400">
+                              No table size matches your search.
+                            </p>
+                          ) : (
+                            filteredPeopleOptions.map((count) => (
+                              <button
+                                key={count}
+                                type="button"
+                                onClick={() => {
+                                  const value = String(count);
+                                  setTableSearch(value);
+                                  setTableOptionQuery(value);
+                                  setPeopleSelectOpen(false);
+                                }}
+                                className={`block w-full rounded-md px-2 py-1.5 text-left text-[11px] sm:text-xs transition hover:bg-gray-50 ${tableSearch === String(count) ? "bg-[#1a1a2e]/10 font-semibold text-[#1a1a2e]" : "text-gray-700"}`}
+                              >
+                                {count} people
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
                 {!tableLoading &&
                   !tableError &&
