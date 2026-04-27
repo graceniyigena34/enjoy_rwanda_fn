@@ -1,6 +1,6 @@
 const API_BASE_FROM_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-// const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
-const DEFAULT_BASE_URL = "http://localhost:1000/api";
+const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+// const DEFAULT_BASE_URL = "http://localhost:1000/api";
 export const BASE_URL = (API_BASE_FROM_ENV && API_BASE_FROM_ENV.length > 0
   ? API_BASE_FROM_ENV
   : DEFAULT_BASE_URL
@@ -127,10 +127,21 @@ export type BookingCreateInput = {
   numberOfPeople: number;
   specialRequest?: string;
   menuId?: number;
+  menuItems?: BookingMenuItemInput[];
   date: string;
   time: string;
   businessId: number;
 };
+
+export interface BookingMenuItemInput {
+  menuId: number;
+}
+
+export interface BookingLineItemRecord {
+  menu_id: number | null;
+  item_name: string;
+  unit_price: number;
+}
 
 export interface BookingPublicStatusRecord {
   id: number;
@@ -158,6 +169,7 @@ export interface BookingRecord {
   status: string;
   created_at: string;
   business_id: number;
+  booking_items?: BookingLineItemRecord[];
   emailSent?: boolean;
 }
 
@@ -664,6 +676,7 @@ export async function createBooking(input: BookingCreateInput) {
     numberOfPeople: input.numberOfPeople,
     specialRequest: input.specialRequest ?? "",
     menuId: input.menuId,
+    menuItems: input.menuItems ?? [],
     date: input.date,
     time: input.time,
     businessId: input.businessId,
@@ -674,6 +687,7 @@ export async function createBooking(input: BookingCreateInput) {
     number_of_people: input.numberOfPeople,
     special_request: input.specialRequest ?? "",
     menu_id: input.menuId,
+    menu_items: input.menuItems ?? [],
     business_id: input.businessId,
   };
 
