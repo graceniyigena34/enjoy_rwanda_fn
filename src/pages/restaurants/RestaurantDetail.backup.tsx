@@ -683,7 +683,7 @@ export default function RestaurantDetail() {
                   disabled={bookingSubmitting}
                   className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {bookingSubmitting ? "Booking..." : "Book Now"}
+                  {bookingSubmitting ? "Booking..." : "Book table"}
                 </button>
               </form>
             </div>
