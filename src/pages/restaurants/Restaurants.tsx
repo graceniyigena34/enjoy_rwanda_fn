@@ -69,7 +69,8 @@ export default function Restaurants() {
           (data || [])
             .filter(
               (item) =>
-                (item.business_type ?? "").toLowerCase() === "restaurant",
+                (item.business_type ?? "").toLowerCase() === "restaurant" &&
+                item.is_verified === true,
             )
             .map((item, index) => toBusinessCard(item, index)),
         );
@@ -310,7 +311,6 @@ export default function Restaurants() {
                         </div>
                       )}
                     </div>
-
                   </div>
                 </Link>
               );

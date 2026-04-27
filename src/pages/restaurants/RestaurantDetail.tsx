@@ -512,8 +512,11 @@ export default function RestaurantDetail() {
   }, [tableConfigs, tableOptionQuery]);
 
   const buildSpecialRequestPayload = () => {
-    const normalizedRequest = specialRequests.trim();
-    return normalizedRequest;
+    return specialRequests.trim();
+  };
+
+  const buildBookingMenuItemsPayload = () => {
+    return orderList.map((item) => ({ menuId: item.id }));
   };
 
   const handleBooking = async (e: React.FormEvent) => {
@@ -565,6 +568,7 @@ export default function RestaurantDetail() {
           time: bookingTime,
           businessId: Number(restaurant.id),
           menuId,
+          menuItems: buildBookingMenuItemsPayload(),
         });
 
         const reservationAmount = Number(matchedTable?.price) || 0;
@@ -1678,6 +1682,7 @@ export default function RestaurantDetail() {
                       time: bookingTime,
                       businessId: Number(restaurant.id),
                       menuId,
+                      menuItems: buildBookingMenuItemsPayload(),
                     });
 
                     const reservationAmount = Number(matchedTable?.price) || 0;
