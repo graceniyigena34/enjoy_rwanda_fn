@@ -174,14 +174,14 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
           <p className="text-xs text-white/30">
-            © {new Date().getFullYear()} Enjoy Rwanda. All rights reserved.
+            © {new Date().getFullYear()} Enjoy Rwanda. All rights reserved. Developed by <span className="text-white/50 font-semibold">RGConsult Inc</span>.
           </p>
           <div className="flex gap-6">
             <Link to="/privacy-policy" className="text-xs text-white/30 transition hover:text-white/70">Privacy Policy</Link>
             <Link to="/terms-and-conditions" className="text-xs text-white/30 transition hover:text-white/70">Terms of Service</Link>
             <Link to="/cookie-policy" className="text-xs text-white/30 transition hover:text-white/70">Cookie Policy</Link>
           </div>
-          <p className="text-xs text-white/30">Made with <span className="text-rose-400">♥</span> in Rwanda</p>
+
         </div>
       </div>
     </footer>
