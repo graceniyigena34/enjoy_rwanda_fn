@@ -741,12 +741,12 @@ export default function Home() {
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      Book Now
+                      Book table
                     </span>
                   </button>
                 </div>
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    View Details opens gallery and menu. Book Now jumps straight to reservation.
+                    View Details opens gallery and menu. Book table jumps straight to reservation.
                   </p>
                 </div>
               </div>
