@@ -911,6 +911,49 @@ export default function VendorDashboard() {
     return `${startLabel} - ${endLabel}`;
   };
 
+  const getBookingMenuItemsSummary = (booking: BookingRecord) => {
+    if (
+      Array.isArray(booking.booking_items) &&
+      booking.booking_items.length > 0
+    ) {
+      const grouped = booking.booking_items.reduce((acc, item) => {
+        const key = `${item.menu_id ?? "none"}:${item.item_name}`;
+        const current = acc.get(key);
+        if (current) {
+          current.count += 1;
+          return acc;
+        }
+
+        acc.set(key, { item_name: item.item_name, count: 1 });
+        return acc;
+      }, new Map<string, { item_name: string; count: number }>());
+
+      return Array.from(grouped.values())
+        .map((entry) => `${entry.item_name} x${entry.count}`)
+        .join(", ");
+    }
+
+    const specialRequest = String(booking.special_request || "").trim();
+    const prefix = "Menu Items:";
+
+    if (specialRequest.startsWith(prefix)) {
+      const details = specialRequest.slice(prefix.length).trim();
+      const noteSeparator = details.indexOf(" | Note:");
+      return noteSeparator >= 0
+        ? details.slice(0, noteSeparator).trim() || "None"
+        : details || "None";
+    }
+
+    if (booking.menu_id) {
+      return (
+        catalogItems.find((item) => item.id === booking.menu_id)?.name ??
+        `Menu #${booking.menu_id}`
+      );
+    }
+
+    return "None";
+  };
+
   const resolveMediaUrl = (value: string | null | undefined) => {
     if (!value) return undefined;
     const trimmed = value.trim();
@@ -4664,11 +4707,8 @@ export default function VendorDashboard() {
                           value: String(selectedBooking.number_of_people),
                         },
                         {
-                          label: "Menu Item",
-                          value:
-                            catalogItems.find(
-                              (m) => m.id === selectedBooking.menu_id,
-                            )?.name ?? `Menu #${selectedBooking.menu_id}`,
+                          label: "Menu Items",
+                          value: getBookingMenuItemsSummary(selectedBooking),
                         },
                         { label: "Status", value: selectedBooking.status },
                         {
