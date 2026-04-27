@@ -2097,7 +2097,13 @@ export default function VendorDashboard() {
     }
   };
 
+  const businessTypeLocked = hasRemoteBusinessProfile || onboardingComplete;
+
   const applyBusinessType = (nextType: BusinessType) => {
+    if (businessTypeLocked || nextType === business.businessType) {
+      return;
+    }
+
     const seed = buildBusinessSeed(nextType);
     setBusiness((current) => ({
       ...current,
@@ -2404,11 +2410,17 @@ export default function VendorDashboard() {
                             businessType: event.target.value as BusinessType,
                           }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                        disabled={businessTypeLocked}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-white/10 dark:bg-white/5 dark:disabled:bg-white/10"
                       >
                         <option value="Restaurant">Restaurant</option>
                         <option value="Shop">Shop</option>
                       </select>
+                      {businessTypeLocked && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Business type is locked to {business.businessType}.
+                        </p>
+                      )}
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                       <span>Location</span>
@@ -3001,14 +3013,20 @@ export default function VendorDashboard() {
               <button
                 type="button"
                 onClick={() => applyBusinessType("Restaurant")}
-                className={`flex-1 rounded-full px-3 py-2 transition ${business.businessType === "Restaurant" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}
+                disabled={
+                  businessTypeLocked && business.businessType !== "Restaurant"
+                }
+                className={`flex-1 rounded-full px-3 py-2 transition disabled:cursor-not-allowed disabled:opacity-55 ${business.businessType === "Restaurant" ? "bg-[#0f172a] text-white shadow-sm dark:bg-[#0f172a] dark:text-white" : "text-slate-500 dark:text-slate-400"}`}
               >
                 Restaurant
               </button>
               <button
                 type="button"
                 onClick={() => applyBusinessType("Shop")}
-                className={`flex-1 rounded-full px-3 py-2 transition ${business.businessType === "Shop" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}
+                disabled={
+                  businessTypeLocked && business.businessType !== "Shop"
+                }
+                className={`flex-1 rounded-full px-3 py-2 transition disabled:cursor-not-allowed disabled:opacity-55 ${business.businessType === "Shop" ? "bg-[#0f172a] text-white shadow-sm dark:bg-[#0f172a] dark:text-white" : "text-slate-500 dark:text-slate-400"}`}
               >
                 Shop
               </button>
@@ -5159,14 +5177,21 @@ export default function VendorDashboard() {
                     <button
                       type="button"
                       onClick={() => applyBusinessType("Restaurant")}
-                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                      disabled={
+                        businessTypeLocked &&
+                        business.businessType !== "Restaurant"
+                      }
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
                     >
                       Switch to restaurant view
                     </button>
                     <button
                       type="button"
                       onClick={() => applyBusinessType("Shop")}
-                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                      disabled={
+                        businessTypeLocked && business.businessType !== "Shop"
+                      }
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1a1a2e] hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
                     >
                       Switch to shop view
                     </button>
