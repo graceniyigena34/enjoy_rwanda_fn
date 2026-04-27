@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  Link,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { restaurants } from "../../data/mockData";
 import {
   createBooking,
@@ -158,7 +163,9 @@ export default function RestaurantDetail() {
 
   const peopleOptions = useMemo(() => {
     const capacities = tableConfigs
-      .map((tableConfig) => parsePeopleCount(String(tableConfig.table_of_people)))
+      .map((tableConfig) =>
+        parsePeopleCount(String(tableConfig.table_of_people)),
+      )
       .filter((capacity) => Number.isFinite(capacity) && capacity > 0);
     const maxCapacity = capacities.length > 0 ? Math.max(...capacities) : 12;
     const upperLimit = Math.max(12, maxCapacity);
@@ -504,9 +511,7 @@ export default function RestaurantDetail() {
                     className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold outline-none focus:border-[#1a1a2e] bg-white cursor-pointer"
                   >
                     <option value="">
-                      {tableLoading
-                        ? "Loading..."
-                        : "Select number of people"}
+                      {tableLoading ? "Loading..." : "Select number of people"}
                     </option>
                     {filteredPeopleOptions.map((count) => (
                       <option key={count} value={String(count)}>
@@ -515,11 +520,13 @@ export default function RestaurantDetail() {
                     ))}
                   </select>
                 </div>
-                {!tableLoading && !tableError && filteredPeopleOptions.length === 0 && (
-                  <p className="mt-1 text-[10px] text-gray-400 text-left">
-                    No table size matches your search.
-                  </p>
-                )}
+                {!tableLoading &&
+                  !tableError &&
+                  filteredPeopleOptions.length === 0 && (
+                    <p className="mt-1 text-[10px] text-gray-400 text-left">
+                      No table size matches your search.
+                    </p>
+                  )}
               </div>
 
               {!tableLoading && tableError && (
@@ -683,7 +690,7 @@ export default function RestaurantDetail() {
                   disabled={bookingSubmitting}
                   className="w-full sm:w-[220px] mx-auto block bg-[#1a1a2e] !text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#2d2d4e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {bookingSubmitting ? "Booking..." : "Book table"}
+                  {bookingSubmitting ? "Booking..." : "Book Table"}
                 </button>
               </form>
             </div>
