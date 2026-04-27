@@ -3145,7 +3145,7 @@ export default function VendorDashboard() {
           </header>
 
           <div className="mt-6 space-y-6">
-            {tab !== "catalog" && (
+            {tab === "overview" && (
               <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
                 <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                   <div className="flex flex-wrap items-start justify-between gap-4">
