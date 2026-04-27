@@ -177,11 +177,9 @@ export default function Footer() {
             © {new Date().getFullYear()} Enjoy Rwanda. All rights reserved.
           </p>
           <div className="flex gap-6">
-            {["Privacy Policy", "Terms of Service", "Cookie Policy"].map((item) => (
-              <a key={item} href="#" className="text-xs text-white/30 transition hover:text-white/70">
-                {item}
-              </a>
-            ))}
+            <Link to="/privacy-policy" className="text-xs text-white/30 transition hover:text-white/70">Privacy Policy</Link>
+            <Link to="/terms-and-conditions" className="text-xs text-white/30 transition hover:text-white/70">Terms of Service</Link>
+            <Link to="/cookie-policy" className="text-xs text-white/30 transition hover:text-white/70">Cookie Policy</Link>
           </div>
           <p className="text-xs text-white/30">Made with <span className="text-rose-400">♥</span> in Rwanda</p>
         </div>
