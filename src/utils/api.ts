@@ -1,6 +1,6 @@
 const API_BASE_FROM_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-// const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
-const DEFAULT_BASE_URL = "http://localhost:1000/api";
+const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+// const DEFAULT_BASE_URL = "http://localhost:1000/api";
 export const BASE_URL = (API_BASE_FROM_ENV && API_BASE_FROM_ENV.length > 0
   ? API_BASE_FROM_ENV
   : DEFAULT_BASE_URL
