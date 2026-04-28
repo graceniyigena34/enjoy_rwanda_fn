@@ -22,7 +22,6 @@ import {
   getRestaurantTypes,
   getShopTypes,
   getVendorBookings,
-  importMenuSheet,
   updateBookingStatus,
   updateManager,
   updateMenuItem,
@@ -77,6 +76,7 @@ type BusinessInfo = {
   weekendOpeningHours: string;
   weekendClosingHours: string;
   openingDays: string[];
+  businessCategories: string[];
   businessPhone: string;
   businessEmail: string;
   managerName: string;
@@ -102,7 +102,6 @@ type CatalogItem = {
   accent: string;
   imageUrl?: string;
   category?: string | null;
-  subcategory?: string | null;
 };
 
 type BookingItem = {
@@ -149,13 +148,11 @@ type DashboardPersisted = Partial<DashboardSeed> & {
 type NewItemFormState = {
   itemName: string;
   price: string;
-  prepTime: string;
   description: string;
   imageName: string;
   imagePreviewUrl?: string;
   imageFile?: File | null;
   category?: string;
-  subcategory?: string;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -194,6 +191,7 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     weekendOpeningHours: "",
     weekendClosingHours: "",
     openingDays: [],
+    businessCategories: [],
     businessPhone: "",
     businessEmail: "",
     managerName: "",
@@ -520,9 +518,6 @@ export default function VendorDashboard() {
     "success" | "error"
   >("success");
   const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
-  const [menuSheetModalOpen, setMenuSheetModalOpen] = useState(false);
-  const [menuSheetFile, setMenuSheetFile] = useState<File | null>(null);
-  const [menuSheetImporting, setMenuSheetImporting] = useState(false);
   const [businessId, setBusinessId] = useState<number | null>(null);
   const [businessFiles, setBusinessFiles] = useState<{
     businessProfileImage: File | null;
@@ -549,7 +544,6 @@ export default function VendorDashboard() {
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
-    prepTime: "",
     description: "",
     imageName: "",
     imagePreviewUrl: undefined,
@@ -561,7 +555,6 @@ export default function VendorDashboard() {
   const [menuEditForm, setMenuEditForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
-    prepTime: "",
     description: "",
     imageName: "",
     imagePreviewUrl: undefined,
@@ -1028,6 +1021,9 @@ export default function VendorDashboard() {
         weekendClosingHours:
           record.weekend_closing_hours || seed.business.weekendClosingHours,
         openingDays: normalizeOpeningDays(record.opening_days),
+        businessCategories:
+          storedState?.business?.businessCategories ??
+          seed.business.businessCategories,
         businessPhone: record.business_phone || "",
         businessEmail: record.business_email || "",
         managerName: record.manager_name || "",
@@ -1101,7 +1097,6 @@ export default function VendorDashboard() {
         accent: "bg-[#1a1a2e]",
         imageUrl: resolveMediaUrl(record.imageurl),
         category: record.category ?? null,
-        subcategory: record.subcategory ?? null,
       };
     },
     [isShop],
@@ -1154,9 +1149,14 @@ export default function VendorDashboard() {
     { value: "overview", label: "Overview" },
     { value: "gallery", label: "Business gallery" },
     { value: "catalog", label: catalogLabel },
-    { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
-    { value: "bookings", label: "Bookings" },
-    { value: "reservation", label: "Reservation" },
+    ...(isShop ? [] : [
+      { value: "orders" as const, label: "Orders" },
+      { value: "bookings" as const, label: "Bookings" },
+      { value: "reservation" as const, label: "Reservation" },
+    ]),
+    ...(!isShop ? [] : [
+      { value: "orders" as const, label: "Orders" },
+    ]),
     { value: "analytics", label: "Analytics" },
     ...(user?.role !== "manager"
       ? [{ value: "settings" as const, label: "Settings" }]
@@ -1247,23 +1247,56 @@ export default function VendorDashboard() {
     );
   }, [orders, searchQuery]);
 
+  const orderSummary = useMemo(() => {
+    const totalOrders = filteredOrders.length;
+    const pendingOrders = filteredOrders.filter(
+      (order) => order.status === "pending",
+    ).length;
+    const processingOrders = filteredOrders.filter(
+      (order) => order.status === "processing",
+    ).length;
+    const deliveredOrders = filteredOrders.filter(
+      (order) => order.status === "delivered",
+    ).length;
+    const totalValue = filteredOrders.reduce(
+      (sum, order) => sum + order.total,
+      0,
+    );
+
+    return [
+      {
+        label: "Total orders",
+        value: String(totalOrders),
+        detail: "Visible in the current view",
+      },
+      {
+        label: "Pending",
+        value: String(pendingOrders),
+        detail: "Need action now",
+      },
+      {
+        label: "Processing",
+        value: String(processingOrders),
+        detail: "Already being handled",
+      },
+      {
+        label: "Delivered",
+        value: String(deliveredOrders),
+        detail: `RWF ${compact.format(totalValue)}`,
+      },
+    ];
+  }, [filteredOrders]);
+
   const selectedRestaurantTypes = useMemo(
-    () =>
-      business.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [business.description],
+    () => business.businessCategories.filter(Boolean),
+    [business.businessCategories],
   );
 
   const notificationCount = notifications.filter((item) => item.unread).length;
 
   const toggleRestaurantType = (typeName: string) => {
     setBusiness((current) => {
-      const selected = current.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const selected = current.businessCategories;
       const exists = selected.some(
         (entry) => entry.toLowerCase() === typeName.toLowerCase(),
       );
@@ -1276,26 +1309,19 @@ export default function VendorDashboard() {
 
       return {
         ...current,
-        description: next.join(", "),
+        businessCategories: next,
       };
     });
   };
 
   const selectedShopTypes = useMemo(
-    () =>
-      business.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [business.description],
+    () => business.businessCategories.filter(Boolean),
+    [business.businessCategories],
   );
 
   const toggleShopType = (typeName: string) => {
     setBusiness((current) => {
-      const selected = current.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const selected = current.businessCategories;
       const exists = selected.some(
         (entry) => entry.toLowerCase() === typeName.toLowerCase(),
       );
@@ -1308,7 +1334,7 @@ export default function VendorDashboard() {
 
       return {
         ...current,
-        description: next.join(", "),
+        businessCategories: next,
       };
     });
   };
@@ -1320,6 +1346,7 @@ export default function VendorDashboard() {
       business.description.trim().length > 0 &&
       business.location.trim().length > 0 &&
       business.businessWebsiteUrl.trim().length > 0 &&
+      business.businessCategories.length > 0 &&
       business.businessPhone.trim().length > 0 &&
       business.businessEmail.trim().length > 0 &&
       business.managerName.trim().length > 0 &&
@@ -1352,7 +1379,6 @@ export default function VendorDashboard() {
     setMenuForm({
       itemName: "",
       price: "",
-      prepTime: "",
       description: "",
       imageName: "",
       imagePreviewUrl: undefined,
@@ -1360,21 +1386,10 @@ export default function VendorDashboard() {
     });
   };
 
-  const resetMenuSheetImport = () => {
-    setMenuSheetFile(null);
-    setMenuSheetModalOpen(false);
-  };
-
   const handleOpenMenuForm = () => {
     setMenuFormMessage(null);
     setMenuFormMessageType("success");
     setMenuFormOpen(true);
-  };
-
-  const handleOpenMenuSheetModal = () => {
-    setMenuFormMessage(null);
-    setMenuFormMessageType("success");
-    setMenuSheetModalOpen(true);
   };
 
   const handleMenuImageChange = (file: File) => {
@@ -1390,59 +1405,6 @@ export default function VendorDashboard() {
     reader.readAsDataURL(file);
   };
 
-  const handleMenuSheetImport = async () => {
-    if (!token) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage("You must be signed in to import menu items.");
-      return;
-    }
-
-    if (!menuSheetFile) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage("Please select a CSV or Excel file first.");
-      return;
-    }
-
-    setMenuSheetImporting(true);
-    try {
-      const result = await importMenuSheet(token, menuSheetFile);
-      const importedItems = result.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        subtitle:
-          (item.description ?? "").trim().slice(0, 44) || "Imported item",
-        price: Number(item.price),
-        status: Number(item.available) === 1 ? "Active" : "Unavailable",
-        metric: "Imported",
-        accent: "bg-[#1a1a2e]",
-        imageUrl: resolveMediaUrl(item.imageurl),
-        category: item.category ?? null,
-        subcategory: item.subcategory ?? null,
-      }));
-
-      setCatalogItems((current) => [...importedItems, ...current]);
-      setAvailabilityByItemId((current) => {
-        const next = { ...current };
-        result.items.forEach((item) => {
-          next[item.id] = Number(item.available) === 1;
-        });
-        return next;
-      });
-
-      setMenuFormMessageType("success");
-      setMenuFormMessage(
-        `${result.importedCount} ${isShop ? "product" : "menu item"}${result.importedCount === 1 ? "" : "s"} imported successfully.`,
-      );
-      resetMenuSheetImport();
-    } catch (error) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage(
-        error instanceof Error ? error.message : "Failed to import menu sheet.",
-      );
-    } finally {
-      setMenuSheetImporting(false);
-    }
-  };
 
   const handleMenuFormSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -1472,10 +1434,8 @@ export default function VendorDashboard() {
         imageFile: menuForm.imageFile ?? null,
       });
 
-      const prepTimeLabel = menuForm.prepTime.trim();
-      const subtitle = prepTimeLabel
-        ? `Prep ${prepTimeLabel} min`
-        : menuForm.description.trim().slice(0, 44) || "New menu item";
+      const subtitle =
+        menuForm.description.trim().slice(0, 44) || (isShop ? "Catalog item" : "New menu item");
 
       setCatalogItems((current) => [
         {
@@ -1517,7 +1477,6 @@ export default function VendorDashboard() {
     setMenuEditForm({
       itemName: item.name,
       price: String(item.price),
-      prepTime: "",
       description: item.subtitle,
       imageName: "",
       imagePreviewUrl: item.imageUrl,
@@ -1531,7 +1490,6 @@ export default function VendorDashboard() {
     setMenuEditForm({
       itemName: "",
       price: "",
-      prepTime: "",
       description: "",
       imageName: "",
       imagePreviewUrl: undefined,
@@ -2042,7 +2000,8 @@ export default function VendorDashboard() {
         business.businessType.trim().length > 0 &&
         business.description.trim().length > 0 &&
         business.location.trim().length > 0 &&
-        business.businessWebsiteUrl.trim().length > 0
+        business.businessWebsiteUrl.trim().length > 0 &&
+        business.businessCategories.length > 0
       );
     }
 
@@ -2158,6 +2117,7 @@ export default function VendorDashboard() {
       weekendOpeningHours: seed.business.weekendOpeningHours,
       weekendClosingHours: seed.business.weekendClosingHours,
       openingDays: seed.business.openingDays,
+      businessCategories: seed.business.businessCategories,
       businessPhone: seed.business.businessPhone,
       businessEmail: seed.business.businessEmail,
       managerName: seed.business.managerName,
@@ -2353,6 +2313,7 @@ export default function VendorDashboard() {
     ? [44, 56, 49, 71, 63, 84, 58]
     : [32, 35, 40, 51, 58, 36, 54];
   const orderBars = isShop ? [26, 41, 33, 62] : [33, 47, 38, 66];
+  const currentUser = user as NonNullable<typeof user>;
 
   if (!user || (user.role !== "vendor" && user.role !== "manager")) {
     return (
@@ -2495,6 +2456,30 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                       <span>Business Description</span>
+                      <textarea
+                        value={business.description}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                        placeholder={
+                          business.businessType === "Shop"
+                            ? "Describe your shop, what you sell, and what makes it unique."
+                            : "Describe your restaurant, cuisine, and service style."
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>
+                        {business.businessType === "Shop"
+                          ? "Shop categories"
+                          : "Restaurant types"}
+                      </span>
 
                       {business.businessType === "Restaurant" ? (
                         <>
@@ -2585,7 +2570,7 @@ export default function VendorDashboard() {
                           )}
                         </>
                       )}
-                    </label>
+                    </div>
                   </div>
                 )}
 
@@ -3099,7 +3084,7 @@ export default function VendorDashboard() {
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search menu items..."
+                    placeholder={isShop ? "Search products..." : "Search menu items..."}
                     className="w-full border-none bg-transparent outline-none placeholder:text-slate-400"
                   />
                 </label>
@@ -3158,14 +3143,14 @@ export default function VendorDashboard() {
                   >
                     <span className="hidden text-right sm:block">
                       <span className="block max-w-[130px] truncate text-sm font-semibold leading-tight">
-                        {user.name}
+                        {currentUser.name}
                       </span>
                       <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-400">
                         Premium vendor
                       </span>
                     </span>
                     <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#1a1a2e] bg-slate-900 text-xs font-bold text-white">
-                      {user.name.charAt(0)}
+                      {currentUser.name.charAt(0)}
                     </span>
                   </button>
 
@@ -3173,10 +3158,10 @@ export default function VendorDashboard() {
                     <div className="absolute right-0 top-12 z-30 min-w-[220px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-slate-900">
                       <div className="mb-1 rounded-xl px-3 py-2">
                         <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                          {user.name}
+                          {currentUser.name}
                         </p>
                         <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                          {user.email}
+                          {currentUser.email}
                         </p>
                       </div>
                       <button
@@ -3517,10 +3502,10 @@ export default function VendorDashboard() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Dashboard &gt; Menus &gt; Add New Item
+                      {isShop ? "Dashboard > Products > Add New Product" : "Dashboard > Menus > Add New Item"}
                     </p>
                     <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      {isShop ? "Catalog Management" : "Menu Management"}
+                      {isShop ? "Product Management" : "Menu Management"}
                     </h2>
                     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                       Manage your {catalogLabel.toLowerCase()} and availability
@@ -3528,26 +3513,6 @@ export default function VendorDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleOpenMenuSheetModal}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#1a1a2e] bg-white px-5 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-[#1a1a2e]/10 dark:border-[#1a1a2e]/50 dark:bg-white/5"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"
-                        />
-                      </svg>
-                      Upload Excel sheet
-                    </button>
                     <button
                       type="button"
                       onClick={handleOpenMenuForm}
@@ -3609,24 +3574,7 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                            Prep time (min)
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={menuForm.prepTime}
-                            onChange={(event) =>
-                              setMenuForm((current) => ({
-                                ...current,
-                                prepTime: event.target.value,
-                              }))
-                            }
-                            placeholder="25"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          />
-                        </label>
+                        
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description
@@ -3768,24 +3716,7 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                            Prep time (min)
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={menuEditForm.prepTime}
-                            onChange={(event) =>
-                              setMenuEditForm((current) => ({
-                                ...current,
-                                prepTime: event.target.value,
-                              }))
-                            }
-                            placeholder="e.g. 15"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          />
-                        </label>
+                        
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description
@@ -3878,76 +3809,6 @@ export default function VendorDashboard() {
                   </div>
                 )}
 
-                {menuSheetModalOpen && (
-                  <SectionCard
-                    title="Import from CSV/Excel"
-                    subtitle="Bulk upload menu items from a spreadsheet file"
-                  >
-                    <div className="space-y-4">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          File Format
-                        </p>
-                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                          Upload a .csv, .xls, or .xlsx file with these columns:
-                        </p>
-                        <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                          <li>
-                            • <span className="font-semibold">name</span>{" "}
-                            (required) - Item name
-                          </li>
-                          <li>
-                            • <span className="font-semibold">price</span>{" "}
-                            (required) - Price in RWF
-                          </li>
-                          <li>
-                            • <span className="font-semibold">description</span>{" "}
-                            (optional) - Item description
-                          </li>
-                        </ul>
-                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                          All imported items will be set as Active.
-                        </p>
-                      </div>
-
-                      <div className="space-y-3">
-                        <input
-                          type="file"
-                          accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0] ?? null;
-                            setMenuSheetFile(file);
-                          }}
-                        />
-                        {menuSheetFile && (
-                          <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                            Selected: {menuSheetFile.name}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
-                        <button
-                          type="button"
-                          onClick={resetMenuSheetImport}
-                          className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleMenuSheetImport}
-                          disabled={menuSheetImporting || !menuSheetFile}
-                          className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {menuSheetImporting ? "Importing..." : "Import Sheet"}
-                        </button>
-                      </div>
-                    </div>
-                  </SectionCard>
-                )}
-
                 <div className="grid gap-6 xl:grid-cols-[1.45fr_0.65fr]">
                   <article className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                     <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/5">
@@ -4003,9 +3864,10 @@ export default function VendorDashboard() {
                     <h3 className="text-3xl font-semibold tracking-tight">
                       Setup Status
                     </h3>
-                    <p className="mt-3 text-sm text-[#1a1a2e]/90">
-                      Your business data now comes from the backend. Add a menu
-                      item or complete onboarding to populate this dashboard.
+                    <p className="mt-3 text-sm text-white/70">
+                      {isShop
+                        ? "Add products to your catalog to start selling."
+                        : "Add menu items or complete onboarding to populate this dashboard."}
                     </p>
                     <div className="mt-5 space-y-3">
                       {[
@@ -4014,17 +3876,21 @@ export default function VendorDashboard() {
                           status: onboardingComplete ? "READY" : "PENDING",
                         },
                         {
-                          label: "Menu inventory",
+                          label: isShop ? "Product catalog" : "Menu inventory",
                           status: catalogItems.length > 0 ? "READY" : "EMPTY",
                         },
                       ].map((item) => (
                         <div
                           key={item.label}
-                          className="flex items-center justify-between rounded-2xl bg-[#1a1a2e]/70 px-4 py-3 text-sm"
+                          className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm"
                         >
                           <span>{item.label}</span>
                           <span
-                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === "READY" ? "bg-[#1a1a2e] text-[#1a1a2e]" : "bg-amber-100 text-amber-700"}`}
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                              item.status === "READY"
+                                ? "bg-emerald-400/20 text-emerald-300"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
                           >
                             {item.status}
                           </span>
@@ -4036,7 +3902,7 @@ export default function VendorDashboard() {
                       onClick={() => setTab("catalog")}
                       className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-white"
                     >
-                      Add Menu Item
+                      {isShop ? "Add Product" : "Add Menu Item"}
                     </button>
                   </article>
                 </div>
@@ -4044,7 +3910,7 @@ export default function VendorDashboard() {
                 <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-white/10">
                     <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">
-                      {isShop ? "Inventory" : "Menu Inventory"}
+                      {isShop ? "Product Inventory" : "Menu Inventory"}
                     </h3>
                     <div className="flex items-center gap-2">
                       <button
@@ -4063,7 +3929,6 @@ export default function VendorDashboard() {
                         <tr>
                           <th className="px-6 py-3">Item Details</th>
                           <th className="px-6 py-3">Category</th>
-                          <th className="px-6 py-3">Subcategory</th>
                           <th className="px-6 py-3">Price (RWF)</th>
                           <th className="px-6 py-3">Availability</th>
                           <th className="px-6 py-3">Actions</th>
@@ -4108,12 +3973,6 @@ export default function VendorDashboard() {
                                 <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
                                   <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
                                     {item.category || "—"}
-                                  </span>
-                                </td>
-
-                                <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
-                                  <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
-                                    {item.subcategory || "—"}
                                   </span>
                                 </td>
 
@@ -4425,55 +4284,86 @@ export default function VendorDashboard() {
 
             {tab === "orders" && (
               <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-                <SectionCard
-                  title={isShop ? "Fulfillment queue" : "Latest bookings"}
-                  subtitle={
-                    isShop
-                      ? "Process orders before they stack up"
-                      : "Confirm reservations and keep the calendar tight"
-                  }
-                >
-                  <div className="space-y-3">
-                    {(isShop ? filteredOrders : bookings)
-                      .slice(0, 5)
-                      .map((entry) => {
-                        const isBooking = !isShop;
-                        const bookingEntry = entry as BookingItem;
-                        const orderEntry = entry as OrderItem;
-                        return (
-                          <div
-                            key={entry.id}
-                            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-950 dark:text-white">
-                                {isBooking
-                                  ? bookingEntry.guest
-                                  : orderEntry.customer}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                {isBooking
-                                  ? `${bookingEntry.table} \u2022 ${bookingEntry.slot}`
-                                  : `${orderEntry.items.join(", ")} \u2022 ${orderEntry.age}`}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span
-                                className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[entry.status] ?? "bg-slate-500/15 text-slate-600"}`}
+                <div className="space-y-6 xl:col-span-2">
+                  {isShop && (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      {orderSummary.map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-[1.5rem] border border-slate-200/70 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900/80"
+                        >
+                          <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
+                            {item.label}
+                          </p>
+                          <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
+                            {item.value}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {item.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <SectionCard
+                    title={isShop ? "Orders queue" : "Latest bookings"}
+                    subtitle={
+                      isShop
+                        ? "Process orders before they stack up"
+                        : "Confirm reservations and keep the calendar tight"
+                    }
+                  >
+                    <div className="space-y-3">
+                      {(isShop ? filteredOrders : bookings).length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                          {isShop
+                            ? "No orders yet. New customer orders will appear here."
+                            : "No bookings found."}
+                        </div>
+                      ) : (
+                        (isShop ? filteredOrders : bookings)
+                          .slice(0, 5)
+                          .map((entry) => {
+                            const isBooking = !isShop;
+                            const bookingEntry = entry as BookingItem;
+                            const orderEntry = entry as OrderItem;
+                            return (
+                              <div
+                                key={entry.id}
+                                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                               >
-                                {entry.status}
-                              </span>
-                              <span className="text-sm font-semibold text-slate-950 dark:text-white">
-                                {isBooking
-                                  ? money.format(bookingEntry.amount)
-                                  : money.format(orderEntry.total)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </SectionCard>
+                                <div>
+                                  <p className="font-semibold text-slate-950 dark:text-white">
+                                    {isBooking
+                                      ? bookingEntry.guest
+                                      : orderEntry.customer}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    {isBooking
+                                      ? `${bookingEntry.table} \u2022 ${bookingEntry.slot}`
+                                      : `${orderEntry.items.join(", ")} \u2022 ${orderEntry.age}`}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[entry.status] ?? "bg-slate-500/15 text-slate-600"}`}
+                                  >
+                                    {entry.status}
+                                  </span>
+                                  <span className="text-sm font-semibold text-slate-950 dark:text-white">
+                                    {isBooking
+                                      ? money.format(bookingEntry.amount)
+                                      : money.format(orderEntry.total)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </SectionCard>
+                </div>
 
                 <SectionCard
                   title="Live stream"
@@ -4790,7 +4680,7 @@ export default function VendorDashboard() {
                   subtitle={
                     isShop
                       ? "A compact view of your best categories"
-                      : "Live metrics for service and fulfillment"
+                      : "Live metrics for service and orders"
                   }
                 >
                   <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -4898,8 +4788,12 @@ export default function VendorDashboard() {
             {tab === "settings" && user?.role !== "manager" && (
               <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                 <SectionCard
-                  title="Business settings"
-                  subtitle="Edit the vendor profile and switch between restaurant or shop mode"
+                  title={isShop ? "Shop settings" : "Business settings"}
+                  subtitle={
+                    isShop
+                      ? "Edit the shop profile, contact details, and inventory-facing details"
+                      : "Edit the vendor profile and switch between restaurant or shop mode"
+                  }
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
@@ -5197,7 +5091,7 @@ export default function VendorDashboard() {
                     </div>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
-                        Description
+                        {isShop ? "Shop description" : "Business description"}
                       </span>
                       <textarea
                         value={business.description}
@@ -5250,7 +5144,9 @@ export default function VendorDashboard() {
                     >
                       {settingsSubmitting
                         ? "Saving..."
-                        : "Save business details"}
+                        : isShop
+                          ? "Save shop details"
+                          : "Save business details"}
                     </button>
                   </div>
 
@@ -5268,7 +5164,7 @@ export default function VendorDashboard() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Business overview"
+                  title={isShop ? "Shop overview" : "Business overview"}
                   subtitle="Core profile details with clear status when a value is not yet set"
                 >
                   <div className="space-y-4">
@@ -5305,6 +5201,35 @@ export default function VendorDashboard() {
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                         {business.businessType} vendor
                       </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        {isShop ? "Shop description" : "Business description"}
+                      </p>
+                      <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                        {business.description.trim() || "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        {isShop ? "Shop categories" : "Restaurant types"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {business.businessCategories.length > 0 ? (
+                          business.businessCategories.map((item) => (
+                            <span
+                              key={item}
+                              className="rounded-full bg-[#1a1a2e]/10 px-3 py-1 text-xs font-semibold text-[#1a1a2e]"
+                            >
+                              {item}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Not set
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
