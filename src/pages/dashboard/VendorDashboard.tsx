@@ -1250,6 +1250,46 @@ export default function VendorDashboard() {
     );
   }, [orders, searchQuery]);
 
+  const orderSummary = useMemo(() => {
+    const totalOrders = filteredOrders.length;
+    const pendingOrders = filteredOrders.filter(
+      (order) => order.status === "pending",
+    ).length;
+    const processingOrders = filteredOrders.filter(
+      (order) => order.status === "processing",
+    ).length;
+    const deliveredOrders = filteredOrders.filter(
+      (order) => order.status === "delivered",
+    ).length;
+    const totalValue = filteredOrders.reduce(
+      (sum, order) => sum + order.total,
+      0,
+    );
+
+    return [
+      {
+        label: "Total orders",
+        value: String(totalOrders),
+        detail: "Visible in the current view",
+      },
+      {
+        label: "Pending",
+        value: String(pendingOrders),
+        detail: "Need action now",
+      },
+      {
+        label: "Processing",
+        value: String(processingOrders),
+        detail: "Already being handled",
+      },
+      {
+        label: "Delivered",
+        value: String(deliveredOrders),
+        detail: `RWF ${compact.format(totalValue)}`,
+      },
+    ];
+  }, [filteredOrders]);
+
   const selectedRestaurantTypes = useMemo(
     () => business.businessCategories.filter(Boolean),
     [business.businessCategories],
@@ -4286,55 +4326,86 @@ export default function VendorDashboard() {
 
             {tab === "orders" && (
               <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-                <SectionCard
-                  title={isShop ? "Orders queue" : "Latest bookings"}
-                  subtitle={
-                    isShop
-                      ? "Process orders before they stack up"
-                      : "Confirm reservations and keep the calendar tight"
-                  }
-                >
-                  <div className="space-y-3">
-                    {(isShop ? filteredOrders : bookings)
-                      .slice(0, 5)
-                      .map((entry) => {
-                        const isBooking = !isShop;
-                        const bookingEntry = entry as BookingItem;
-                        const orderEntry = entry as OrderItem;
-                        return (
-                          <div
-                            key={entry.id}
-                            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-950 dark:text-white">
-                                {isBooking
-                                  ? bookingEntry.guest
-                                  : orderEntry.customer}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                {isBooking
-                                  ? `${bookingEntry.table} \u2022 ${bookingEntry.slot}`
-                                  : `${orderEntry.items.join(", ")} \u2022 ${orderEntry.age}`}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span
-                                className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[entry.status] ?? "bg-slate-500/15 text-slate-600"}`}
+                <div className="space-y-6 xl:col-span-2">
+                  {isShop && (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      {orderSummary.map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-[1.5rem] border border-slate-200/70 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900/80"
+                        >
+                          <p className="text-xs uppercase tracking-[0.32em] text-slate-400">
+                            {item.label}
+                          </p>
+                          <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
+                            {item.value}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {item.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <SectionCard
+                    title={isShop ? "Orders queue" : "Latest bookings"}
+                    subtitle={
+                      isShop
+                        ? "Process orders before they stack up"
+                        : "Confirm reservations and keep the calendar tight"
+                    }
+                  >
+                    <div className="space-y-3">
+                      {(isShop ? filteredOrders : bookings).length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                          {isShop
+                            ? "No orders yet. New customer orders will appear here."
+                            : "No bookings found."}
+                        </div>
+                      ) : (
+                        (isShop ? filteredOrders : bookings)
+                          .slice(0, 5)
+                          .map((entry) => {
+                            const isBooking = !isShop;
+                            const bookingEntry = entry as BookingItem;
+                            const orderEntry = entry as OrderItem;
+                            return (
+                              <div
+                                key={entry.id}
+                                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                               >
-                                {entry.status}
-                              </span>
-                              <span className="text-sm font-semibold text-slate-950 dark:text-white">
-                                {isBooking
-                                  ? money.format(bookingEntry.amount)
-                                  : money.format(orderEntry.total)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </SectionCard>
+                                <div>
+                                  <p className="font-semibold text-slate-950 dark:text-white">
+                                    {isBooking
+                                      ? bookingEntry.guest
+                                      : orderEntry.customer}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    {isBooking
+                                      ? `${bookingEntry.table} \u2022 ${bookingEntry.slot}`
+                                      : `${orderEntry.items.join(", ")} \u2022 ${orderEntry.age}`}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[entry.status] ?? "bg-slate-500/15 text-slate-600"}`}
+                                  >
+                                    {entry.status}
+                                  </span>
+                                  <span className="text-sm font-semibold text-slate-950 dark:text-white">
+                                    {isBooking
+                                      ? money.format(bookingEntry.amount)
+                                      : money.format(orderEntry.total)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </SectionCard>
+                </div>
 
                 <SectionCard
                   title="Live stream"
