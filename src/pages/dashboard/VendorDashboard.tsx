@@ -1154,9 +1154,14 @@ export default function VendorDashboard() {
     { value: "overview", label: "Overview" },
     { value: "gallery", label: "Business gallery" },
     { value: "catalog", label: catalogLabel },
-    { value: "orders", label: isShop ? "Fulfillment" : "Orders" },
-    { value: "bookings", label: "Bookings" },
-    { value: "reservation", label: "Reservation" },
+    ...(isShop ? [] : [
+      { value: "orders" as const, label: "Orders" },
+      { value: "bookings" as const, label: "Bookings" },
+      { value: "reservation" as const, label: "Reservation" },
+    ]),
+    ...(!isShop ? [] : [
+      { value: "orders" as const, label: "Fulfillment" },
+    ]),
     { value: "analytics", label: "Analytics" },
     ...(user?.role !== "manager"
       ? [{ value: "settings" as const, label: "Settings" }]
@@ -3099,7 +3104,7 @@ export default function VendorDashboard() {
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search menu items..."
+                    placeholder={isShop ? "Search products..." : "Search menu items..."}
                     className="w-full border-none bg-transparent outline-none placeholder:text-slate-400"
                   />
                 </label>
@@ -3517,10 +3522,10 @@ export default function VendorDashboard() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Dashboard &gt; Menus &gt; Add New Item
+                      {isShop ? "Dashboard > Products > Add New Product" : "Dashboard > Menus > Add New Item"}
                     </p>
                     <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      {isShop ? "Catalog Management" : "Menu Management"}
+                      {isShop ? "Product Management" : "Menu Management"}
                     </h2>
                     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                       Manage your {catalogLabel.toLowerCase()} and availability
@@ -4003,9 +4008,10 @@ export default function VendorDashboard() {
                     <h3 className="text-3xl font-semibold tracking-tight">
                       Setup Status
                     </h3>
-                    <p className="mt-3 text-sm text-[#1a1a2e]/90">
-                      Your business data now comes from the backend. Add a menu
-                      item or complete onboarding to populate this dashboard.
+                    <p className="mt-3 text-sm text-white/70">
+                      {isShop
+                        ? "Add products to your catalog to start selling."
+                        : "Add menu items or complete onboarding to populate this dashboard."}
                     </p>
                     <div className="mt-5 space-y-3">
                       {[
@@ -4014,17 +4020,21 @@ export default function VendorDashboard() {
                           status: onboardingComplete ? "READY" : "PENDING",
                         },
                         {
-                          label: "Menu inventory",
+                          label: isShop ? "Product catalog" : "Menu inventory",
                           status: catalogItems.length > 0 ? "READY" : "EMPTY",
                         },
                       ].map((item) => (
                         <div
                           key={item.label}
-                          className="flex items-center justify-between rounded-2xl bg-[#1a1a2e]/70 px-4 py-3 text-sm"
+                          className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm"
                         >
                           <span>{item.label}</span>
                           <span
-                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === "READY" ? "bg-[#1a1a2e] text-[#1a1a2e]" : "bg-amber-100 text-amber-700"}`}
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                              item.status === "READY"
+                                ? "bg-emerald-400/20 text-emerald-300"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
                           >
                             {item.status}
                           </span>
@@ -4036,7 +4046,7 @@ export default function VendorDashboard() {
                       onClick={() => setTab("catalog")}
                       className="mt-6 w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-white"
                     >
-                      Add Menu Item
+                      {isShop ? "Add Product" : "Add Menu Item"}
                     </button>
                   </article>
                 </div>
@@ -4044,7 +4054,7 @@ export default function VendorDashboard() {
                 <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-5 dark:border-white/10">
                     <h3 className="text-2xl font-semibold text-slate-950 dark:text-white">
-                      {isShop ? "Inventory" : "Menu Inventory"}
+                      {isShop ? "Product Inventory" : "Menu Inventory"}
                     </h3>
                     <div className="flex items-center gap-2">
                       <button
