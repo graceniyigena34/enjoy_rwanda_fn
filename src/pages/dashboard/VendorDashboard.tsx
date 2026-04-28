@@ -22,7 +22,6 @@ import {
   getRestaurantTypes,
   getShopTypes,
   getVendorBookings,
-  importMenuSheet,
   updateBookingStatus,
   updateManager,
   updateMenuItem,
@@ -77,6 +76,7 @@ type BusinessInfo = {
   weekendOpeningHours: string;
   weekendClosingHours: string;
   openingDays: string[];
+  businessCategories: string[];
   businessPhone: string;
   businessEmail: string;
   managerName: string;
@@ -102,7 +102,6 @@ type CatalogItem = {
   accent: string;
   imageUrl?: string;
   category?: string | null;
-  subcategory?: string | null;
 };
 
 type BookingItem = {
@@ -155,7 +154,6 @@ type NewItemFormState = {
   imagePreviewUrl?: string;
   imageFile?: File | null;
   category?: string;
-  subcategory?: string;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -194,6 +192,7 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     weekendOpeningHours: "",
     weekendClosingHours: "",
     openingDays: [],
+    businessCategories: [],
     businessPhone: "",
     businessEmail: "",
     managerName: "",
@@ -520,9 +519,6 @@ export default function VendorDashboard() {
     "success" | "error"
   >("success");
   const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
-  const [menuSheetModalOpen, setMenuSheetModalOpen] = useState(false);
-  const [menuSheetFile, setMenuSheetFile] = useState<File | null>(null);
-  const [menuSheetImporting, setMenuSheetImporting] = useState(false);
   const [businessId, setBusinessId] = useState<number | null>(null);
   const [businessFiles, setBusinessFiles] = useState<{
     businessProfileImage: File | null;
@@ -1028,6 +1024,9 @@ export default function VendorDashboard() {
         weekendClosingHours:
           record.weekend_closing_hours || seed.business.weekendClosingHours,
         openingDays: normalizeOpeningDays(record.opening_days),
+        businessCategories:
+          storedState?.business?.businessCategories ??
+          seed.business.businessCategories,
         businessPhone: record.business_phone || "",
         businessEmail: record.business_email || "",
         managerName: record.manager_name || "",
@@ -1101,7 +1100,6 @@ export default function VendorDashboard() {
         accent: "bg-[#1a1a2e]",
         imageUrl: resolveMediaUrl(record.imageurl),
         category: record.category ?? null,
-        subcategory: record.subcategory ?? null,
       };
     },
     [isShop],
@@ -1160,7 +1158,7 @@ export default function VendorDashboard() {
       { value: "reservation" as const, label: "Reservation" },
     ]),
     ...(!isShop ? [] : [
-      { value: "orders" as const, label: "Fulfillment" },
+      { value: "orders" as const, label: "Orders" },
     ]),
     { value: "analytics", label: "Analytics" },
     ...(user?.role !== "manager"
@@ -1253,22 +1251,15 @@ export default function VendorDashboard() {
   }, [orders, searchQuery]);
 
   const selectedRestaurantTypes = useMemo(
-    () =>
-      business.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [business.description],
+    () => business.businessCategories.filter(Boolean),
+    [business.businessCategories],
   );
 
   const notificationCount = notifications.filter((item) => item.unread).length;
 
   const toggleRestaurantType = (typeName: string) => {
     setBusiness((current) => {
-      const selected = current.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const selected = current.businessCategories;
       const exists = selected.some(
         (entry) => entry.toLowerCase() === typeName.toLowerCase(),
       );
@@ -1281,26 +1272,19 @@ export default function VendorDashboard() {
 
       return {
         ...current,
-        description: next.join(", "),
+        businessCategories: next,
       };
     });
   };
 
   const selectedShopTypes = useMemo(
-    () =>
-      business.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [business.description],
+    () => business.businessCategories.filter(Boolean),
+    [business.businessCategories],
   );
 
   const toggleShopType = (typeName: string) => {
     setBusiness((current) => {
-      const selected = current.description
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const selected = current.businessCategories;
       const exists = selected.some(
         (entry) => entry.toLowerCase() === typeName.toLowerCase(),
       );
@@ -1313,7 +1297,7 @@ export default function VendorDashboard() {
 
       return {
         ...current,
-        description: next.join(", "),
+        businessCategories: next,
       };
     });
   };
@@ -1325,6 +1309,7 @@ export default function VendorDashboard() {
       business.description.trim().length > 0 &&
       business.location.trim().length > 0 &&
       business.businessWebsiteUrl.trim().length > 0 &&
+      business.businessCategories.length > 0 &&
       business.businessPhone.trim().length > 0 &&
       business.businessEmail.trim().length > 0 &&
       business.managerName.trim().length > 0 &&
@@ -1365,21 +1350,10 @@ export default function VendorDashboard() {
     });
   };
 
-  const resetMenuSheetImport = () => {
-    setMenuSheetFile(null);
-    setMenuSheetModalOpen(false);
-  };
-
   const handleOpenMenuForm = () => {
     setMenuFormMessage(null);
     setMenuFormMessageType("success");
     setMenuFormOpen(true);
-  };
-
-  const handleOpenMenuSheetModal = () => {
-    setMenuFormMessage(null);
-    setMenuFormMessageType("success");
-    setMenuSheetModalOpen(true);
   };
 
   const handleMenuImageChange = (file: File) => {
@@ -1395,59 +1369,6 @@ export default function VendorDashboard() {
     reader.readAsDataURL(file);
   };
 
-  const handleMenuSheetImport = async () => {
-    if (!token) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage("You must be signed in to import menu items.");
-      return;
-    }
-
-    if (!menuSheetFile) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage("Please select a CSV or Excel file first.");
-      return;
-    }
-
-    setMenuSheetImporting(true);
-    try {
-      const result = await importMenuSheet(token, menuSheetFile);
-      const importedItems = result.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        subtitle:
-          (item.description ?? "").trim().slice(0, 44) || "Imported item",
-        price: Number(item.price),
-        status: Number(item.available) === 1 ? "Active" : "Unavailable",
-        metric: "Imported",
-        accent: "bg-[#1a1a2e]",
-        imageUrl: resolveMediaUrl(item.imageurl),
-        category: item.category ?? null,
-        subcategory: item.subcategory ?? null,
-      }));
-
-      setCatalogItems((current) => [...importedItems, ...current]);
-      setAvailabilityByItemId((current) => {
-        const next = { ...current };
-        result.items.forEach((item) => {
-          next[item.id] = Number(item.available) === 1;
-        });
-        return next;
-      });
-
-      setMenuFormMessageType("success");
-      setMenuFormMessage(
-        `${result.importedCount} ${isShop ? "product" : "menu item"}${result.importedCount === 1 ? "" : "s"} imported successfully.`,
-      );
-      resetMenuSheetImport();
-    } catch (error) {
-      setMenuFormMessageType("error");
-      setMenuFormMessage(
-        error instanceof Error ? error.message : "Failed to import menu sheet.",
-      );
-    } finally {
-      setMenuSheetImporting(false);
-    }
-  };
 
   const handleMenuFormSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -2047,7 +1968,8 @@ export default function VendorDashboard() {
         business.businessType.trim().length > 0 &&
         business.description.trim().length > 0 &&
         business.location.trim().length > 0 &&
-        business.businessWebsiteUrl.trim().length > 0
+        business.businessWebsiteUrl.trim().length > 0 &&
+        business.businessCategories.length > 0
       );
     }
 
@@ -2163,6 +2085,7 @@ export default function VendorDashboard() {
       weekendOpeningHours: seed.business.weekendOpeningHours,
       weekendClosingHours: seed.business.weekendClosingHours,
       openingDays: seed.business.openingDays,
+      businessCategories: seed.business.businessCategories,
       businessPhone: seed.business.businessPhone,
       businessEmail: seed.business.businessEmail,
       managerName: seed.business.managerName,
@@ -2358,6 +2281,7 @@ export default function VendorDashboard() {
     ? [44, 56, 49, 71, 63, 84, 58]
     : [32, 35, 40, 51, 58, 36, 54];
   const orderBars = isShop ? [26, 41, 33, 62] : [33, 47, 38, 66];
+  const currentUser = user as NonNullable<typeof user>;
 
   if (!user || (user.role !== "vendor" && user.role !== "manager")) {
     return (
@@ -2500,6 +2424,30 @@ export default function VendorDashboard() {
                     </label>
                     <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                       <span>Business Description</span>
+                      <textarea
+                        value={business.description}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                        placeholder={
+                          business.businessType === "Shop"
+                            ? "Describe your shop, what you sell, and what makes it unique."
+                            : "Describe your restaurant, cuisine, and service style."
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>
+                        {business.businessType === "Shop"
+                          ? "Shop categories"
+                          : "Restaurant types"}
+                      </span>
 
                       {business.businessType === "Restaurant" ? (
                         <>
@@ -2590,7 +2538,7 @@ export default function VendorDashboard() {
                           )}
                         </>
                       )}
-                    </label>
+                    </div>
                   </div>
                 )}
 
@@ -3163,14 +3111,14 @@ export default function VendorDashboard() {
                   >
                     <span className="hidden text-right sm:block">
                       <span className="block max-w-[130px] truncate text-sm font-semibold leading-tight">
-                        {user.name}
+                        {currentUser.name}
                       </span>
                       <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-400">
                         Premium vendor
                       </span>
                     </span>
                     <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#1a1a2e] bg-slate-900 text-xs font-bold text-white">
-                      {user.name.charAt(0)}
+                      {currentUser.name.charAt(0)}
                     </span>
                   </button>
 
@@ -3178,10 +3126,10 @@ export default function VendorDashboard() {
                     <div className="absolute right-0 top-12 z-30 min-w-[220px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-slate-900">
                       <div className="mb-1 rounded-xl px-3 py-2">
                         <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                          {user.name}
+                          {currentUser.name}
                         </p>
                         <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                          {user.email}
+                          {currentUser.email}
                         </p>
                       </div>
                       <button
@@ -3535,26 +3483,6 @@ export default function VendorDashboard() {
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={handleOpenMenuSheetModal}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#1a1a2e] bg-white px-5 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-[#1a1a2e]/10 dark:border-[#1a1a2e]/50 dark:bg-white/5"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"
-                        />
-                      </svg>
-                      Upload Excel sheet
-                    </button>
-                    <button
-                      type="button"
                       onClick={handleOpenMenuForm}
                       className="inline-flex items-center gap-2 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
                     >
@@ -3883,76 +3811,6 @@ export default function VendorDashboard() {
                   </div>
                 )}
 
-                {menuSheetModalOpen && (
-                  <SectionCard
-                    title="Import from CSV/Excel"
-                    subtitle="Bulk upload menu items from a spreadsheet file"
-                  >
-                    <div className="space-y-4">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          File Format
-                        </p>
-                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                          Upload a .csv, .xls, or .xlsx file with these columns:
-                        </p>
-                        <ul className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                          <li>
-                            • <span className="font-semibold">name</span>{" "}
-                            (required) - Item name
-                          </li>
-                          <li>
-                            • <span className="font-semibold">price</span>{" "}
-                            (required) - Price in RWF
-                          </li>
-                          <li>
-                            • <span className="font-semibold">description</span>{" "}
-                            (optional) - Item description
-                          </li>
-                        </ul>
-                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                          All imported items will be set as Active.
-                        </p>
-                      </div>
-
-                      <div className="space-y-3">
-                        <input
-                          type="file"
-                          accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0] ?? null;
-                            setMenuSheetFile(file);
-                          }}
-                        />
-                        {menuSheetFile && (
-                          <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                            Selected: {menuSheetFile.name}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
-                        <button
-                          type="button"
-                          onClick={resetMenuSheetImport}
-                          className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleMenuSheetImport}
-                          disabled={menuSheetImporting || !menuSheetFile}
-                          className="rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a1a2e] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {menuSheetImporting ? "Importing..." : "Import Sheet"}
-                        </button>
-                      </div>
-                    </div>
-                  </SectionCard>
-                )}
-
                 <div className="grid gap-6 xl:grid-cols-[1.45fr_0.65fr]">
                   <article className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900/80">
                     <div className="flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/5">
@@ -4073,7 +3931,6 @@ export default function VendorDashboard() {
                         <tr>
                           <th className="px-6 py-3">Item Details</th>
                           <th className="px-6 py-3">Category</th>
-                          <th className="px-6 py-3">Subcategory</th>
                           <th className="px-6 py-3">Price (RWF)</th>
                           <th className="px-6 py-3">Availability</th>
                           <th className="px-6 py-3">Actions</th>
@@ -4118,12 +3975,6 @@ export default function VendorDashboard() {
                                 <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
                                   <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
                                     {item.category || "—"}
-                                  </span>
-                                </td>
-
-                                <td className="px-6 py-4 text-sm text-slate-950 dark:text-white">
-                                  <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium dark:bg-white/10">
-                                    {item.subcategory || "—"}
                                   </span>
                                 </td>
 
@@ -4436,7 +4287,7 @@ export default function VendorDashboard() {
             {tab === "orders" && (
               <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
                 <SectionCard
-                  title={isShop ? "Fulfillment queue" : "Latest bookings"}
+                  title={isShop ? "Orders queue" : "Latest bookings"}
                   subtitle={
                     isShop
                       ? "Process orders before they stack up"
@@ -4800,7 +4651,7 @@ export default function VendorDashboard() {
                   subtitle={
                     isShop
                       ? "A compact view of your best categories"
-                      : "Live metrics for service and fulfillment"
+                      : "Live metrics for service and orders"
                   }
                 >
                   <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -4908,8 +4759,12 @@ export default function VendorDashboard() {
             {tab === "settings" && user?.role !== "manager" && (
               <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                 <SectionCard
-                  title="Business settings"
-                  subtitle="Edit the vendor profile and switch between restaurant or shop mode"
+                  title={isShop ? "Shop settings" : "Business settings"}
+                  subtitle={
+                    isShop
+                      ? "Edit the shop profile, contact details, and inventory-facing details"
+                      : "Edit the vendor profile and switch between restaurant or shop mode"
+                  }
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
@@ -5207,7 +5062,7 @@ export default function VendorDashboard() {
                     </div>
                     <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
                       <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
-                        Description
+                        {isShop ? "Shop description" : "Business description"}
                       </span>
                       <textarea
                         value={business.description}
@@ -5260,7 +5115,9 @@ export default function VendorDashboard() {
                     >
                       {settingsSubmitting
                         ? "Saving..."
-                        : "Save business details"}
+                        : isShop
+                          ? "Save shop details"
+                          : "Save business details"}
                     </button>
                   </div>
 
@@ -5278,7 +5135,7 @@ export default function VendorDashboard() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Business overview"
+                  title={isShop ? "Shop overview" : "Business overview"}
                   subtitle="Core profile details with clear status when a value is not yet set"
                 >
                   <div className="space-y-4">
@@ -5315,6 +5172,35 @@ export default function VendorDashboard() {
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                         {business.businessType} vendor
                       </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        {isShop ? "Shop description" : "Business description"}
+                      </p>
+                      <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                        {business.description.trim() || "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                        {isShop ? "Shop categories" : "Restaurant types"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {business.businessCategories.length > 0 ? (
+                          business.businessCategories.map((item) => (
+                            <span
+                              key={item}
+                              className="rounded-full bg-[#1a1a2e]/10 px-3 py-1 text-xs font-semibold text-[#1a1a2e]"
+                            >
+                              {item}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Not set
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
