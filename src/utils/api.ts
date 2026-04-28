@@ -321,6 +321,29 @@ export async function apiRegister(
   });
 }
 
+export async function apiForgotPassword(email: string) {
+  return requestJson<{ message: string }>(`${BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiValidateResetToken(token: string, email: string) {
+  const params = new URLSearchParams({ token, email });
+  return requestJson<{ valid?: boolean; message?: string }>(
+    `${BASE_URL}/auth/reset-password/validate?${params.toString()}`,
+  );
+}
+
+export async function apiResetPassword(token: string, email: string, newPassword: string) {
+  return requestJson<{ message: string }>(`${BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, email, newPassword }),
+  });
+}
+
 export async function getMyBusinessProfile(token: string) {
   const res = await fetch(`${BASE_URL}/business-profile/me`, {
     headers: {

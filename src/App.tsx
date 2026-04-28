@@ -13,6 +13,8 @@ import Chat from "./pages/shared/Chat";
 import Orders from "./pages/shared/Orders";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import About from "./pages/shared/About";
@@ -45,6 +47,8 @@ function Layout() {
           <Route path="/chat/:id" element={<Chat />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
