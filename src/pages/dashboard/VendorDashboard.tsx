@@ -148,7 +148,6 @@ type DashboardPersisted = Partial<DashboardSeed> & {
 type NewItemFormState = {
   itemName: string;
   price: string;
-  prepTime: string;
   description: string;
   imageName: string;
   imagePreviewUrl?: string;
@@ -545,7 +544,6 @@ export default function VendorDashboard() {
   const [menuForm, setMenuForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
-    prepTime: "",
     description: "",
     imageName: "",
     imagePreviewUrl: undefined,
@@ -557,7 +555,6 @@ export default function VendorDashboard() {
   const [menuEditForm, setMenuEditForm] = useState<NewItemFormState>({
     itemName: "",
     price: "",
-    prepTime: "",
     description: "",
     imageName: "",
     imagePreviewUrl: undefined,
@@ -1382,7 +1379,6 @@ export default function VendorDashboard() {
     setMenuForm({
       itemName: "",
       price: "",
-      prepTime: "",
       description: "",
       imageName: "",
       imagePreviewUrl: undefined,
@@ -1438,10 +1434,8 @@ export default function VendorDashboard() {
         imageFile: menuForm.imageFile ?? null,
       });
 
-      const prepTimeLabel = menuForm.prepTime.trim();
-      const subtitle = prepTimeLabel
-        ? `Prep ${prepTimeLabel} min`
-        : menuForm.description.trim().slice(0, 44) || "New menu item";
+      const subtitle =
+        menuForm.description.trim().slice(0, 44) || (isShop ? "Catalog item" : "New menu item");
 
       setCatalogItems((current) => [
         {
@@ -1483,7 +1477,6 @@ export default function VendorDashboard() {
     setMenuEditForm({
       itemName: item.name,
       price: String(item.price),
-      prepTime: "",
       description: item.subtitle,
       imageName: "",
       imagePreviewUrl: item.imageUrl,
@@ -1497,7 +1490,6 @@ export default function VendorDashboard() {
     setMenuEditForm({
       itemName: "",
       price: "",
-      prepTime: "",
       description: "",
       imageName: "",
       imagePreviewUrl: undefined,
@@ -3582,24 +3574,7 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                            Prep time (min)
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={menuForm.prepTime}
-                            onChange={(event) =>
-                              setMenuForm((current) => ({
-                                ...current,
-                                prepTime: event.target.value,
-                              }))
-                            }
-                            placeholder="25"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          />
-                        </label>
+                        
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description
@@ -3741,24 +3716,7 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
-                          <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                            Prep time (min)
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={menuEditForm.prepTime}
-                            onChange={(event) =>
-                              setMenuEditForm((current) => ({
-                                ...current,
-                                prepTime: event.target.value,
-                              }))
-                            }
-                            placeholder="e.g. 15"
-                            className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
-                          />
-                        </label>
+                        
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description
