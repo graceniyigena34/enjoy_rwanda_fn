@@ -113,7 +113,6 @@ export interface MenuItemRecord {
   price: number;
   available: number;
   category?: string | null;
-  subcategory?: string | null;
   imageurl: string | null;
 }
 
