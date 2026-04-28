@@ -11,11 +11,14 @@ import {
   createBusinessProfile,
   createManager,
   createMenuItem,
+  createProduct,
   deleteBusinessSupportingDocument,
   deleteManager,
   deleteMenuItem,
+  deleteProduct,
   deleteBusinessPhoto,
   getMenuItems,
+  getProducts,
   getMyBusinessPhotos,
   getMyManagers,
   getMyBusinessProfile,
@@ -25,12 +28,12 @@ import {
   updateBookingStatus,
   updateManager,
   updateMenuItem,
+  updateProduct,
   updateMyBusinessProfile,
   uploadBusinessPhotos,
   type BusinessManagerRecord,
   type BookingRecord,
   type BusinessProfileRecord,
-  type MenuItemRecord,
   type RestaurantTypeRecord,
   type ShopTypeRecord,
   type SupportingDocumentInput,
@@ -102,6 +105,8 @@ type CatalogItem = {
   accent: string;
   imageUrl?: string;
   category?: string | null;
+  stock_quantity?: number;
+  in_stock?: boolean;
 };
 
 type BookingItem = {
@@ -153,6 +158,8 @@ type NewItemFormState = {
   imagePreviewUrl?: string;
   imageFile?: File | null;
   category?: string;
+  stock_quantity?: string;
+  in_stock?: boolean;
 };
 
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; title: string }> = [
@@ -548,6 +555,9 @@ export default function VendorDashboard() {
     imageName: "",
     imagePreviewUrl: undefined,
     imageFile: null,
+    category: "",
+    stock_quantity: "0",
+    in_stock: true,
   });
   const [editingMenuItemId, setEditingMenuItemId] = useState<number | null>(
     null,
@@ -559,6 +569,9 @@ export default function VendorDashboard() {
     imageName: "",
     imagePreviewUrl: undefined,
     imageFile: null,
+    category: "",
+    stock_quantity: "0",
+    in_stock: true,
   });
   const [menuEditMessage, setMenuEditMessage] = useState<string | null>(null);
   const [menuEditMessageType, setMenuEditMessageType] = useState<
@@ -1084,18 +1097,39 @@ export default function VendorDashboard() {
 
   const isShop = business.businessType === "Shop";
   const mapMenuRecordToCatalogItem = useCallback(
-    (record: MenuItemRecord): CatalogItem => {
+    (record: any): CatalogItem => {
       const description = (record.description ?? "").trim();
+      const imageUrl = resolveMediaUrl(record.imageurl ?? record.image_url);
+      const price = Number(record.price ?? record.price_amount ?? 0);
+      if (isShop) {
+        const stock = Number(record.stock_quantity ?? 0);
+        const inStock =
+          record.in_stock === undefined ? stock > 0 : record.in_stock;
+        const status = inStock ? "Active" : "Unavailable";
+        return {
+          id: record.id,
+          name: record.name,
+          subtitle: description.slice(0, 44) || "Catalog item",
+          price,
+          status,
+          metric: `Stock: ${stock}`,
+          accent: "bg-[#1a1a2e]",
+          imageUrl,
+          category: record.category ?? null,
+          stock_quantity: stock,
+          in_stock: inStock,
+        };
+      }
+
       return {
         id: record.id,
         name: record.name,
-        subtitle:
-          description.slice(0, 44) || (isShop ? "Catalog item" : "Menu item"),
-        price: Number(record.price),
+        subtitle: description.slice(0, 44) || "Menu item",
+        price,
         status: Number(record.available) === 1 ? "Active" : "Unavailable",
         metric: "Live item",
         accent: "bg-[#1a1a2e]",
-        imageUrl: resolveMediaUrl(record.imageurl),
+        imageUrl,
         category: record.category ?? null,
       };
     },
@@ -1113,7 +1147,9 @@ export default function VendorDashboard() {
 
     const loadMenuItems = async () => {
       try {
-        const rows = await getMenuItems({ businessId });
+        const rows = isShop
+          ? await getProducts({ businessId })
+          : await getMenuItems({ businessId });
         if (!active) return;
 
         const mapped = rows.map(mapMenuRecordToCatalogItem);
@@ -1149,14 +1185,14 @@ export default function VendorDashboard() {
     { value: "overview", label: "Overview" },
     { value: "gallery", label: "Business gallery" },
     { value: "catalog", label: catalogLabel },
-    ...(isShop ? [] : [
-      { value: "orders" as const, label: "Orders" },
-      { value: "bookings" as const, label: "Bookings" },
-      { value: "reservation" as const, label: "Reservation" },
-    ]),
-    ...(!isShop ? [] : [
-      { value: "orders" as const, label: "Orders" },
-    ]),
+    ...(isShop
+      ? []
+      : [
+          { value: "orders" as const, label: "Orders" },
+          { value: "bookings" as const, label: "Bookings" },
+          { value: "reservation" as const, label: "Reservation" },
+        ]),
+    ...(!isShop ? [] : [{ value: "orders" as const, label: "Orders" }]),
     { value: "analytics", label: "Analytics" },
     ...(user?.role !== "manager"
       ? [{ value: "settings" as const, label: "Settings" }]
@@ -1383,6 +1419,9 @@ export default function VendorDashboard() {
       imageName: "",
       imagePreviewUrl: undefined,
       imageFile: null,
+      category: "",
+      stock_quantity: "0",
+      in_stock: true,
     });
   };
 
@@ -1405,7 +1444,6 @@ export default function VendorDashboard() {
     reader.readAsDataURL(file);
   };
 
-
   const handleMenuFormSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
@@ -1426,16 +1464,27 @@ export default function VendorDashboard() {
 
     setMenuFormSubmitting(true);
     try {
-      const created = await createMenuItem(token, {
-        name: menuForm.itemName.trim(),
-        description: menuForm.description.trim(),
-        price: parsedPrice,
-        available: true,
-        imageFile: menuForm.imageFile ?? null,
-      });
+      const created = isShop
+        ? await createProduct(token, {
+            name: menuForm.itemName.trim(),
+            description: menuForm.description.trim(),
+            price: parsedPrice,
+            stock_quantity: Number(menuForm.stock_quantity ?? 0),
+            category_id: menuForm.category ? Number(menuForm.category) : null,
+            in_stock: true,
+            imageFile: menuForm.imageFile ?? null,
+          })
+        : await createMenuItem(token, {
+            name: menuForm.itemName.trim(),
+            description: menuForm.description.trim(),
+            price: parsedPrice,
+            available: true,
+            imageFile: menuForm.imageFile ?? null,
+          });
 
       const subtitle =
-        menuForm.description.trim().slice(0, 44) || (isShop ? "Catalog item" : "New menu item");
+        menuForm.description.trim().slice(0, 44) ||
+        (isShop ? "Catalog item" : "New menu item");
 
       setCatalogItems((current) => [
         {
@@ -1443,16 +1492,35 @@ export default function VendorDashboard() {
           name: created.name,
           subtitle,
           price: Number(created.price),
-          status: Number(created.available) === 1 ? "Active" : "Unavailable",
-          metric: "New item",
+          status: isShop
+            ? created.in_stock === undefined
+              ? Number(created.stock_quantity ?? 0) > 0
+                ? "Active"
+                : "Unavailable"
+              : created.in_stock
+                ? "Active"
+                : "Unavailable"
+            : Number(created.available) === 1
+              ? "Active"
+              : "Unavailable",
+          metric: isShop ? `New product` : "New item",
           accent: "bg-[#1a1a2e]",
-          imageUrl: resolveMediaUrl(created.imageurl),
+          imageUrl: resolveMediaUrl(created.imageurl ?? created.image_url),
+          category: created.category ?? null,
+          ...(isShop && {
+            stock_quantity: Number(created.stock_quantity ?? 0),
+            in_stock: Boolean(created.in_stock),
+          }),
         },
         ...current,
       ]);
       setAvailabilityByItemId((current) => ({
         ...current,
-        [created.id]: Boolean(created.available),
+        [created.id]: Boolean(
+          isShop
+            ? (created.in_stock ?? Boolean(created.stock_quantity))
+            : created.available,
+        ),
       }));
 
       setMenuFormMessageType("success");
@@ -1481,6 +1549,9 @@ export default function VendorDashboard() {
       imageName: "",
       imagePreviewUrl: item.imageUrl,
       imageFile: null,
+      category: item.category ?? "",
+      stock_quantity: String(item.stock_quantity ?? 0),
+      in_stock: item.in_stock ?? true,
     });
     setMenuEditMessage(null);
   };
@@ -1494,6 +1565,9 @@ export default function VendorDashboard() {
       imageName: "",
       imagePreviewUrl: undefined,
       imageFile: null,
+      category: "",
+      stock_quantity: "0",
+      in_stock: true,
     });
     setMenuEditMessage(null);
   };
@@ -1531,12 +1605,23 @@ export default function VendorDashboard() {
 
     setMenuEditSubmitting(true);
     try {
-      const updated = await updateMenuItem(token, editingMenuItemId, {
-        name: menuEditForm.itemName.trim(),
-        description: menuEditForm.description.trim(),
-        price: parsedPrice,
-        imageFile: menuEditForm.imageFile ?? null,
-      });
+      const updated = isShop
+        ? await updateProduct(token, editingMenuItemId, {
+            name: menuEditForm.itemName.trim(),
+            description: menuEditForm.description.trim(),
+            price: parsedPrice,
+            stock_quantity: Number(menuEditForm.stock_quantity ?? 0),
+            category_id: menuEditForm.category
+              ? Number(menuEditForm.category)
+              : null,
+            imageFile: menuEditForm.imageFile ?? null,
+          })
+        : await updateMenuItem(token, editingMenuItemId, {
+            name: menuEditForm.itemName.trim(),
+            description: menuEditForm.description.trim(),
+            price: parsedPrice,
+            imageFile: menuEditForm.imageFile ?? null,
+          });
 
       setCatalogItems((current) =>
         current.map((item) =>
@@ -1546,8 +1631,16 @@ export default function VendorDashboard() {
                 name: updated.name,
                 price: Number(updated.price),
                 subtitle:
-                  updated.description?.trim().slice(0, 44) || "Menu item",
-                imageUrl: resolveMediaUrl(updated.imageurl),
+                  updated.description?.trim().slice(0, 44) ||
+                  (isShop ? "Catalog item" : "Menu item"),
+                imageUrl: resolveMediaUrl(
+                  updated.imageurl ?? updated.image_url,
+                ),
+                category: updated.category ?? null,
+                ...(isShop && {
+                  stock_quantity: Number(updated.stock_quantity ?? 0),
+                  in_stock: Boolean(updated.in_stock),
+                }),
               }
             : item,
         ),
@@ -1583,7 +1676,11 @@ export default function VendorDashboard() {
 
     setDeletingMenuItemId(itemId);
     try {
-      await deleteMenuItem(token, itemId);
+      if (isShop) {
+        await deleteProduct(token, itemId);
+      } else {
+        await deleteMenuItem(token, itemId);
+      }
       setCatalogItems((current) =>
         current.filter((item) => item.id !== itemId),
       );
@@ -1627,13 +1724,19 @@ export default function VendorDashboard() {
 
     try {
       // Update on backend
-      await updateMenuItem(token, itemId, {
-        name: "",
-        price: 0,
-        description: "",
-        available: newAvailability,
-        imageFile: null,
-      });
+      if (isShop) {
+        await updateProduct(token, itemId, {
+          in_stock: newAvailability,
+        });
+      } else {
+        await updateMenuItem(token, itemId, {
+          name: "",
+          price: 0,
+          description: "",
+          available: newAvailability,
+          imageFile: null,
+        });
+      }
 
       setMenuEditMessageType("success");
       setMenuEditMessage(
@@ -3084,7 +3187,9 @@ export default function VendorDashboard() {
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder={isShop ? "Search products..." : "Search menu items..."}
+                    placeholder={
+                      isShop ? "Search products..." : "Search menu items..."
+                    }
                     className="w-full border-none bg-transparent outline-none placeholder:text-slate-400"
                   />
                 </label>
@@ -3502,7 +3607,9 @@ export default function VendorDashboard() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {isShop ? "Dashboard > Products > Add New Product" : "Dashboard > Menus > Add New Item"}
+                      {isShop
+                        ? "Dashboard > Products > Add New Product"
+                        : "Dashboard > Menus > Add New Item"}
                     </p>
                     <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white">
                       {isShop ? "Product Management" : "Menu Management"}
@@ -3574,7 +3681,52 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        
+
+                        {isShop && (
+                          <>
+                            <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                Category
+                              </span>
+                              <select
+                                value={menuForm.category ?? ""}
+                                onChange={(event) =>
+                                  setMenuForm((current) => ({
+                                    ...current,
+                                    category: event.target.value,
+                                  }))
+                                }
+                                className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              >
+                                <option value="">Select a category</option>
+                                {shopTypes.map((type) => (
+                                  <option key={type.id} value={type.id}>
+                                    {type.shop_type}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                Stock Quantity
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={menuForm.stock_quantity}
+                                onChange={(event) =>
+                                  setMenuForm((current) => ({
+                                    ...current,
+                                    stock_quantity: event.target.value,
+                                  }))
+                                }
+                                placeholder="0"
+                                className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              />
+                            </label>
+                          </>
+                        )}
+
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description
@@ -3716,7 +3868,52 @@ export default function VendorDashboard() {
                             className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                           />
                         </label>
-                        
+
+                        {isShop && (
+                          <>
+                            <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                Category
+                              </span>
+                              <select
+                                value={menuEditForm.category ?? ""}
+                                onChange={(event) =>
+                                  setMenuEditForm((current) => ({
+                                    ...current,
+                                    category: event.target.value,
+                                  }))
+                                }
+                                className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              >
+                                <option value="">Select a category</option>
+                                {shopTypes.map((type) => (
+                                  <option key={type.id} value={type.id}>
+                                    {type.shop_type}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                Stock Quantity
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={menuEditForm.stock_quantity}
+                                onChange={(event) =>
+                                  setMenuEditForm((current) => ({
+                                    ...current,
+                                    stock_quantity: event.target.value,
+                                  }))
+                                }
+                                placeholder="0"
+                                className="w-full rounded-full border border-slate-200 bg-slate-100 px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                              />
+                            </label>
+                          </>
+                        )}
+
                         <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
                           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
                             Description

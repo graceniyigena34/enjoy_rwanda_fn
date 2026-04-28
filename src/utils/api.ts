@@ -288,6 +288,72 @@ function buildMenuItemFormData(input: MenuItemCreateInput) {
   return formData;
 }
 
+function buildProductFormData(input: Partial<MenuItemCreateInput> & { stock_quantity?: number | string; category_id?: number | string; in_stock?: boolean }) {
+  const formData = new FormData();
+  if (input.name !== undefined) formData.append("name", String(input.name));
+  if (input.description !== undefined) formData.append("description", String(input.description));
+  if (input.price !== undefined) formData.append("price", String(input.price));
+  if (input.stock_quantity !== undefined) formData.append("stock_quantity", String(input.stock_quantity));
+  if (input.category_id !== undefined) formData.append("category_id", String(input.category_id));
+  if (input.in_stock !== undefined) formData.append("in_stock", input.in_stock ? "1" : "0");
+  if ((input as any).imageFile) {
+    formData.append("image", (input as any).imageFile as File);
+  }
+  return formData;
+}
+
+export async function createProduct(token: string, input: { name: string; description?: string; price: number; stock_quantity?: number; category_id?: number | null; in_stock?: boolean; imageFile?: File | null }) {
+  const res = await fetch(`${BASE_URL}/products`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildProductFormData(input as any),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to create product"));
+  return data as any;
+}
+
+export async function updateProduct(token: string, id: number, input: Partial<{ name: string; description?: string; price?: number; stock_quantity?: number; category_id?: number | null; in_stock?: boolean; imageFile?: File | null }>) {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildProductFormData(input as any),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to update product"));
+  return data as any;
+}
+
+export async function deleteProduct(token: string, id: number) {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(toErrorMessage(data, "Failed to delete product"));
+  }
+}
+
+export async function getProducts(params?: { businessId?: number | string }) {
+  const search = new URLSearchParams();
+  if (params?.businessId !== undefined && params.businessId !== null) {
+    search.set("business_id", String(params.businessId));
+  }
+
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return requestJson<any[]>(`${BASE_URL}/products${suffix}`);
+}
+
 function buildBusinessPhotosFormData(input: BusinessPhotoUploadInput) {
   const formData = new FormData();
   input.files.forEach((file) => {
