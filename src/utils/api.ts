@@ -1,6 +1,6 @@
 const API_BASE_FROM_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
-// const DEFAULT_BASE_URL = "http://localhost:1000/api";
+// const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+const DEFAULT_BASE_URL = "http://localhost:1000/api";
 export const BASE_URL = (API_BASE_FROM_ENV && API_BASE_FROM_ENV.length > 0
   ? API_BASE_FROM_ENV
   : DEFAULT_BASE_URL
@@ -318,6 +318,29 @@ export async function apiRegister(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, phone, countryCode, role }),
+  });
+}
+
+export async function apiForgotPassword(email: string) {
+  return requestJson<{ message: string }>(`${BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiValidateResetToken(token: string, email: string) {
+  const params = new URLSearchParams({ token, email });
+  return requestJson<{ valid?: boolean; message?: string }>(
+    `${BASE_URL}/auth/reset-password/validate?${params.toString()}`,
+  );
+}
+
+export async function apiResetPassword(token: string, email: string, newPassword: string) {
+  return requestJson<{ message: string }>(`${BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, email, newPassword }),
   });
 }
 

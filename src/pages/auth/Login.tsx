@@ -135,6 +135,14 @@ export default function Login() {
                 required
                 className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#1a1a2e] focus:ring-4 focus:ring-gray-100 transition-all"
               />
+              <div className="mt-2 text-sm text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-[#1a1a2e] font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {/* BUTTON */}
