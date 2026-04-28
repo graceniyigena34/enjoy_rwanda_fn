@@ -19,6 +19,8 @@ import VendorDashboard from "./pages/dashboard/VendorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import About from "./pages/shared/About";
 import TermsAndConditions from "./pages/shared/TermsAndConditions";
+import PrivacyPolicy from "./pages/shared/PrivacyPolicy";
+import CookiePolicy from "./pages/shared/CookiePolicy";
 import BookingConfirming from "./pages/restaurants/BookingConfirming";
 import BookingUnavailable from "./pages/restaurants/BookingUnavailable";
 
@@ -51,10 +53,9 @@ function Layout() {
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/about" element={<About />} />
-          <Route
-            path="/terms-and-conditions"
-            element={<TermsAndConditions />}
-          />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/cookie-policy" element={<CookiePolicy />} />
           <Route path="/booking-confirming" element={<BookingConfirming />} />
           <Route path="/booking-unavailable" element={<BookingUnavailable />} />
         </Routes>
