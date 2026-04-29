@@ -26,6 +26,7 @@ type MenuItem = {
   price: number;
   description: string;
   category: string;
+  itemCategory: string;
   image?: string;
 };
 
@@ -531,6 +532,16 @@ export default function RestaurantDetail() {
     return rawMainCategory === "drinks" ? "Drinks" : "Food";
   };
 
+  const normalizeItemCategoryLabel = (
+    row: Pick<MenuItemRecord, "subcategory" | "category">,
+    fallbackMainCategory: "Food" | "Drinks",
+  ) => {
+    const label = String(row.subcategory ?? row.category ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+    return label || fallbackMainCategory;
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) {
@@ -648,14 +659,20 @@ export default function RestaurantDetail() {
         const rows = await getMenuItems({ businessId });
         if (!active) return;
         setMenuItems(
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            price: Number(row.price),
-            description: row.description?.trim() || "No description available.",
-            category: normalizeMenuMainCategory(row),
-            image: row.imageurl || undefined,
-          })),
+          rows.map((row) => {
+            const mainCategory = normalizeMenuMainCategory(row);
+
+            return {
+              id: row.id,
+              name: row.name,
+              price: Number(row.price),
+              description:
+                row.description?.trim() || "No description available.",
+              category: mainCategory,
+              itemCategory: normalizeItemCategoryLabel(row, mainCategory),
+              image: row.imageurl || undefined,
+            };
+          }),
         );
       } catch (error) {
         if (!active) return;
@@ -681,15 +698,48 @@ export default function RestaurantDetail() {
     setOrderList((prev) => prev.filter((_, i) => i !== index));
   const orderTotal = orderList.reduce((sum, item) => sum + item.price, 0);
 
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
   const visibleItems = useMemo(
     () =>
       menuItems.filter(
         (i) =>
-          i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          i.description.toLowerCase().includes(searchTerm.toLowerCase()),
+          i.name.toLowerCase().includes(normalizedSearchTerm) ||
+          i.description.toLowerCase().includes(normalizedSearchTerm) ||
+          i.itemCategory.toLowerCase().includes(normalizedSearchTerm),
       ),
-    [menuItems, searchTerm],
+    [menuItems, normalizedSearchTerm],
   );
+
+  const categorySearchGroups = useMemo(() => {
+    if (!normalizedSearchTerm)
+      return [] as Array<{ title: string; items: MenuItem[] }>;
+
+    const grouped = new Map<string, { title: string; items: MenuItem[] }>();
+
+    for (const item of visibleItems) {
+      if (!item.itemCategory.toLowerCase().includes(normalizedSearchTerm)) {
+        continue;
+      }
+      if (menuCategory !== "All" && item.category !== menuCategory) {
+        continue;
+      }
+
+      const key = item.itemCategory.toLowerCase();
+      const group = grouped.get(key);
+      if (!group) {
+        grouped.set(key, { title: item.itemCategory, items: [item] });
+        continue;
+      }
+      group.items.push(item);
+    }
+
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+  }, [visibleItems, normalizedSearchTerm, menuCategory]);
+
+  const isCategorySearchView = categorySearchGroups.length > 0;
 
   const foodItems = visibleItems.filter((i) => i.category === "Food");
   const drinkItems = visibleItems.filter((i) => i.category === "Drinks");
@@ -1589,45 +1639,81 @@ export default function RestaurantDetail() {
               </p>
             )}
 
-            {(menuCategory === "All" || menuCategory === "Food") &&
-              foodItems.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <svg
-                      className="h-5 w-5 text-orange-500"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 12h18M7 4v8m10-8v8"
-                      />
-                    </svg>
-                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
-                      Food
-                    </h3>
-                    <div className="flex-1 border-t border-dashed border-gray-200" />
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {foodItems.length} items
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {foodItems.map((item) => (
-                      <MenuCard
-                        key={item.id}
-                        item={item}
-                        priceColor="text-orange-700"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+            {isCategorySearchView
+              ? categorySearchGroups.map((group, index) => {
+                  const groupPriceColor =
+                    group.items[0]?.category === "Drinks"
+                      ? "text-blue-700"
+                      : "text-orange-700";
 
-            {(menuCategory === "All" || menuCategory === "Drinks") &&
+                  return (
+                    <div
+                      key={`${group.title}-${index}`}
+                      className={
+                        index < categorySearchGroups.length - 1 ? "mb-8" : ""
+                      }
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
+                          {group.title}
+                        </h3>
+                        <div className="flex-1 border-t border-dashed border-gray-200" />
+                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {group.items.length} items
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        {group.items.map((item) => (
+                          <MenuCard
+                            key={item.id}
+                            item={item}
+                            priceColor={groupPriceColor}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              : (menuCategory === "All" || menuCategory === "Food") &&
+                foodItems.length > 0 && (
+                  <div className="mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <svg
+                        className="h-5 w-5 text-orange-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 12h18M7 4v8m10-8v8"
+                        />
+                      </svg>
+                      <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
+                        Food
+                      </h3>
+                      <div className="flex-1 border-t border-dashed border-gray-200" />
+                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {foodItems.length} items
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {foodItems.map((item) => (
+                        <MenuCard
+                          key={item.id}
+                          item={item}
+                          priceColor="text-orange-700"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+            {!isCategorySearchView &&
+              (menuCategory === "All" || menuCategory === "Drinks") &&
               drinkItems.length > 0 && (
                 <div>
                   <div className="flex items-center gap-3 mb-4">
