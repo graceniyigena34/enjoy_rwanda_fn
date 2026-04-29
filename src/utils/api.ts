@@ -381,6 +381,11 @@ export async function getPublicProducts(params?: { businessId?: number | string 
   return requestJson<PublicProductRecord[]>(`${BASE_URL}/products/public${suffix}`);
 }
 
+export async function getPublicProduct(id: number | string) {
+  if (!id) throw new Error("Invalid product id");
+  return requestJson<PublicProductRecord>(`${BASE_URL}/products/public/${id}`);
+}
+
 function buildBusinessPhotosFormData(input: BusinessPhotoUploadInput) {
   const formData = new FormData();
   input.files.forEach((file) => {

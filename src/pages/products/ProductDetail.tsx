@@ -1,20 +1,49 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { getProductById } from "../../data/productCatalog";
+import { getPublicProduct } from "../../utils/api";
+import type { PublicProductRecord } from "../../utils/api";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useApp();
   const productId = Number(id);
-  const product = Number.isFinite(productId) ? getProductById(productId) : null;
-
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<
     "description" | "specs" | "reviews" | "shipping"
   >("description");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [product, setProduct] = useState<{
+    id: number;
+    name: string;
+    price: number;
+    description: string | null;
+    images: string[];
+    stock: number;
+    oldPrice?: number | null;
+    discount?: string | null;
+    features: string[];
+    specs: { label: string; value: string }[];
+    reviews: number;
+    rating: number;
+    sold: number;
+    seller: {
+      name: string;
+      avatar: string | null;
+      verified: boolean;
+      location?: string | null;
+      joined?: string;
+      response?: string;
+      products?: number;
+      rating: number;
+      reviews: number;
+    };
+    relatedIds: number[];
+  } | null>(null);
 
   useEffect(() => {
     setSelectedImage(0);
@@ -22,16 +51,83 @@ export default function ProductDetail() {
     setActiveTab("description");
   }, [productId]);
 
-  const relatedProducts = useMemo(() => {
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      if (!productId || Number.isNaN(productId)) {
+        setProduct(null);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getPublicProduct(productId);
+        if (!mounted) return;
+
+        const record: PublicProductRecord = res as PublicProductRecord;
+
+        const mapped = {
+          id: record.id,
+          name: record.name,
+          price:
+            typeof record.price === "string"
+              ? Number(record.price)
+              : (record.price as number),
+          description: record.description,
+          images: record.image_url
+            ? [record.image_url]
+            : ["/placeholder-product.png"],
+          stock: record.stock_quantity ?? 0,
+          oldPrice: null,
+          discount: null,
+          features: [],
+          specs: [],
+          reviews: 0,
+          rating: 4.7,
+          sold: 0,
+          seller: {
+            name: record.business_name ?? "Seller",
+            avatar: null,
+            verified: Boolean(record.is_verified),
+            location: record.location ?? null,
+            joined: undefined,
+            response: undefined,
+            products: undefined,
+            rating: 4.5,
+            reviews: 10,
+          },
+          relatedIds: [],
+        };
+
+        setProduct(mapped);
+      } catch (err: any) {
+        setError(err?.message ?? "Failed to load product");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [productId]);
+
+  const relatedProducts = useMemo<any[]>(() => {
     if (!product) return [];
-    return product.relatedIds
-      .map((relatedId) => getProductById(relatedId))
-      .filter((item): item is NonNullable<ReturnType<typeof getProductById>> =>
-        Boolean(item),
-      );
+    return [];
   }, [product]);
 
-  if (!product) {
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-12">
+        <div className="rounded-3xl border bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-black text-slate-900">Loading…</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !product) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-12">
         <div className="rounded-3xl border bg-white p-8 text-center shadow-sm">
@@ -39,7 +135,7 @@ export default function ProductDetail() {
             Product not found
           </h1>
           <p className="mt-2 text-slate-500">
-            The product you requested does not exist.
+            {error ?? "The product you requested does not exist."}
           </p>
           <Link
             to="/products"
@@ -256,7 +352,7 @@ export default function ProductDetail() {
               <p className="text-sm font-semibold text-slate-500">Sold by</p>
               <div className="mt-4 flex items-center gap-3">
                 <img
-                  src={product.seller.avatar}
+                  src={product.seller.avatar ?? undefined}
                   alt={product.seller.name}
                   className="h-12 w-12 rounded-full object-cover"
                 />
