@@ -354,6 +354,33 @@ export async function getProducts(params?: { businessId?: number | string }) {
   return requestJson<any[]>(`${BASE_URL}/products${suffix}`);
 }
 
+export interface PublicProductRecord {
+  id: number;
+  business_id: number;
+  name: string;
+  description: string | null;
+  price: number | string;
+  stock_quantity: number;
+  category_id: number | null;
+  category_name: string | null;
+  in_stock: boolean;
+  image_url: string | null;
+  created_at: string;
+  business_name: string;
+  location: string | null;
+  is_verified: boolean;
+}
+
+export async function getPublicProducts(params?: { businessId?: number | string }) {
+  const search = new URLSearchParams();
+  if (params?.businessId !== undefined && params.businessId !== null) {
+    search.set("business_id", String(params.businessId));
+  }
+
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return requestJson<PublicProductRecord[]>(`${BASE_URL}/products/public${suffix}`);
+}
+
 function buildBusinessPhotosFormData(input: BusinessPhotoUploadInput) {
   const formData = new FormData();
   input.files.forEach((file) => {

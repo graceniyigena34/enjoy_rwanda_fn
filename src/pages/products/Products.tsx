@@ -1,20 +1,22 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import {
-  productCatalog,
-  type ProductCatalogItem,
-} from "../../data/productCatalog";
+import { getPublicProducts, type PublicProductRecord } from "../../utils/api";
 
-const sampleShops = [
-  "Kigali Fresh Store",
-  "Rwanda Natural Products",
-  "Inzuki Designs",
-  "Tech Rwanda",
-  "Urban Steps Rwanda",
-  "Huye Crafts",
-  "Musanze Market",
-];
+type ProductListItem = {
+  id: number;
+  name: string;
+  price: number;
+  rating: number;
+  seller: {
+    name: string;
+    location: string;
+  };
+  images: string[];
+  stock: number;
+};
+
+const FALLBACK_IMAGE = "https://via.placeholder.com/600x400?text=Product";
 
 export default function Products() {
   const { addToCart } = useApp();
@@ -22,8 +24,61 @@ export default function Products() {
   const [showMoreShops, setShowMoreShops] = useState(false);
   const [selectedShops, setSelectedShops] = useState<string[]>([]);
   const [sort, setSort] = useState<string>("newest");
+  const [products, setProducts] = useState<ProductListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const listedProducts = [...productCatalog].sort((left, right) => {
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const rows = await getPublicProducts();
+        if (!mounted) return;
+
+        const mapped: ProductListItem[] = rows.map(
+          (row: PublicProductRecord) => ({
+            id: Number(row.id),
+            name: row.name,
+            price: Number(row.price) || 0,
+            // Rating is not yet available on products API; use a stable placeholder.
+            rating: 4.6,
+            seller: {
+              name: row.business_name || "Local Shop",
+              location: row.location || "Rwanda",
+            },
+            images: [row.image_url || FALLBACK_IMAGE],
+            stock: Number(row.stock_quantity) || 0,
+          }),
+        );
+
+        setProducts(mapped);
+      } catch (err) {
+        if (!mounted) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load products",
+        );
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadProducts();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const filteredByShop = useMemo(() => {
+    if (selectedShops.length === 0) return products;
+    return products.filter((product) =>
+      selectedShops.includes(product.seller.name),
+    );
+  }, [products, selectedShops]);
+
+  const listedProducts = [...filteredByShop].sort((left, right) => {
     switch (sort) {
       case "price-asc":
         return left.price - right.price;
@@ -36,7 +91,12 @@ export default function Products() {
     }
   });
 
-  const filteredShops = sampleShops.filter((s) =>
+  const uniqueShops = useMemo(
+    () => Array.from(new Set(products.map((product) => product.seller.name))),
+    [products],
+  );
+
+  const filteredShops = uniqueShops.filter((s) =>
     s.toLowerCase().includes(shopQuery.toLowerCase()),
   );
 
@@ -50,7 +110,7 @@ export default function Products() {
     );
   }
 
-  function handleAddToCart(product: ProductCatalogItem) {
+  function handleAddToCart(product: ProductListItem) {
     addToCart({
       id: product.id,
       name: product.name,
@@ -160,7 +220,9 @@ export default function Products() {
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-2xl font-bold">All Products</h2>
             <div className="flex items-center gap-4">
-              <div className="text-sm text-slate-600">1,248 products found</div>
+              <div className="text-sm text-slate-600">
+                {listedProducts.length.toLocaleString()} products found
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-slate-600">Sort by:</label>
                 <select
@@ -177,49 +239,68 @@ export default function Products() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {listedProducts.map((p) => (
-              <article
-                key={p.id}
-                className="rounded-lg border bg-white p-4 shadow-sm"
-              >
-                <Link to={`/products/${p.id}`} className="block">
-                  <img
-                    src={p.images[0]}
-                    alt={p.name}
-                    className="h-44 w-full rounded-md object-cover"
-                  />
-                </Link>
-                <h3 className="mt-3 text-sm font-semibold text-slate-900">
-                  {p.name}
-                </h3>
-                <div className="mt-1 text-sm text-slate-600">
-                  {p.price.toLocaleString()} RWF
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="text-xs text-slate-500">
-                    {p.seller.name} · {p.seller.location}
-                  </div>
-                  <div className="text-xs text-amber-500">★ {p.rating}</div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Link
-                    to={`/products/${p.id}`}
-                    className="flex-1 block text-center rounded-lg border border-green-600 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
-                  >
-                    View Product
+          {loading ? (
+            <div className="rounded-lg border bg-white p-6 text-sm text-slate-600">
+              Loading products...
+            </div>
+          ) : null}
+          {!loading && error ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+              {error}
+            </div>
+          ) : null}
+
+          {!loading && !error ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {listedProducts.map((p) => (
+                <article
+                  key={p.id}
+                  className="rounded-lg border bg-white p-4 shadow-sm"
+                >
+                  <Link to={`/products/${p.id}`} className="block">
+                    <img
+                      src={p.images[0]}
+                      alt={p.name}
+                      className="h-44 w-full rounded-md object-cover"
+                    />
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => handleAddToCart(p)}
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-green-600 hover:text-green-700 hover:bg-green-50"
-                  >
-                    Add Cart
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+                  <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                    {p.name}
+                  </h3>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {p.price.toLocaleString()} RWF
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-slate-500">
+                      {p.seller.name} · {p.seller.location}
+                    </div>
+                    <div className="text-xs text-amber-500">★ {p.rating}</div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Link
+                      to={`/products/${p.id}`}
+                      className="flex-1 block text-center rounded-lg border border-green-600 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
+                    >
+                      View Product
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(p)}
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      Add Cart
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+
+          {!loading && !error && listedProducts.length === 0 ? (
+            <div className="rounded-lg border bg-white p-6 text-sm text-slate-600">
+              No products found for the selected filters.
+            </div>
+          ) : null}
 
           <div className="mt-8 flex items-center justify-center">
             <nav className="inline-flex items-center gap-2">
