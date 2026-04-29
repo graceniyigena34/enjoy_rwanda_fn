@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useApp } from "../../context/AppContext";
 
 const sampleProducts = Array.from({ length: 12 }).map((_, i) => ({
   id: i + 1,
@@ -36,6 +37,7 @@ const sampleShops = [
 ];
 
 export default function Products() {
+  const { addToCart } = useApp();
   const [shopQuery, setShopQuery] = useState("");
   const [showMoreShops, setShowMoreShops] = useState(false);
   const [selectedShops, setSelectedShops] = useState<string[]>([]);
@@ -53,6 +55,16 @@ export default function Products() {
     setSelectedShops((prev) =>
       prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name],
     );
+  }
+
+  function handleAddToCart(product: (typeof sampleProducts)[number]) {
+    addToCart({
+      id: product.id,
+      name: product.title,
+      price: product.price,
+      vendorName: product.shop,
+      image: "",
+    });
   }
 
   return (
@@ -190,13 +202,20 @@ export default function Products() {
                   </div>
                   <div className="text-xs text-amber-500">★ {p.rating}</div>
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex gap-2">
                   <Link
                     to={`/shops`}
-                    className="block w-full text-center rounded-lg border border-green-600 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
+                    className="flex-1 block text-center rounded-lg border border-green-600 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
                   >
                     View Product
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(p)}
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-green-600 hover:text-green-700 hover:bg-green-50"
+                  >
+                    Add Cart
+                  </button>
                 </div>
               </article>
             ))}
