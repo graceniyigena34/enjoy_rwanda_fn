@@ -7,6 +7,7 @@ import Restaurants from "./pages/restaurants/Restaurants";
 import RestaurantDetail from "./pages/restaurants/RestaurantDetail";
 import Shops from "./pages/shops/Shops";
 import ShopDetail from "./pages/shops/ShopDetail";
+import Products from "./pages/products/Products";
 import Cart from "./pages/shared/Cart";
 import Payment from "./pages/shared/Payment";
 import Chat from "./pages/shared/Chat";
@@ -42,6 +43,7 @@ function Layout() {
           <Route path="/restaurants/:id" element={<RestaurantDetail />} />
           <Route path="/shops" element={<Shops />} />
           <Route path="/shops/:id" element={<ShopDetail />} />
+          <Route path="/products" element={<Products />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/payment" element={<Payment />} />
           <Route path="/chat/:id" element={<Chat />} />
@@ -53,7 +55,10 @@ function Layout() {
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/about" element={<About />} />
-          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route
+            path="/terms-and-conditions"
+            element={<TermsAndConditions />}
+          />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/cookie-policy" element={<CookiePolicy />} />
           <Route path="/booking-confirming" element={<BookingConfirming />} />
