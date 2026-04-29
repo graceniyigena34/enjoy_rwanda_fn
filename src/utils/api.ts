@@ -902,6 +902,33 @@ export async function deleteShopType(token: string, id: number) {
   });
 }
 
+// ── Shops ─────────────────────────────────────────────────────
+export interface ShopRecord {
+  id: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  image: string | null;
+  created_at?: string;
+  products?: Array<{
+    id: number;
+    name: string;
+    price: number | string;
+    description: string | null;
+    image_url: string | null;
+    stock_quantity: number;
+    in_stock: boolean;
+  }>;
+}
+
+export async function getShops() {
+  return requestJson<ShopRecord[]>(`${BASE_URL}/shops`);
+}
+
+export async function getShop(id: number) {
+  return requestJson<ShopRecord>(`${BASE_URL}/shops/${id}`);
+}
+
 // ── Table Config ──────────────────────────────────────────────
 export interface TableConfigRecord {
   id: number;
