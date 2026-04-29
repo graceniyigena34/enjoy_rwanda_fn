@@ -8,6 +8,7 @@ import RestaurantDetail from "./pages/restaurants/RestaurantDetail";
 import Shops from "./pages/shops/Shops";
 import ShopDetail from "./pages/shops/ShopDetail";
 import Products from "./pages/products/Products";
+import ProductDetail from "./pages/products/ProductDetail";
 import Cart from "./pages/shared/Cart";
 import Payment from "./pages/shared/Payment";
 import Chat from "./pages/shared/Chat";
@@ -44,6 +45,7 @@ function Layout() {
           <Route path="/shops" element={<Shops />} />
           <Route path="/shops/:id" element={<ShopDetail />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/payment" element={<Payment />} />
           <Route path="/chat/:id" element={<Chat />} />

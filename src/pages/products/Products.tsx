@@ -1,30 +1,10 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-
-const sampleProducts = Array.from({ length: 12 }).map((_, i) => ({
-  id: i + 1,
-  title: [
-    "Fresh Avocado",
-    "Rwanda Premium Coffee",
-    "Handwoven Basket",
-    "Men Traditional Shirt",
-    "Organic Honey",
-    "Smart Watch X7",
-    "Natural Skincare Set",
-    "Wooden Serving Bowl",
-    "Rwanda Sisal Bag",
-    "Men Casual Sneakers",
-    "Herbal Tea Pack",
-    "Ceramic Mug",
-  ][i % 12],
-  price: (Math.floor(Math.random() * 30) + 1) * 1000,
-  rating: (Math.random() * 1.5 + 3.5).toFixed(1),
-  shop: ["Kigali Fresh Store", "Inzuki Designs", "Rwanda Natural Products"][
-    i % 3
-  ],
-  location: ["Kigali", "Musanze", "Huye"][i % 3],
-}));
+import {
+  productCatalog,
+  type ProductCatalogItem,
+} from "../../data/productCatalog";
 
 const sampleShops = [
   "Kigali Fresh Store",
@@ -43,6 +23,19 @@ export default function Products() {
   const [selectedShops, setSelectedShops] = useState<string[]>([]);
   const [sort, setSort] = useState<string>("newest");
 
+  const listedProducts = [...productCatalog].sort((left, right) => {
+    switch (sort) {
+      case "price-asc":
+        return left.price - right.price;
+      case "price-desc":
+        return right.price - left.price;
+      case "rating":
+        return right.rating - left.rating;
+      default:
+        return right.id - left.id;
+    }
+  });
+
   const filteredShops = sampleShops.filter((s) =>
     s.toLowerCase().includes(shopQuery.toLowerCase()),
   );
@@ -57,13 +50,14 @@ export default function Products() {
     );
   }
 
-  function handleAddToCart(product: (typeof sampleProducts)[number]) {
+  function handleAddToCart(product: ProductCatalogItem) {
     addToCart({
       id: product.id,
-      name: product.title,
+      name: product.name,
       price: product.price,
-      vendorName: product.shop,
-      image: "",
+      vendorName: product.seller.name,
+      image: product.images[0],
+      stock: product.stock,
     });
   }
 
@@ -184,27 +178,33 @@ export default function Products() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {sampleProducts.map((p) => (
+            {listedProducts.map((p) => (
               <article
                 key={p.id}
                 className="rounded-lg border bg-white p-4 shadow-sm"
               >
-                <div className="h-44 w-full rounded-md bg-slate-100" />
+                <Link to={`/products/${p.id}`} className="block">
+                  <img
+                    src={p.images[0]}
+                    alt={p.name}
+                    className="h-44 w-full rounded-md object-cover"
+                  />
+                </Link>
                 <h3 className="mt-3 text-sm font-semibold text-slate-900">
-                  {p.title}
+                  {p.name}
                 </h3>
                 <div className="mt-1 text-sm text-slate-600">
                   {p.price.toLocaleString()} RWF
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <div className="text-xs text-slate-500">
-                    {p.shop} · {p.location}
+                    {p.seller.name} · {p.seller.location}
                   </div>
                   <div className="text-xs text-amber-500">★ {p.rating}</div>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <Link
-                    to={`/shops`}
+                    to={`/products/${p.id}`}
                     className="flex-1 block text-center rounded-lg border border-green-600 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
                   >
                     View Product
