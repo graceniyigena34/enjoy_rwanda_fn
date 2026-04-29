@@ -990,7 +990,43 @@ export default function RestaurantDetail() {
             onClick={() => setActiveTab(t)}
             className={`px-6 py-3 text-sm font-semibold border-b-2 -mb-px transition-all ${activeTab === t ? "border-gray-900 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-700"}`}
           >
-            {t === "menu" ? "🍽️ View Menu" : "📅 Book"}
+            {t === "menu" ? (
+              <span className="inline-flex items-center gap-2">
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 12h18M3 6h18M3 18h18"
+                  />
+                </svg>
+                <span>View Menu</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V9H3v10a2 2 0 002 2z"
+                  />
+                </svg>
+                <span>Book</span>
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1278,8 +1314,22 @@ export default function RestaurantDetail() {
                 {showMenuPrompt && !menuSelectionStep && (
                   <div className="mt-4 p-4 rounded-xl border-2 border-orange-200 bg-orange-50">
                     <div className="text-center mb-4">
-                      <p className="text-lg font-bold text-gray-900 mb-1">
-                        🍽️ Add Menu Items?
+                      <p className="text-lg font-bold text-gray-900 mb-1 inline-flex items-center gap-2">
+                        <svg
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 12h18M3 6h18M3 18h18"
+                          />
+                        </svg>
+                        <span>Add Menu Items?</span>
                       </p>
                       <p className="text-sm text-gray-600">
                         Would you like to add food or drinks to your
@@ -1469,11 +1519,61 @@ export default function RestaurantDetail() {
                     onClick={() => setMenuCategory(cat)}
                     className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${menuCategory === cat ? "bg-[#1a1a2e] !text-white border-[#1a1a2e]" : "bg-white text-gray-600 border-gray-200 hover:border-gray-800"}`}
                   >
-                    {cat === "Food"
-                      ? "🍛 Food"
-                      : cat === "Drinks"
-                        ? "🥤 Drinks"
-                        : "🍽️ All"}
+                    {cat === "Food" ? (
+                      <span className="inline-flex items-center gap-2">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 12h18M7 4v8m10-8v8"
+                          />
+                        </svg>
+                        Food
+                      </span>
+                    ) : cat === "Drinks" ? (
+                      <span className="inline-flex items-center gap-2">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M8 2v6m8-6v6M3 10h18l-1 8a2 2 0 01-2 2H6a2 2 0 01-2-2L3 10z"
+                          />
+                        </svg>
+                        Drinks
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 12h18M3 6h18M3 18h18"
+                          />
+                        </svg>
+                        All
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1499,7 +1599,20 @@ export default function RestaurantDetail() {
               foodItems.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-center gap-3 mb-4">
-                    <span>🍛</span>
+                    <svg
+                      className="h-5 w-5 text-orange-500"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 12h18M7 4v8m10-8v8"
+                      />
+                    </svg>
                     <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
                       Food
                     </h3>
@@ -1524,7 +1637,20 @@ export default function RestaurantDetail() {
               drinkItems.length > 0 && (
                 <div>
                   <div className="flex items-center gap-3 mb-4">
-                    <span>🥤</span>
+                    <svg
+                      className="h-5 w-5 text-sky-500"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 2v6m8-6v6M3 10h18l-1 8a2 2 0 01-2 2H6a2 2 0 01-2-2L3 10z"
+                      />
+                    </svg>
                     <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
                       Drinks
                     </h3>
