@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { getPublicProduct } from "../../utils/api";
+import { getPublicProduct, getPublicProducts } from "../../utils/api";
 import type { PublicProductRecord } from "../../utils/api";
 
 export default function ProductDetail() {
@@ -19,6 +19,7 @@ export default function ProductDetail() {
   const [error, setError] = useState<string | null>(null);
   const [product, setProduct] = useState<{
     id: number;
+    businessId: number;
     name: string;
     price: number;
     description: string | null;
@@ -44,6 +45,16 @@ export default function ProductDetail() {
     };
     relatedIds: number[];
   } | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<
+    Array<{
+      id: number;
+      name: string;
+      price: number;
+      images: string[];
+      rating: number;
+      seller: { name: string };
+    }>
+  >([]);
 
   useEffect(() => {
     setSelectedImage(0);
@@ -56,6 +67,7 @@ export default function ProductDetail() {
     async function load() {
       if (!productId || Number.isNaN(productId)) {
         setProduct(null);
+        setRelatedProducts([]);
         return;
       }
       setLoading(true);
@@ -68,6 +80,7 @@ export default function ProductDetail() {
 
         const mapped = {
           id: record.id,
+          businessId: record.business_id,
           name: record.name,
           price:
             typeof record.price === "string"
@@ -100,8 +113,31 @@ export default function ProductDetail() {
         };
 
         setProduct(mapped);
+
+        const sameShop = await getPublicProducts({
+          businessId: record.business_id,
+        });
+        if (!mounted) return;
+
+        const related = sameShop
+          .filter((item) => item.id !== record.id)
+          .slice(0, 4)
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            price:
+              typeof item.price === "string" ? Number(item.price) : item.price,
+            images: item.image_url
+              ? [item.image_url]
+              : ["/placeholder-product.png"],
+            rating: 4.6,
+            seller: { name: item.business_name ?? "Seller" },
+          }));
+
+        setRelatedProducts(related);
       } catch (err: any) {
         setError(err?.message ?? "Failed to load product");
+        setRelatedProducts([]);
       } finally {
         setLoading(false);
       }
@@ -112,10 +148,7 @@ export default function ProductDetail() {
     };
   }, [productId]);
 
-  const relatedProducts = useMemo<any[]>(() => {
-    if (!product) return [];
-    return [];
-  }, [product]);
+  const relatedCount = useMemo(() => relatedProducts.length, [relatedProducts]);
 
   if (loading) {
     return (
@@ -570,7 +603,9 @@ export default function ProductDetail() {
                   You may also like
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Similar items from trusted local sellers
+                  {relatedCount > 0
+                    ? `4 or fewer products from ${product.seller.name}`
+                    : "No more products from this shop yet"}
                 </p>
               </div>
               <Link
