@@ -1,6 +1,6 @@
 const API_BASE_FROM_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
-// const DEFAULT_BASE_URL = "http://localhost:1000/api";
+// const DEFAULT_BASE_URL = "https://enjoy-rwanda-bn-5.onrender.com/api";
+const DEFAULT_BASE_URL = "http://localhost:1000/api";
 export const BASE_URL = (API_BASE_FROM_ENV && API_BASE_FROM_ENV.length > 0
   ? API_BASE_FROM_ENV
   : DEFAULT_BASE_URL
@@ -286,6 +286,104 @@ function buildMenuItemFormData(input: MenuItemCreateInput) {
   }
 
   return formData;
+}
+
+function buildProductFormData(input: Partial<MenuItemCreateInput> & { stock_quantity?: number | string; category_id?: number | string; in_stock?: boolean }) {
+  const formData = new FormData();
+  if (input.name !== undefined) formData.append("name", String(input.name));
+  if (input.description !== undefined) formData.append("description", String(input.description));
+  if (input.price !== undefined) formData.append("price", String(input.price));
+  if (input.stock_quantity !== undefined) formData.append("stock_quantity", String(input.stock_quantity));
+  if (input.category_id !== undefined) formData.append("category_id", String(input.category_id));
+  if (input.in_stock !== undefined) formData.append("in_stock", input.in_stock ? "1" : "0");
+  if ((input as any).imageFile) {
+    formData.append("image", (input as any).imageFile as File);
+  }
+  return formData;
+}
+
+export async function createProduct(token: string, input: { name: string; description?: string; price: number; stock_quantity?: number; category_id?: number | null; in_stock?: boolean; imageFile?: File | null }) {
+  const res = await fetch(`${BASE_URL}/products`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildProductFormData(input as any),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to create product"));
+  return data as any;
+}
+
+export async function updateProduct(token: string, id: number, input: Partial<{ name: string; description?: string; price?: number; stock_quantity?: number; category_id?: number | null; in_stock?: boolean; imageFile?: File | null }>) {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: buildProductFormData(input as any),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(toErrorMessage(data, "Failed to update product"));
+  return data as any;
+}
+
+export async function deleteProduct(token: string, id: number) {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(toErrorMessage(data, "Failed to delete product"));
+  }
+}
+
+export async function getProducts(params?: { businessId?: number | string }) {
+  const search = new URLSearchParams();
+  if (params?.businessId !== undefined && params.businessId !== null) {
+    search.set("business_id", String(params.businessId));
+  }
+
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return requestJson<any[]>(`${BASE_URL}/products${suffix}`);
+}
+
+export interface PublicProductRecord {
+  id: number;
+  business_id: number;
+  name: string;
+  description: string | null;
+  price: number | string;
+  stock_quantity: number;
+  category_id: number | null;
+  category_name: string | null;
+  in_stock: boolean;
+  image_url: string | null;
+  created_at: string;
+  business_name: string;
+  location: string | null;
+  is_verified: boolean;
+}
+
+export async function getPublicProducts(params?: { businessId?: number | string }) {
+  const search = new URLSearchParams();
+  if (params?.businessId !== undefined && params.businessId !== null) {
+    search.set("business_id", String(params.businessId));
+  }
+
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return requestJson<PublicProductRecord[]>(`${BASE_URL}/products/public${suffix}`);
+}
+
+export async function getPublicProduct(id: number | string) {
+  if (!id) throw new Error("Invalid product id");
+  return requestJson<PublicProductRecord>(`${BASE_URL}/products/public/${id}`);
 }
 
 function buildBusinessPhotosFormData(input: BusinessPhotoUploadInput) {
@@ -834,6 +932,33 @@ export async function deleteShopType(token: string, id: number) {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+// ── Shops ─────────────────────────────────────────────────────
+export interface ShopRecord {
+  id: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  image: string | null;
+  created_at?: string;
+  products?: Array<{
+    id: number;
+    name: string;
+    price: number | string;
+    description: string | null;
+    image_url: string | null;
+    stock_quantity: number;
+    in_stock: boolean;
+  }>;
+}
+
+export async function getShops() {
+  return requestJson<ShopRecord[]>(`${BASE_URL}/shops`);
+}
+
+export async function getShop(id: number) {
+  return requestJson<ShopRecord>(`${BASE_URL}/shops/${id}`);
 }
 
 // ── Table Config ──────────────────────────────────────────────
