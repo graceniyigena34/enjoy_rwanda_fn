@@ -25,6 +25,7 @@ import {
   getRestaurantTypes,
   getShopTypes,
   getVendorBookings,
+  importMenuSheet,
   updateBookingStatus,
   updateManager,
   updateMenuItem,
@@ -34,6 +35,7 @@ import {
   type BusinessManagerRecord,
   type BookingRecord,
   type BusinessProfileRecord,
+  type MenuBulkImportResult,
   type RestaurantTypeRecord,
   type ShopTypeRecord,
   type SupportingDocumentInput,
@@ -525,6 +527,15 @@ export default function VendorDashboard() {
     "success" | "error"
   >("success");
   const [menuFormSubmitting, setMenuFormSubmitting] = useState(false);
+  const [importFormOpen, setImportFormOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importMessageType, setImportMessageType] = useState<
+    "success" | "error"
+  >("success");
+  const [importResults, setImportResults] =
+    useState<MenuBulkImportResult | null>(null);
   const [businessId, setBusinessId] = useState<number | null>(null);
   const [businessFiles, setBusinessFiles] = useState<{
     businessProfileImage: File | null;
@@ -1755,6 +1766,96 @@ export default function VendorDashboard() {
           ? error.message
           : "Failed to update availability.",
       );
+    }
+  };
+
+  const handleOpenImportForm = () => {
+    setImportMessage(null);
+    setImportMessageType("success");
+    setImportFile(null);
+    setImportResults(null);
+    setImportFormOpen(true);
+  };
+
+  const handleImportFileChange = (file: File) => {
+    const validExtensions = [".csv", ".xls", ".xlsx"];
+    const fileName = file.name.toLowerCase();
+    const isValidType = validExtensions.some((ext) => fileName.endsWith(ext));
+
+    if (!isValidType) {
+      setImportMessageType("error");
+      setImportMessage("Please upload a CSV, XLS, or XLSX file.");
+      return;
+    }
+
+    setImportFile(file);
+    setImportMessage(null);
+    setImportResults(null);
+  };
+
+  const handleImportSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    if (!token) {
+      setImportMessageType("error");
+      setImportMessage("You must be signed in to import menu items.");
+      return;
+    }
+
+    if (!importFile) {
+      setImportMessageType("error");
+      setImportMessage("Please select a file to import.");
+      return;
+    }
+
+    setImportSubmitting(true);
+    try {
+      const result = await importMenuSheet(token, importFile);
+
+      // Update catalog items with imported items
+      const newItems = result.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        subtitle:
+          item.description?.slice(0, 44) ||
+          (isShop ? "Catalog item" : "New menu item"),
+        price: Number(item.price),
+        status: Number(item.available) === 1 ? "Active" : "Unavailable",
+        metric: isShop ? "Imported product" : "Imported item",
+        accent: "bg-emerald-600",
+        imageUrl: resolveMediaUrl(item.imageurl),
+        category: item.category ?? null,
+      }));
+
+      setCatalogItems((current) => [...newItems, ...current]);
+      newItems.forEach((item) => {
+        setAvailabilityByItemId((current) => ({
+          ...current,
+          [item.id]: item.status === "Active",
+        }));
+      });
+
+      setImportMessageType("success");
+      setImportMessage(
+        `Successfully imported ${result.importedCount} ${isShop ? "products" : "menu items"}!`,
+      );
+      setImportResults(result);
+      setImportFile(null);
+
+      // Close form after 3 seconds
+      setTimeout(() => {
+        setImportFormOpen(false);
+        setImportMessage(null);
+      }, 3000);
+    } catch (error) {
+      setImportMessageType("error");
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to import items.";
+      setImportMessage(errorMessage);
+    } finally {
+      setImportSubmitting(false);
     }
   };
 
@@ -3628,6 +3729,16 @@ export default function VendorDashboard() {
                       <span className="text-lg leading-none">+</span>
                       {isShop ? "Add New Product" : "Add New Item"}
                     </button>
+                    {!isShop && (
+                      <button
+                        type="button"
+                        onClick={handleOpenImportForm}
+                        className="inline-flex items-center gap-2 rounded-full border-2 border-[#1a1a2e] px-5 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-[#1a1a2e]/5 dark:border-white dark:text-white dark:hover:bg-white/5"
+                      >
+                        <span className="text-lg leading-none">↓</span>
+                        Import from Sheet
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -3817,6 +3928,80 @@ export default function VendorDashboard() {
                   >
                     {menuFormMessage}
                   </div>
+                )}
+
+                {importFormOpen && !isShop && (
+                  <SectionCard
+                    title="Import from Sheet"
+                    subtitle={`Upload a CSV, XLS, or XLSX file to import multiple ${catalogLabel.toLowerCase()} at once.`}
+                  >
+                    <form onSubmit={handleImportSubmit} className="grid gap-6">
+                      <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                          Upload file
+                        </span>
+                        <input
+                          type="file"
+                          accept=".csv,.xls,.xlsx"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) handleImportFileChange(file);
+                          }}
+                          className="block w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700 focus:border-[#1a1a2e] focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Supported formats: CSV, XLS, XLSX. Required columns:
+                          name, price
+                        </p>
+                      </label>
+
+                      {importFile && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/30 dark:bg-emerald-900/10">
+                          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                            📄 {importFile.name}
+                          </p>
+                          <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                            {(importFile.size / 1024).toFixed(2)} KB
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          disabled={importSubmitting || !importFile}
+                          className="flex-1 rounded-full bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {importSubmitting ? "Importing..." : "Import Items"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImportFormOpen(false);
+                            setImportFile(null);
+                            setImportMessage(null);
+                          }}
+                          className="rounded-full border-2 border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/20"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+
+                    {importMessage && (
+                      <div
+                        className={`mt-4 rounded-2xl px-4 py-3 text-sm font-medium ${importMessageType === "success" ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}
+                      >
+                        {importMessage}
+                        {importResults && importMessageType === "success" && (
+                          <p className="mt-2 text-xs opacity-80">
+                            {importResults.importedCount} items imported
+                            successfully
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </SectionCard>
                 )}
 
                 {editingMenuItemId !== null && (
