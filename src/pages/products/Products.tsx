@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
 const sampleProducts = Array.from({ length: 12 }).map((_, i) => ({
@@ -25,7 +25,35 @@ const sampleProducts = Array.from({ length: 12 }).map((_, i) => ({
   location: ["Kigali", "Musanze", "Huye"][i % 3],
 }));
 
+const sampleShops = [
+  "Kigali Fresh Store",
+  "Rwanda Natural Products",
+  "Inzuki Designs",
+  "Tech Rwanda",
+  "Urban Steps Rwanda",
+  "Huye Crafts",
+  "Musanze Market",
+];
+
 export default function Products() {
+  const [shopQuery, setShopQuery] = useState("");
+  const [showMoreShops, setShowMoreShops] = useState(false);
+  const [selectedShops, setSelectedShops] = useState<string[]>([]);
+
+  const filteredShops = sampleShops.filter((s) =>
+    s.toLowerCase().includes(shopQuery.toLowerCase()),
+  );
+
+  const visibleShops = showMoreShops
+    ? filteredShops
+    : filteredShops.slice(0, 4);
+
+  function toggleShop(name: string) {
+    setSelectedShops((prev) =>
+      prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name],
+    );
+  }
+
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="flex gap-8">
@@ -83,6 +111,40 @@ export default function Products() {
                   </label>
                 </li>
               </ul>
+            </div>
+
+            <div className="mt-4">
+              <h4 className="font-semibold">Shops</h4>
+              <div className="mt-2">
+                <input
+                  value={shopQuery}
+                  onChange={(e) => setShopQuery(e.target.value)}
+                  placeholder="Search shop..."
+                  className="w-full rounded border px-3 py-2 text-sm"
+                />
+              </div>
+              <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                {visibleShops.map((s) => (
+                  <li key={s}>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedShops.includes(s)}
+                        onChange={() => toggleShop(s)}
+                      />
+                      {s}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {filteredShops.length > 4 && (
+                <button
+                  onClick={() => setShowMoreShops((v) => !v)}
+                  className="mt-2 text-sm text-green-600"
+                >
+                  {showMoreShops ? "Show less" : "View more"}
+                </button>
+              )}
             </div>
           </div>
         </aside>
