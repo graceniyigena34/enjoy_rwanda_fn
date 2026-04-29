@@ -39,6 +39,7 @@ export default function Products() {
   const [shopQuery, setShopQuery] = useState("");
   const [showMoreShops, setShowMoreShops] = useState(false);
   const [selectedShops, setSelectedShops] = useState<string[]>([]);
+  const [sort, setSort] = useState<string>("newest");
 
   const filteredShops = sampleShops.filter((s) =>
     s.toLowerCase().includes(shopQuery.toLowerCase()),
@@ -56,8 +57,8 @@ export default function Products() {
 
   return (
     <div className="container mx-auto py-10 px-4">
-      <div className="flex gap-8">
-        <aside className="w-72 hidden lg:block">
+      <div className="flex gap-8 items-start">
+        <aside className="w-72 hidden lg:block lg:sticky lg:top-24 self-start">
           <div className="rounded-lg border bg-white p-4 shadow-sm">
             <h3 className="mb-3 text-lg font-bold">Filters</h3>
             <div className="mb-4">
@@ -152,7 +153,22 @@ export default function Products() {
         <section className="flex-1">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-2xl font-bold">All Products</h2>
-            <div className="text-sm text-slate-600">1,248 products found</div>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-slate-600">1,248 products found</div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-slate-600">Sort by:</label>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="rounded border px-2 py-1 text-sm"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
