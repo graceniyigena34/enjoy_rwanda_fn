@@ -519,6 +519,18 @@ export default function RestaurantDetail() {
     return orderList.map((item) => ({ menuId: item.id }));
   };
 
+  const normalizeMenuMainCategory = (
+    row: Pick<MenuItemRecord, "maincategory" | "mainCategory">,
+  ): "Food" | "Drinks" => {
+    const rawMainCategory = String(
+      row.maincategory ?? row.mainCategory ?? "foods",
+    )
+      .trim()
+      .toLowerCase();
+
+    return rawMainCategory === "drinks" ? "Drinks" : "Food";
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) {
@@ -622,24 +634,6 @@ export default function RestaurantDetail() {
     setShowMenuPrompt(true);
   };
 
-  const inferMenuCategory = (row: MenuItemRecord): "Food" | "Drinks" => {
-    const text = `${row.name} ${row.description ?? ""}`.toLowerCase();
-    const drinkKeywords = [
-      "juice",
-      "water",
-      "soda",
-      "beer",
-      "wine",
-      "tea",
-      "coffee",
-      "cocktail",
-      "smoothie",
-    ];
-    return drinkKeywords.some((keyword) => text.includes(keyword))
-      ? "Drinks"
-      : "Food";
-  };
-
   useEffect(() => {
     if (!Number.isFinite(businessId) || businessId <= 0) {
       setMenuItems([]);
@@ -659,7 +653,7 @@ export default function RestaurantDetail() {
             name: row.name,
             price: Number(row.price),
             description: row.description?.trim() || "No description available.",
-            category: inferMenuCategory(row),
+            category: normalizeMenuMainCategory(row),
             image: row.imageurl || undefined,
           })),
         );
