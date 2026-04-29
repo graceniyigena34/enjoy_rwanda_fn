@@ -3726,7 +3726,19 @@ export default function VendorDashboard() {
                       onClick={handleOpenMenuForm}
                       className="inline-flex items-center gap-2 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1a1a2e]"
                     >
-                      <span className="text-lg leading-none">+</span>
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
                       {isShop ? "Add New Product" : "Add New Item"}
                     </button>
                     {!isShop && (
@@ -3735,7 +3747,19 @@ export default function VendorDashboard() {
                         onClick={handleOpenImportForm}
                         className="inline-flex items-center gap-2 rounded-full border-2 border-[#1a1a2e] px-5 py-3 text-sm font-semibold text-[#1a1a2e] transition hover:bg-[#1a1a2e]/5 dark:border-white dark:text-white dark:hover:bg-white/5"
                       >
-                        <span className="text-lg leading-none">↓</span>
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                          />
+                        </svg>
                         Import from Sheet
                       </button>
                     )}
@@ -3957,12 +3981,29 @@ export default function VendorDashboard() {
 
                       {importFile && (
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/30 dark:bg-emerald-900/10">
-                          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-                            📄 {importFile.name}
-                          </p>
-                          <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                            {(importFile.size / 1024).toFixed(2)} KB
-                          </p>
+                          <div className="flex items-start gap-2">
+                            <svg
+                              className="h-5 w-5 flex-shrink-0 text-emerald-600 dark:text-emerald-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                            <div>
+                              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                                {importFile.name}
+                              </p>
+                              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                                {(importFile.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
 
