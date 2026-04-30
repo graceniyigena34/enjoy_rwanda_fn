@@ -55,9 +55,9 @@ export default function Navbar() {
         {[
           ["Home", "/"],
           ["About Us", "/about"],
-          ["Local Restaurants", "/restaurants"],
+          ["Restaurants", "/restaurants"],
           ["Explore Products", "/Products"],
-          ["Local Shops", "/shops"],
+          ["Shops", "/shops"],
         ].map(([label, path]) => (
           <li key={label}>
             <Link

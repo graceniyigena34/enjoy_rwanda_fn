@@ -89,6 +89,7 @@ type BusinessInfo = {
   businessProfileImage?: StoredUpload;
   rdbCertificate?: StoredUpload;
   description: string;
+  tagline: string;
 };
 
 type ProfileInfo = {
@@ -206,6 +207,7 @@ const createBlankSeed = (businessType: BusinessType): DashboardSeed => ({
     managerName: "",
     managerEmail: "",
     description: "",
+    tagline: "",
   },
   catalogItems: [],
   bookings: [],
@@ -1053,6 +1055,7 @@ export default function VendorDashboard() {
         managerName: record.manager_name || "",
         managerEmail: record.manager_email || "",
         description: record.business_description || seed.business.description,
+        tagline: record.tagline || seed.business.tagline,
         businessProfileImage: record.business_profile_image
           ? {
               name: getFileNameFromUrl(record.business_profile_image),
@@ -2168,6 +2171,7 @@ export default function VendorDashboard() {
         openingDays: business.openingDays,
         managerName: business.managerName.trim(),
         managerEmail: business.managerEmail.trim(),
+        tagline: business.tagline.trim(),
         businessProfileImageFile: businessFiles.businessProfileImage,
         rdbCertificateFile: businessFiles.rdbCertificate,
         additionalDocuments: [],
@@ -2274,6 +2278,7 @@ export default function VendorDashboard() {
         openingDays: business.openingDays,
         managerName: business.managerName.trim(),
         managerEmail: business.managerEmail.trim(),
+        tagline: business.tagline.trim(),
         businessProfileImageFile: businessFiles.businessProfileImage,
         rdbCertificateFile: businessFiles.rdbCertificate,
         additionalDocuments: supportingDocuments.map(
@@ -2676,6 +2681,24 @@ export default function VendorDashboard() {
                         }
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
+                      <span>Tagline (short catchphrase)</span>
+                      <input
+                        value={business.tagline}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            tagline: event.target.value,
+                          }))
+                        }
+                        placeholder="e.g., Authentic flavors from Rwanda, Highest quality handcrafted products"
+                        maxLength={120}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {business.tagline.length}/120 characters
+                      </p>
                     </label>
 
                     <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300 sm:col-span-2">
@@ -5527,6 +5550,30 @@ export default function VendorDashboard() {
                         rows={4}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
                       />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
+                      <span className="block text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Tagline (short catchphrase)
+                      </span>
+                      <input
+                        value={business.tagline}
+                        onChange={(event) =>
+                          setBusiness((current) => ({
+                            ...current,
+                            tagline: event.target.value,
+                          }))
+                        }
+                        placeholder={
+                          isShop
+                            ? "e.g., Highest quality handcrafted products"
+                            : "e.g., Authentic flavors from Rwanda"
+                        }
+                        maxLength={120}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#1a1a2e] dark:border-white/10 dark:bg-white/5"
+                      />
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {business.tagline.length}/120 characters
+                      </p>
                     </label>
                   </div>
 

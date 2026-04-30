@@ -36,6 +36,7 @@ export interface BusinessProfileRecord {
   manager_email: string | null;
   business_profile_image: string | null;
   rdb_certificate: string | null;
+  tagline?: string | null;
   supporting_documents?: BusinessDocumentRecord[];
   business_photos?: BusinessPhotoRecord[];
   is_verified?: boolean | null;
@@ -86,6 +87,7 @@ export type BusinessProfileFormInput = {
   openingDays: string[];
   managerName: string;
   managerEmail: string;
+  tagline?: string;
   businessProfileImageFile?: File | null;
   rdbCertificateFile?: File | null;
   additionalDocuments?: SupportingDocumentInput[];
@@ -113,6 +115,9 @@ export interface MenuItemRecord {
   price: number;
   available: number;
   category?: string | null;
+  subcategory?: string | null;
+  maincategory?: string | null;
+  mainCategory?: string | null;
   imageurl: string | null;
 }
 
@@ -236,6 +241,7 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
   formData.append("location", input.location);
   formData.append("business_phone", input.businessPhone);
   formData.append("business_email", input.businessEmail);
+  formData.append("business_website_url", input.businessWebsiteUrl ?? "");
   formData.append("opening_hours", input.openingHours);
   formData.append("closing_hours", input.closingHours ?? "");
   formData.append("weekend_opening_hours", input.weekendOpeningHours ?? "");
@@ -243,6 +249,7 @@ function buildBusinessProfileFormData(input: BusinessProfileFormInput) {
   formData.append("opening_days", JSON.stringify(input.openingDays));
   formData.append("manager_name", input.managerName);
   formData.append("manager_email", input.managerEmail);
+  formData.append("tagline", input.tagline ?? "");
 
   if (input.businessProfileImageFile) {
     formData.append("business_profile_image", input.businessProfileImageFile);

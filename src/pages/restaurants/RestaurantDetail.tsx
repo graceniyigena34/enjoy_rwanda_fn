@@ -26,6 +26,7 @@ type MenuItem = {
   price: number;
   description: string;
   category: string;
+  itemCategory: string;
   image?: string;
 };
 
@@ -34,6 +35,7 @@ type BusinessDetailRecord = {
   name: string;
   description: string | null;
   location: string | null;
+  tagline: string | null;
   weekdayHours: string;
   weekendHours: string;
   workingDays: string[];
@@ -125,6 +127,7 @@ function toBusinessDetail(
     name: record.business_name,
     description: record.business_description,
     location: record.location,
+    tagline: record.tagline ?? null,
     weekdayHours,
     weekendHours:
       weekendHours === "Not set" ? "Same as weekdays" : weekendHours,
@@ -519,6 +522,28 @@ export default function RestaurantDetail() {
     return orderList.map((item) => ({ menuId: item.id }));
   };
 
+  const normalizeMenuMainCategory = (
+    row: Pick<MenuItemRecord, "maincategory" | "mainCategory">,
+  ): "Food" | "Drinks" => {
+    const rawMainCategory = String(
+      row.maincategory ?? row.mainCategory ?? "foods",
+    )
+      .trim()
+      .toLowerCase();
+
+    return rawMainCategory === "drinks" ? "Drinks" : "Food";
+  };
+
+  const normalizeItemCategoryLabel = (
+    row: Pick<MenuItemRecord, "subcategory" | "category">,
+    fallbackMainCategory: "Food" | "Drinks",
+  ) => {
+    const label = String(row.subcategory ?? row.category ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+    return label || fallbackMainCategory;
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurant) {
@@ -622,24 +647,6 @@ export default function RestaurantDetail() {
     setShowMenuPrompt(true);
   };
 
-  const inferMenuCategory = (row: MenuItemRecord): "Food" | "Drinks" => {
-    const text = `${row.name} ${row.description ?? ""}`.toLowerCase();
-    const drinkKeywords = [
-      "juice",
-      "water",
-      "soda",
-      "beer",
-      "wine",
-      "tea",
-      "coffee",
-      "cocktail",
-      "smoothie",
-    ];
-    return drinkKeywords.some((keyword) => text.includes(keyword))
-      ? "Drinks"
-      : "Food";
-  };
-
   useEffect(() => {
     if (!Number.isFinite(businessId) || businessId <= 0) {
       setMenuItems([]);
@@ -654,14 +661,20 @@ export default function RestaurantDetail() {
         const rows = await getMenuItems({ businessId });
         if (!active) return;
         setMenuItems(
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            price: Number(row.price),
-            description: row.description?.trim() || "No description available.",
-            category: inferMenuCategory(row),
-            image: row.imageurl || undefined,
-          })),
+          rows.map((row) => {
+            const mainCategory = normalizeMenuMainCategory(row);
+
+            return {
+              id: row.id,
+              name: row.name,
+              price: Number(row.price),
+              description:
+                row.description?.trim() || "No description available.",
+              category: mainCategory,
+              itemCategory: normalizeItemCategoryLabel(row, mainCategory),
+              image: row.imageurl || undefined,
+            };
+          }),
         );
       } catch (error) {
         if (!active) return;
@@ -687,15 +700,48 @@ export default function RestaurantDetail() {
     setOrderList((prev) => prev.filter((_, i) => i !== index));
   const orderTotal = orderList.reduce((sum, item) => sum + item.price, 0);
 
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
   const visibleItems = useMemo(
     () =>
       menuItems.filter(
         (i) =>
-          i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          i.description.toLowerCase().includes(searchTerm.toLowerCase()),
+          i.name.toLowerCase().includes(normalizedSearchTerm) ||
+          i.description.toLowerCase().includes(normalizedSearchTerm) ||
+          i.itemCategory.toLowerCase().includes(normalizedSearchTerm),
       ),
-    [menuItems, searchTerm],
+    [menuItems, normalizedSearchTerm],
   );
+
+  const categorySearchGroups = useMemo(() => {
+    if (!normalizedSearchTerm)
+      return [] as Array<{ title: string; items: MenuItem[] }>;
+
+    const grouped = new Map<string, { title: string; items: MenuItem[] }>();
+
+    for (const item of visibleItems) {
+      if (!item.itemCategory.toLowerCase().includes(normalizedSearchTerm)) {
+        continue;
+      }
+      if (menuCategory !== "All" && item.category !== menuCategory) {
+        continue;
+      }
+
+      const key = item.itemCategory.toLowerCase();
+      const group = grouped.get(key);
+      if (!group) {
+        grouped.set(key, { title: item.itemCategory, items: [item] });
+        continue;
+      }
+      group.items.push(item);
+    }
+
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+  }, [visibleItems, normalizedSearchTerm, menuCategory]);
+
+  const isCategorySearchView = categorySearchGroups.length > 0;
 
   const foodItems = visibleItems.filter((i) => i.category === "Food");
   const drinkItems = visibleItems.filter((i) => i.category === "Drinks");
@@ -775,6 +821,12 @@ export default function RestaurantDetail() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <style>
+        {`@keyframes businessTaglineMarquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }`}
+      </style>
       {/* Hero */}
       <div className="flex flex-col md:flex-row gap-6 mb-6">
         {heroPhotos.length > 0 ? (
@@ -817,9 +869,41 @@ export default function RestaurantDetail() {
           </div>
         )}
         <div className="flex flex-col justify-center md:w-[56%]">
-          <span className="text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium w-fit mb-2">
-            {restaurant.cuisine || "Business"}
-          </span>
+          <div className="mb-3 flex items-center gap-3 sm:gap-4">
+            <div className="h-24 w-40 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm dark:bg-slate-800/80 sm:h-28 sm:w-48 lg:h-32 lg:w-56">
+              {restaurant.image ? (
+                <img
+                  src={resolveMediaUrl(restaurant.image)}
+                  alt={`${restaurant.name} logo`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-2xl font-black text-slate-500 dark:text-slate-300">
+                  {restaurant.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="relative hidden h-8 flex-1 overflow-hidden sm:block">
+              <span
+                className="absolute left-0 top-1/2 -translate-y-1/2 whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300"
+                style={{
+                  animation: "businessTaglineMarquee 14s linear infinite",
+                }}
+              >
+                {restaurant.tagline?.trim() ||
+                  "Welcome to an unforgettable dining experience."}
+              </span>
+            </div>
+          </div>
+          <div className="mb-2 flex w-full items-center gap-2 sm:gap-3">
+            <span className="shrink-0 text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium">
+              {restaurant.cuisine || "Business"}
+            </span>
+          </div>
+          <p className="mb-2 block text-xs font-semibold text-slate-600 sm:hidden dark:text-slate-300">
+            {restaurant.tagline?.trim() ||
+              "Welcome to an unforgettable dining experience."}
+          </p>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">
             {restaurant.name}
           </h1>
@@ -1595,45 +1679,81 @@ export default function RestaurantDetail() {
               </p>
             )}
 
-            {(menuCategory === "All" || menuCategory === "Food") &&
-              foodItems.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <svg
-                      className="h-5 w-5 text-orange-500"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 12h18M7 4v8m10-8v8"
-                      />
-                    </svg>
-                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
-                      Food
-                    </h3>
-                    <div className="flex-1 border-t border-dashed border-gray-200" />
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {foodItems.length} items
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {foodItems.map((item) => (
-                      <MenuCard
-                        key={item.id}
-                        item={item}
-                        priceColor="text-orange-700"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+            {isCategorySearchView
+              ? categorySearchGroups.map((group, index) => {
+                  const groupPriceColor =
+                    group.items[0]?.category === "Drinks"
+                      ? "text-blue-700"
+                      : "text-orange-700";
 
-            {(menuCategory === "All" || menuCategory === "Drinks") &&
+                  return (
+                    <div
+                      key={`${group.title}-${index}`}
+                      className={
+                        index < categorySearchGroups.length - 1 ? "mb-8" : ""
+                      }
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
+                          {group.title}
+                        </h3>
+                        <div className="flex-1 border-t border-dashed border-gray-200" />
+                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {group.items.length} items
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        {group.items.map((item) => (
+                          <MenuCard
+                            key={item.id}
+                            item={item}
+                            priceColor={groupPriceColor}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              : (menuCategory === "All" || menuCategory === "Food") &&
+                foodItems.length > 0 && (
+                  <div className="mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <svg
+                        className="h-5 w-5 text-orange-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 12h18M7 4v8m10-8v8"
+                        />
+                      </svg>
+                      <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
+                        Food
+                      </h3>
+                      <div className="flex-1 border-t border-dashed border-gray-200" />
+                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {foodItems.length} items
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {foodItems.map((item) => (
+                        <MenuCard
+                          key={item.id}
+                          item={item}
+                          priceColor="text-orange-700"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+            {!isCategorySearchView &&
+              (menuCategory === "All" || menuCategory === "Drinks") &&
               drinkItems.length > 0 && (
                 <div>
                   <div className="flex items-center gap-3 mb-4">
