@@ -869,26 +869,23 @@ export default function RestaurantDetail() {
           </div>
         )}
         <div className="flex flex-col justify-center md:w-[56%]">
-          <div className="mb-3 h-20 w-28 overflow-hidden rounded-xl bg-slate-100 shadow-sm dark:bg-slate-800/80 sm:h-24 sm:w-36">
-            {restaurant.image ? (
-              <img
-                src={resolveMediaUrl(restaurant.image)}
-                alt={`${restaurant.name} logo`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xl font-black text-slate-500 dark:text-slate-300">
-                {restaurant.name.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div className="mb-2 flex w-full items-center gap-2 sm:gap-3">
-            <span className="shrink-0 text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium">
-              {restaurant.cuisine || "Business"}
-            </span>
-            <div className="relative hidden h-6 flex-1 overflow-hidden sm:block">
+          <div className="mb-3 flex items-center gap-3 sm:gap-4">
+            <div className="h-24 w-40 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm dark:bg-slate-800/80 sm:h-28 sm:w-48 lg:h-32 lg:w-56">
+              {restaurant.image ? (
+                <img
+                  src={resolveMediaUrl(restaurant.image)}
+                  alt={`${restaurant.name} logo`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-2xl font-black text-slate-500 dark:text-slate-300">
+                  {restaurant.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="relative hidden h-8 flex-1 overflow-hidden sm:block">
               <span
-                className="absolute left-0 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs font-semibold text-slate-600 dark:text-slate-300"
+                className="absolute left-0 top-1/2 -translate-y-1/2 whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300"
                 style={{
                   animation: "businessTaglineMarquee 14s linear infinite",
                 }}
@@ -897,6 +894,11 @@ export default function RestaurantDetail() {
                   "Welcome to an unforgettable dining experience."}
               </span>
             </div>
+          </div>
+          <div className="mb-2 flex w-full items-center gap-2 sm:gap-3">
+            <span className="shrink-0 text-xs bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-medium">
+              {restaurant.cuisine || "Business"}
+            </span>
           </div>
           <p className="mb-2 block text-xs font-semibold text-slate-600 sm:hidden dark:text-slate-300">
             {restaurant.tagline?.trim() ||
